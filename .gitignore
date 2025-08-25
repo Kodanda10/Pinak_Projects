@@ -1,0 +1,15 @@
+# Python virtual environment
+venv/
+
+# Python cache
+__pycache__/
+*.pyc
+*.egg-info/
+
+# Local data and reports (we don't want to version this)
+memory-baseline/data/
+security-baseline/data/
+security-baseline/reports/
+
+# OS-specific files
+.DS_Store
