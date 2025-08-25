@@ -1,6 +1,2 @@
-sentence-transformers
-faiss-cpu
-redis
-numpy
-requests
-pip-audit
+# httpx is a modern, async-capable HTTP client
+httpx
