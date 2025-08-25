@@ -9,7 +9,9 @@ class SecurityAuditor:
 
     def __init__(self, config_path='../config/security_config.json'):
         base_dir = os.path.dirname(os.path.abspath(__file__))
-        config_path = os.path.join(base_dir, '..', '..', '..", 'config', 'security_config.json')
+        # If absolute path provided, use it; else resolve relative to package
+        if not os.path.isabs(config_path):
+            config_path = os.path.join(base_dir, '..', '..', '..', 'config', 'security_config.json')
         self.config = self._load_config(config_path)
 
     def _load_config(self, path):
@@ -35,24 +37,33 @@ class SecurityAuditor:
             print(f"Error: File not found at {file_path}")
         return findings
 
-    def check_dependencies(self, requirements_path):
-        """Checks a requirements.txt file using the pip-audit tool."""
+    def check_dependencies(self, requirements_path=None):
+        """Checks dependencies using pip-audit. If a requirements path is provided and exists, scan that file; otherwise scan current environment."""
         findings = []
         try:
-            command = ["pip-audit", "-r", requirements_path, "--format", "json"]
+            if requirements_path and os.path.exists(requirements_path):
+                command = ["pip-audit", "-r", requirements_path, "--format", "json"]
+            else:
+                command = ["pip-audit", "--format", "json"]
+
             result = subprocess.run(command, capture_output=True, text=True, check=False)
-            
-            if result.returncode != 0 and result.stdout:
-                vulnerabilities = json.loads(result.stdout)
-                for vuln in vulnerabilities:
-                    findings.append({
-                        'type': 'dependency',
-                        'dependency': vuln['name'],
-                        'version': vuln['version'],
-                        'vuln_id': vuln['id'],
-                        'description': vuln['description'],
-                        'fix_versions': vuln.get('fix_versions', [])
-                    })
+            if result.stdout:
+                data = json.loads(result.stdout)
+                # pip-audit JSON is a list of packages with potential vulns
+                if isinstance(data, list):
+                    for pkg in data:
+                        name = pkg.get('name')
+                        version = pkg.get('version')
+                        for vuln in pkg.get('vulns', []) or []:
+                            findings.append({
+                                'type': 'dependency',
+                                'dependency': name,
+                                'version': version,
+                                'vuln_id': vuln.get('id'),
+                                'aliases': vuln.get('aliases', []),
+                                'description': vuln.get('description'),
+                                'fix_versions': vuln.get('fix_versions', []),
+                            })
             return findings
         except (FileNotFoundError, json.JSONDecodeError) as e:
             print(f"Error running pip-audit: {e}")

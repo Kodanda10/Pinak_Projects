@@ -1,0 +1,7 @@
+{
+  "embedding_model": "all-MiniLM-L6-v2",
+  "vector_db_path": "data/memory.faiss",
+  "metadata_db_path": "data/metadata.json",
+  "changelog_path": "data/changelog.log",
+  "redis_host": "redis"
+}

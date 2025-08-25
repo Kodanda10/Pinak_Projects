@@ -1,0 +1,22 @@
+{
+  "0": {
+    "id": "7c4e32cd-7951-47c8-8c7c-1345657308e2",
+    "content": "test memory",
+    "tags": [
+      "test"
+    ],
+    "created_at": "2025-08-25T16:05:52.391439"
+  },
+  "1": {
+    "id": "d70200cc-9106-4987-ab48-fb397f8ab266",
+    "content": "The sky is blue on a clear day.",
+    "tags": [],
+    "created_at": "2025-08-25T16:05:52.414693"
+  },
+  "2": {
+    "id": "8e635099-aa2b-419a-b1fa-6b864668bc65",
+    "content": "Containerization is a key FANG practice.",
+    "tags": [],
+    "created_at": "2025-08-25T16:56:55.960472"
+  }
+}

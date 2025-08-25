@@ -1,0 +1,12 @@
+fastapi
+uvicorn[standard]
+
+# Original dependencies
+sentence-transformers
+faiss-cpu
+redis
+numpy
+
+# TDD Dependencies
+pytest
+httpx
