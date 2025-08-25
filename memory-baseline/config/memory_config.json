@@ -1,0 +1,9 @@
+{
+  "setup_type": "local",
+  "embedding_model": "all-MiniLM-L6-v2",
+  "vector_db_path": "data/vayu_memory.faiss",
+  "metadata_db_path": "data/vayu_metadata.json",
+  "changelog_path": "data/changelog.log",
+  "redis_host": "localhost",
+  "redis_port": 6379
+}

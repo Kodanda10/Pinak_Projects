@@ -1,0 +1,17 @@
+{
+  "layers": {
+    "working": {"ttl_seconds": 300},
+    "session": {"ttl_seconds": 7200, "distill_on_close": true},
+    "event": {"ttl_seconds": 2592000},
+    "changelog": {"ttl_seconds": 0},
+    "semantic": {"ttl_seconds": 0, "review_days": 90},
+    "procedural": {"ttl_seconds": 0},
+    "rag": {"ttl_seconds": 600}
+  },
+  "retrieval": {
+    "fusion": "RRF",
+    "weights": {"dense":0.45,"sparse":0.25,"rerank":0.20,"recency":0.10},
+    "multi_vector": true
+  },
+  "safety": {"human_loop_threshold": 0.8}
+}
