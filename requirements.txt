@@ -3,3 +3,4 @@ faiss-cpu
 redis
 numpy
 requests
+pip-audit
