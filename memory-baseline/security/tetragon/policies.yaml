@@ -1,9 +1,0 @@
-apiVersion: cilium.io/v1alpha1
-kind: TracingPolicy
-metadata:
-  name: exec-in-container
-spec:
-  kprobes:
-  - call: execve
-    syscall: true
-    message: "execve in container: ${args}"

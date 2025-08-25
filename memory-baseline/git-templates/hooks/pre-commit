@@ -1,5 +1,0 @@
-#!/bin/sh
-if [ ! -f blueprint.md ]; then
-  echo "Error: Missing blueprint.md – run auto-seed.sh"
-  exit 1
-fi
