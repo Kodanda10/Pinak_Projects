@@ -28,9 +28,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Gitleaks (secrets)
         run: |
-          curl -sSfL https://raw.githubusercontent.com/gitleaks/gitleaks/master/install.sh | bash -s -- -b /usr/local/bin
-          gitleaks version
-          gitleaks detect --no-banner --redact --source . --report-path gitleaks.json
+          docker run --rm -v "$PWD":/repo zricethezav/gitleaks:latest detect --no-banner --redact --source /repo --report-path /repo/gitleaks.json
       - name: Semgrep (SAST)
         uses: returntocorp/semgrep-action@v1
         continue-on-error: true
