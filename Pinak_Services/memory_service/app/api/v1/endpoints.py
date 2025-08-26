@@ -98,7 +98,16 @@ def list_rag(request: Request = None, project_id: Optional[str] = Header(default
     return svc_list_rag(memory_service, tenant, project_id)
 
 @router.get("/search_v2", status_code=status.HTTP_200_OK)
-def search_v2(query: str, layers: str = 'semantic', request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project")) -> Dict[str, Any]:
+def search_v2(query: str, layers: str = 'semantic', limit: int = 20, offset: int = 0, request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project")) -> Dict[str, Any]:
     tenant = resolve_tenant(request, {}) if request is not None else "default"
     layer_list = [s.strip() for s in layers.split(',') if s.strip()]
-    return svc_search_v2(memory_service, tenant, project_id, query, layer_list)
+    res = svc_search_v2(memory_service, tenant, project_id, query, layer_list)
+    for k,v in list(res.items()):
+        if isinstance(v, list):
+            res[k] = v[offset:offset+limit]
+    return res
+
+@router.post("/changelog/redact", status_code=status.HTTP_200_OK)
+def redact(memory_id: str = Body(..., embed=True), reason: str = Body('redact', embed=True), request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project")) -> Dict[str, Any]:
+    tenant = resolve_tenant(request, {}) if request is not None else "default"
+    return memory_service.redact_memory(memory_id, tenant, project_id, reason)

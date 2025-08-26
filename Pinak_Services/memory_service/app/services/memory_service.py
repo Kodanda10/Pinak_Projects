@@ -78,6 +78,16 @@ class MemoryService:
         with open(self.config['metadata_db_path'], 'w') as f:
             json.dump(self.metadata, f, indent=2)
 
+    # Storage helpers per tenant/project
+    def _store_dir(self, tenant: str, project_id: object) -> str:
+        base = os.path.join(os.path.dirname(self.config['vector_db_path']), 'tenants', tenant or 'default', str(project_id or 'default'))
+        os.makedirs(base, exist_ok=True)
+        return base
+
+    def _append_jsonl(self, path: str, obj: dict) -> None:
+        with open(path, 'a', encoding='utf-8') as fh:
+            fh.write(json.dumps(obj) + "\n")
+
     def add_memory(self, memory_data: MemoryCreate) -> MemoryRead:
         memory_id = str(uuid.uuid4())
         embedding = self.model.encode([memory_data.content])[0].astype('float32')
@@ -91,6 +101,16 @@ class MemoryService:
         }
         self.metadata[str(self.index.ntotal - 1)] = new_meta
         self._save_vector_db()
+        # Append changelog (append-only)
+        try:
+            tenant = 'default'
+            proj = 'default'
+            base = self._store_dir(tenant, proj)
+            self._append_jsonl(os.path.join(base, 'changelog.jsonl'), {
+                'change_type':'create','target_id': new_meta['id'], 'ts': datetime.datetime.utcnow().isoformat(), 'reason': 'add_memory'
+            })
+        except Exception:
+            pass
         return MemoryRead.model_validate(new_meta)
 
     def search_memory(self, query: str, k: int = 5) -> List[MemorySearchResult]:
@@ -102,9 +122,25 @@ class MemoryService:
             index_pos = str(indices[0][i])
             if index_pos in self.metadata:
                 meta = self.metadata[index_pos]
+                if meta.get('redacted'):
+                    continue
                 result_with_dist = {**meta, "distance": float(distances[0][i])}
                 results.append(MemorySearchResult.model_validate(result_with_dist))
         return results
+
+    # Redact/tombstone support
+    def redact_memory(self, memory_id: str, tenant: str, project_id: object, reason: str = 'redact') -> dict:
+        # Mark redacted in metadata
+        for k, v in self.metadata.items():
+            if isinstance(v, dict) and v.get('id') == memory_id:
+                v['redacted'] = True
+                self._save_vector_db()
+                break
+        base = self._store_dir(tenant, project_id)
+        self._append_jsonl(os.path.join(base, 'changelog.jsonl'), {
+            'change_type':'redact','target_id': memory_id, 'ts': datetime.datetime.utcnow().isoformat(), 'reason': reason
+        })
+        return {'status':'ok','redacted_id': memory_id}
 
     # Singleton instance
 memory_service = MemoryService()
