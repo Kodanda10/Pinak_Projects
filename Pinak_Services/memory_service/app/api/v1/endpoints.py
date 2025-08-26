@@ -21,8 +21,14 @@ def add_memory(memory: MemoryCreate):
     return memory_service.add_memory(memory)
 
 @router.get("/search", response_model=List[MemorySearchResult])
-def search_memory(query: str, k: int = 5):
+def search_memory(query: str, k: int = 5, request=None):
     """API endpoint to search for relevant memories."""
+    # Switch tenant context for search
+    try:
+        tenant = resolve_tenant(request, {}) if request is not None else "default"
+        memory_service.switch_tenant(tenant)
+    except Exception:
+        pass
     return memory_service.search_memory(query=query, k=k)
 
 
