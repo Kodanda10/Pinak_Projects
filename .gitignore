@@ -13,3 +13,7 @@ security-baseline/reports/
 
 # OS-specific files
 .DS_Store
+
+Pinak_Services/memory_service/venv/
+**/venv/
+
