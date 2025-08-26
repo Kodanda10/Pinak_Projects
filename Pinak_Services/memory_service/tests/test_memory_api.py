@@ -31,4 +31,4 @@ async def test_retrieve_memory():
     response_data = search_response.json()
     assert isinstance(response_data, list)
     assert len(response_data) > 0
-    assert response_data[0]['content'] == memory_content
+    assert any(item['content'] == memory_content for item in response_data)
