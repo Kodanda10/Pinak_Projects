@@ -6,9 +6,12 @@ import datetime
 import numpy as np
 import faiss
 import redis
-from sentence_transformers import SentenceTransformer
-from app.core.schemas import MemoryCreate, MemoryRead, MemorySearchResult
 from typing import List
+try:
+    from sentence_transformers import SentenceTransformer
+except Exception:
+    SentenceTransformer = None  # optional in tests
+from app.core.schemas import MemoryCreate, MemoryRead, MemorySearchResult
 
 class MemoryService:
     """The core logic for the memory service, handling vector search and storage."""
@@ -17,7 +20,19 @@ class MemoryService:
         print("Initializing MemoryService with real logic...")
         self.config = self._load_config(config_path)
         self._ensure_data_directory()
-        self.model = SentenceTransformer(self.config['embedding_model'])
+        # Allow mock embeddings in test/CI to avoid heavy model downloads
+        if os.getenv('USE_MOCK_EMBEDDINGS', '').lower() in {'1','true','yes','on'}:
+            class _MockModel:
+                def get_sentence_embedding_dimension(self):
+                    return 384
+
+                def encode(self, texts):
+                    return np.zeros((len(texts), 384), dtype='float32')
+            self.model = _MockModel()
+        else:
+            if SentenceTransformer is None:
+                raise RuntimeError('sentence-transformers not available and USE_MOCK_EMBEDDINGS is false')
+            self.model = SentenceTransformer(self.config['embedding_model'])
         self.index, self.metadata = self._load_or_create_vector_db()
         self.redis_client = self._connect_to_redis()
         print("MemoryService initialized.")

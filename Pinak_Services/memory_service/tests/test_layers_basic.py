@@ -1,5 +1,6 @@
 
-import pytest
+import os, pytest
+os.environ.setdefault('USE_MOCK_EMBEDDINGS','true')
 from httpx import AsyncClient, ASGITransport
 from asgi_lifespan import LifespanManager
 from app.main import app

@@ -1,0 +1,28 @@
+name: CI Tests
+
+on:
+  pull_request:
+  push:
+    branches: [ main, feature/** ]
+
+jobs:
+  vendor-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install deps (Pinak_Services memory_service)
+        working-directory: Pinak_Services/memory_service
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio httpx asgi-lifespan
+      - name: Run tests (mock embeddings)
+        working-directory: Pinak_Services/memory_service
+        env:
+          USE_MOCK_EMBEDDINGS: 'true'
+        run: |
+          pytest -q
