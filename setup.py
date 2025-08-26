@@ -26,6 +26,7 @@ setup(
     entry_points={
         'console_scripts': [
             'pinak-memory=pinak.memory.cli:main',
+            'pinak-bridge=pinak.bridge.cli:main',
         ]
     },
 

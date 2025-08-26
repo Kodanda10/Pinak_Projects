@@ -92,6 +92,64 @@ The CLI uses the same auth model as the SDK: pass `--url`/`--token` flags or rel
 
 ---
 
+## Pinak Bridge (Project Identity)
+
+Pinak Bridge is a local-first, enterprise-grade project identity and token framework. It securely binds each project to a unique identity and token, auto-discoverable by the SDK/CLI — no more per-shell exports.
+
+Features:
+- Project-scoped identity: `.pinak/pinak.json` with `project_id` (prefixed `Pnk-...` UUIDv7-style), `tenant`, `memory_url`.
+- Secure token storage: OS keyring primary; `.pinak/token` fallback (0600, git-ignored).
+- Auto-discovery: SDK/CLI walks up directories to find `.pinak/`.
+- Zero-trust headers: Adds `X-Pinak-Project` + fingerprint on every request.
+- Backward compatible: `PINAK_*` env vars override.
+
+Bridge Quickstart:
+
+```
+# 1) Initialize a project identity and store a dev token
+pinak-bridge init \
+  --name "MyApp" \
+  --url http://localhost:8011 \
+  --tenant default \
+  --token $(./scripts/dev_token.sh)
+
+# 2) Verify setup (gitignore + fingerprint)
+pinak-bridge verify
+
+# 3) Use the CLI without flags (bridge auto-discovery)
+pinak-memory health
+pinak-memory add "hello" --tags demo
+pinak-memory search "hello"
+```
+
+ASCII flow (identity + headers):
+
+```
+[Project Root]
+   ├── .pinak/
+   │    ├── pinak.json  (project_id: Pnk-..., memory_url, tenant, fingerprint)
+   │    └── token       (fallback if keyring unavailable)
+   └── src/...
+
+pinak.memory.MemoryManager
+   └── loads context -> token from keyring -> injects headers:
+       - Authorization: Bearer <token>
+       - X-Pinak-Project: Pnk-...
+       - X-Pinak-Fingerprint: sha256(...)
+       → HTTP to Memory API
+```
+
+Make targets:
+
+```
+make bridge-init name="MyApp" url=http://localhost:8011 tenant=default token=$(./scripts/dev_token.sh)
+make bridge-status
+make bridge-verify
+make dev-token sub=analyst secret=change-me-in-prod set=1
+```
+
+---
+
 ## Roadmap: Phase 3 - The Pinak-Env Service
 
 To address the complexity of managing development environments (running servers, terminals, etc.), the next major capability is the **Pinak-Env** service.

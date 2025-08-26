@@ -7,7 +7,9 @@ dist/
 build/
 .pytest_cache/
 
+# Pinak project context (do not commit project IDs/tokens)
+.pinak/
+
 # Note: service data files are tracked; ignore patterns below do not untrack existing files.
 # Pinak_Services/memory_service/data/*.faiss
 # Pinak_Services/memory_service/data/metadata.json
-

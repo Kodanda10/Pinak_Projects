@@ -1,6 +1,7 @@
 import os
 import httpx
 from typing import List, Dict, Any, Optional, Mapping
+from ..bridge.context import ProjectContext
 
 class MemoryManager:
     """An API client for the Pinak Memory Service."""
@@ -9,6 +10,7 @@ class MemoryManager:
         self,
         service_base_url: Optional[str] = None,
         token: Optional[str] = None,
+        project_id: Optional[str] = None,
         default_headers: Optional[Mapping[str, str]] = None,
         timeout: float = 10.0,
         client: Optional[httpx.Client] = None,
@@ -20,15 +22,33 @@ class MemoryManager:
         - default_headers: extra headers to send for all requests
         - timeout: request timeout seconds
         """
-        base = service_base_url or os.getenv("PINAK_MEMORY_URL", "http://localhost:8001")
+        # Resolve context from environment or project configuration
+        ctx = None
+        base = service_base_url or os.getenv("PINAK_MEMORY_URL")
+        tok = token or os.getenv("PINAK_TOKEN")
+        proj = project_id or os.getenv("PINAK_PROJECT_ID")
+        if not base or not tok or not proj:
+            ctx = ProjectContext.find()
+            if ctx:
+                if not base:
+                    base = ctx.memory_url
+                if not tok:
+                    tok = ctx.get_token()
+                if not proj:
+                    proj = ctx.project_id
+        base = base or "http://localhost:8001"
         self.base_url = f"{base}/api/v1/memory"
         self._timeout = timeout
         headers = {}
-        if token:
-            headers["Authorization"] = f"Bearer {token}"
-        env_token = os.getenv("PINAK_TOKEN")
-        if env_token and "Authorization" not in headers:
-            headers["Authorization"] = f"Bearer {env_token}"
+        # Authorization header
+        if tok:
+            headers["Authorization"] = f"Bearer {tok}"
+        # Project scoping header (if available)
+        if proj:
+            headers["X-Pinak-Project"] = proj
+        # Identity fingerprint header (if available)
+        if ctx and getattr(ctx, "identity_fingerprint", None):
+            headers["X-Pinak-Fingerprint"] = ctx.identity_fingerprint  # used for tamper detection
         if default_headers:
             headers.update(default_headers)
         if client is not None:

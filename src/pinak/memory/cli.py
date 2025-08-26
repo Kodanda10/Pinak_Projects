@@ -5,6 +5,7 @@ import argparse
 from typing import List
 
 from .manager import MemoryManager
+from ..bridge.context import ProjectContext
 
 
 def main(argv: List[str] | None = None) -> int:
@@ -12,11 +13,19 @@ def main(argv: List[str] | None = None) -> int:
     parser.add_argument("command", choices=["add", "search", "health"], help="Command to run")
     parser.add_argument("value", nargs="?", help="Content (for add) or query (for search)")
     parser.add_argument("--tags", nargs="*", default=[], help="Tags for add")
-    parser.add_argument("--url", default=os.getenv("PINAK_MEMORY_URL", "http://localhost:8001"), help="Memory API base URL")
+    parser.add_argument("--url", default=os.getenv("PINAK_MEMORY_URL"), help="Memory API base URL")
     parser.add_argument("--token", default=os.getenv("PINAK_TOKEN"), help="Bearer token")
+    parser.add_argument("--project", default=os.getenv("PINAK_PROJECT_ID"), help="Project ID (from .pinak/pinak.json)")
     args = parser.parse_args(argv)
+    # Auto-discover from project context if not provided
+    if not args.url or not args.token or not args.project:
+        ctx = ProjectContext.find()
+        if ctx:
+            args.url = args.url or ctx.memory_url
+            args.token = args.token or ctx.get_token()
+            args.project = args.project or ctx.project_id
 
-    mm = MemoryManager(service_base_url=args.url, token=args.token)
+    mm = MemoryManager(service_base_url=args.url, token=args.token, project_id=args.project)
 
     if args.command == "health":
         ok = mm.health()
@@ -43,4 +52,3 @@ def main(argv: List[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
