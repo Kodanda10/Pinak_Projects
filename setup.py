@@ -7,7 +7,7 @@ with open('requirements.txt', 'r') as f:
 
 setup(
     name="Pinak_Project",
-    version="1.0.0", # Major version bump for new stable structure
+    version="1.1.0",
     author="Abhijita/Gemini",
     description="A unified local-first package for AI memory and security auditing.",
     
@@ -21,7 +21,15 @@ setup(
     install_requires=install_requires,
 
     # Make config files available to the package
-    include_package_data=False, # In a real scenario we'd handle this better
+    include_package_data=False,
+
+    entry_points={
+        'console_scripts': [
+            'pinak=pinak.cli:main',
+            'pinak-bridge=pinak.bridge.cli:main',
+            'pinak-memory=pinak.memory.cli:main',
+        ]
+    },
 
     classifiers=[
         "Programming Language :: Python :: 3",

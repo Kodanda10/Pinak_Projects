@@ -1,0 +1,168 @@
+from __future__ import annotations
+
+import argparse
+import os
+import shutil
+import subprocess
+import sys
+import time
+from pathlib import Path
+from typing import Optional
+
+
+def have(cmd: str) -> bool:
+    return shutil.which(cmd) is not None
+
+
+def run(cmd: list[str], cwd: Optional[Path] = None, check: bool = True) -> subprocess.CompletedProcess:
+    return subprocess.run(cmd, cwd=str(cwd) if cwd else None, check=check)
+
+
+def ensure_docker(timeout: int = 120) -> bool:
+    if not have("docker"):
+        print("Docker not installed.")
+        return False
+    try:
+        run(["docker", "info"], check=True)
+        return True
+    except Exception:
+        if sys.platform == "darwin" and have("open") and Path("/Applications/Docker.app").exists():
+            print("Starting Docker Desktop…")
+            run(["open","-a","Docker"], check=False)
+            waited = 0
+            while waited < timeout:
+                try:
+                    run(["docker","info"], check=True)
+                    print("Docker engine is ready.")
+                    return True
+                except Exception:
+                    time.sleep(3); waited += 3
+        print("Docker engine unavailable.")
+        return False
+
+
+def try_up_services() -> bool:
+    base = Path.home()/"production"
+    if (base/"docker-compose.yml").exists():
+        try:
+            run(["docker","network","create","prodnet"], check=False)
+            run(["docker","compose","-f", str(base/"infra"/"docker-compose.yml"), "up","-d"], check=True)
+            run(["docker","compose","-f", str(base/"docker-compose.yml"), "up","-d","--build"], check=True)
+            return True
+        except Exception as e:
+            print(f"Compose up (production) failed: {e}")
+    local = Path.cwd()/"Pinak_Services"
+    if (local/"docker-compose.yml").exists():
+        try:
+            run(["docker","network","create","prodnet"], check=False)
+            run(["docker","compose","-f", str(local/"docker-compose.yml"), "up","-d","--build"], check=True)
+            return True
+        except Exception as e:
+            print(f"Compose up (local) failed: {e}")
+    # Minimal fallback using published images
+    import tempfile
+    tmp = Path(tempfile.gettempdir())/"pinak-quickstart-compose.yml"
+    tmp.write_text('''
+services:
+  memory-api:
+    image: ${PINAK_IMAGE_REGISTRY:-pinak}/pinak-memory-api:latest
+    ports: ["8011:8000"]
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REQUIRE_PROJECT_HEADER=true
+  redis:
+    image: redis:alpine
+''')
+    try:
+        run(["docker","compose","-f", str(tmp), "pull"], check=False)
+        run(["docker","compose","-f", str(tmp), "up","-d"], check=True)
+        print("Started minimal Pinak services from images (if available).")
+        return True
+    except Exception as e:
+        print(f"Minimal compose failed: {e}")
+        return False
+
+
+def cmd_quickstart(args: argparse.Namespace) -> int:
+    if not ensure_docker():
+        return 2
+    # Bridge init best-effort
+    try:
+        from .bridge.cli import main as bridge_main
+        bargs = ["init","--name", args.name or Path.cwd().name, "--url", args.url or os.getenv("PINAK_MEMORY_URL","http://localhost:8011")]
+        if args.tenant: bargs += ["--tenant", args.tenant]
+        if args.token: bargs += ["--token", args.token]
+        bridge_main(bargs)
+    except SystemExit:
+        pass
+    except Exception as e:
+        print(f"Bridge init skipped: {e}")
+    if not try_up_services():
+        return 2
+    # Health check retries
+    try:
+        from .memory.cli import main as mem_main
+        ok = False
+        for _ in range(10):
+            rc = mem_main(["health"])
+            if rc == 0: ok = True; break
+            time.sleep(1)
+        print("Memory API healthy." if ok else "Memory API unhealthy; verify compose up and ports.")
+    except Exception as e:
+        print(f"Health check skipped: {e}")
+    return 0
+
+
+def cmd_doctor(args: argparse.Namespace) -> int:
+    ok = True
+    # baseline
+    for p in [Path("security/SECURITY-IRONCLAD.md"), Path("security/policy/ci-security-gates.yaml"), Path("SECURITY.md"), Path(".well-known/security.txt")]:
+        if not p.exists():
+            ok = False; print(f"Missing security file: {p}")
+    if not (Path.cwd()/".pinak"/"pinak.json").exists():
+        ok = False; print("No project identity found (.pinak/pinak.json)")
+    if not have("docker"):
+        ok = False; print("Docker not installed")
+    print("Doctor:", "OK" if ok else "Issues found")
+    return 0 if ok else 2
+
+
+def cmd_bridge(args: argparse.Namespace) -> int:
+    from .bridge.cli import main as bridge_main
+    return bridge_main(args.rest)
+
+
+def cmd_memory(args: argparse.Namespace) -> int:
+    from .memory.cli import main as mem_main
+    return mem_main(args.rest)
+
+
+def cmd_token(args: argparse.Namespace) -> int:
+    script = Path(__file__).parent.parent.parent/"scripts"/"dev_token.sh"
+    if not script.exists():
+        print("dev_token.sh not found")
+        return 2
+    cmd = ["bash", str(script)]
+    if args.sub: cmd += ["--sub", args.sub]
+    if args.secret: cmd += ["--secret", args.secret]
+    if args.set: cmd += ["--set"]
+    run(cmd, check=False)
+    return 0
+
+
+def main(argv: Optional[list[str]] = None) -> int:
+    p = argparse.ArgumentParser(prog="pinak", description="Pinak CLI — one-click local-first setup")
+    sub = p.add_subparsers(dest="cmd", required=True)
+    q = sub.add_parser("quickstart"); q.add_argument("--name", default=None); q.add_argument("--url", default=None); q.add_argument("--tenant", default=None); q.add_argument("--token", default=None); q.set_defaults(func=cmd_quickstart)
+    d = sub.add_parser("doctor"); d.set_defaults(func=cmd_doctor)
+    b = sub.add_parser("bridge"); b.add_argument("rest", nargs=argparse.REMAINDER); b.set_defaults(func=cmd_bridge)
+    m = sub.add_parser("memory"); m.add_argument("rest", nargs=argparse.REMAINDER); m.set_defaults(func=cmd_memory)
+    t = sub.add_parser("token"); t.add_argument("--sub", default="analyst"); t.add_argument("--secret", default=os.getenv("SECRET_KEY","change-me-in-prod")); t.add_argument("--set", action="store_true"); t.set_defaults(func=cmd_token)
+    args = p.parse_args(argv)
+    return args.func(args)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+

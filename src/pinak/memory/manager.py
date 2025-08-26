@@ -1,13 +1,46 @@
+import os
 import httpx
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional, Mapping
+try:
+    from ..bridge.context import ProjectContext
+except Exception:
+    ProjectContext = None  # type: ignore
 
 class MemoryManager:
     """An API client for the Pinak Memory Service."""
 
-    def __init__(self, service_base_url: str = "http://localhost:8001"):
-        """Initializes the client with the URL of the running memory service."""
-        self.base_url = f"{service_base_url}/api/v1/memory"
-        self.client = httpx.Client()
+    def __init__(
+        self,
+        service_base_url: Optional[str] = None,
+        token: Optional[str] = None,
+        project_id: Optional[str] = None,
+        default_headers: Optional[Mapping[str, str]] = None,
+        timeout: float = 10.0,
+        client: Optional[httpx.Client] = None,
+    ):
+        base = service_base_url or os.getenv("PINAK_MEMORY_URL")
+        tok = token or os.getenv("PINAK_TOKEN")
+        proj = project_id or os.getenv("PINAK_PROJECT_ID")
+        ctx = None
+        if ProjectContext and (not base or not tok or not proj):
+            ctx = ProjectContext.find()
+            if ctx:
+                base = base or ctx.memory_url
+                tok = tok or ctx.get_token()
+                proj = proj or ctx.project_id
+        base = base or "http://localhost:8001"
+        self.base_url = f"{base}/api/v1/memory"
+        self._timeout = timeout
+        headers: Dict[str,str] = {}
+        if tok:
+            headers["Authorization"] = f"Bearer {tok}"
+        if proj:
+            headers["X-Pinak-Project"] = proj
+        if ctx and getattr(ctx, "identity_fingerprint", None):
+            headers["X-Pinak-Fingerprint"] = ctx.identity_fingerprint
+        if default_headers:
+            headers.update(default_headers)
+        self.client = client or httpx.Client(headers=headers, timeout=self._timeout)
         print(f"MemoryManager client initialized. Pointing to service at: {self.base_url}")
 
     def add_memory(self, content: str, tags: list = None) -> Dict[str, Any]:
@@ -16,7 +49,7 @@ class MemoryManager:
             response = self.client.post(
                 f"{self.base_url}/add",
                 json={"content": content, "tags": tags or []},
-                timeout=10.0
+                timeout=self._timeout
             )
             response.raise_for_status() # Raise an exception for bad status codes (4xx or 5xx)
             return response.json()
@@ -30,10 +63,16 @@ class MemoryManager:
             response = self.client.get(
                 f"{self.base_url}/search",
                 params={"query": query, "k": k},
-                timeout=10.0
+                timeout=self._timeout
             )
             response.raise_for_status()
             return response.json()
         except httpx.RequestError as e:
             print(f"An error occurred while requesting {e.request.url!r}.")
             return []
+    def health(self) -> bool:
+        try:
+            r = self.client.get(self.base_url.rsplit('/api/v1/memory', 1)[0] + "/", timeout=self._timeout)
+            return r.status_code == 200
+        except Exception:
+            return False
