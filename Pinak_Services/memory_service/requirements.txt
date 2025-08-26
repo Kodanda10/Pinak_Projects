@@ -6,6 +6,7 @@ sentence-transformers
 faiss-cpu
 redis
 numpy
+python-jose[cryptography]
 
 # TDD Dependencies
 pytest

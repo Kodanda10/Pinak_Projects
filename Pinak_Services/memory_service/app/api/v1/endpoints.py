@@ -1,4 +1,6 @@
 from fastapi import APIRouter, status, Header, HTTPException, Request, Body
+import os
+from jose import jwt, JWTError
 from app.core.schemas import MemoryCreate, MemoryRead, MemorySearchResult
 from app.services.memory_service import (
     memory_service,
@@ -36,6 +38,16 @@ def search_memory(query: str, k: int = 5):
 
 @router.post("/episodic/add", status_code=status.HTTP_201_CREATED)
 def add_episodic(payload: Dict[str, Any] = Body(...), request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project")) -> Dict[str, Any]:
+    # Optional: if Authorization present, enforce pid == header
+    try:
+        auth = request.headers.get('Authorization') if request else None
+        if auth and auth.lower().startswith('bearer '):
+            token = auth.split(' ',1)[1]
+            claims = jwt.decode(token, os.getenv('SECRET_KEY','change-me-in-prod'), algorithms=["HS256"])
+            if project_id and claims.get('pid') and claims['pid'] != project_id:
+                raise HTTPException(status_code=403, detail="Project header/token mismatch")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
     tenant = resolve_tenant(request, payload) if request is not None else payload.get("tenant", "default")
     rec = svc_add_episodic(memory_service, tenant, project_id, payload.get('content') or '', int(payload.get('salience') or 0))
     return rec
@@ -47,6 +59,15 @@ def list_episodic(request: Request = None, project_id: Optional[str] = Header(de
 
 @router.post("/procedural/add", status_code=status.HTTP_201_CREATED)
 def add_procedural(payload: Dict[str, Any] = Body(...), request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project")) -> Dict[str, Any]:
+    try:
+        auth = request.headers.get('Authorization') if request else None
+        if auth and auth.lower().startswith('bearer '):
+            token = auth.split(' ',1)[1]
+            claims = jwt.decode(token, os.getenv('SECRET_KEY','change-me-in-prod'), algorithms=["HS256"])
+            if project_id and claims.get('pid') and claims['pid'] != project_id:
+                raise HTTPException(status_code=403, detail="Project header/token mismatch")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
     tenant = resolve_tenant(request, payload) if request is not None else payload.get("tenant", "default")
     rec = svc_add_procedural(memory_service, tenant, project_id, payload.get('skill_id') or 'skill', payload.get('steps') or [])
     return rec
@@ -58,6 +79,15 @@ def list_procedural(request: Request = None, project_id: Optional[str] = Header(
 
 @router.post("/rag/add", status_code=status.HTTP_201_CREATED)
 def add_rag(payload: Dict[str, Any] = Body(...), request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project")) -> Dict[str, Any]:
+    try:
+        auth = request.headers.get('Authorization') if request else None
+        if auth and auth.lower().startswith('bearer '):
+            token = auth.split(' ',1)[1]
+            claims = jwt.decode(token, os.getenv('SECRET_KEY','change-me-in-prod'), algorithms=["HS256"])
+            if project_id and claims.get('pid') and claims['pid'] != project_id:
+                raise HTTPException(status_code=403, detail="Project header/token mismatch")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid token")
     tenant = resolve_tenant(request, payload) if request is not None else payload.get("tenant", "default")
     rec = svc_add_rag(memory_service, tenant, project_id, payload.get('query') or '', payload.get('external_source'))
     return rec
