@@ -29,9 +29,7 @@ jobs:
       - name: Gitleaks (secrets)
         uses: gitleaks/gitleaks-action@v2
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          args: detect --no-banner --redact --source .
+          GITHUB_TOKEN: ${{ github.token }}
       - name: Semgrep (SAST)
         uses: returntocorp/semgrep-action@v1
         continue-on-error: true
