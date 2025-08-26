@@ -75,6 +75,23 @@ You can now import the clients and use them in your code.
 
 ---
 
+## CLI Quickstart
+
+Install the package (editable or from PyPI when published), then use the CLI:
+
+```
+export PINAK_MEMORY_URL=http://localhost:8001
+export PINAK_TOKEN=<your-jwt-if-required>
+
+pinak-memory health         # -> {"ok": true/false}
+pinak-memory add "hello" --tags demo
+pinak-memory search "hello"
+```
+
+The CLI uses the same auth model as the SDK: pass `--url`/`--token` flags or rely on `PINAK_MEMORY_URL`/`PINAK_TOKEN`.
+
+---
+
 ## Roadmap: Phase 3 - The Pinak-Env Service
 
 To address the complexity of managing development environments (running servers, terminals, etc.), the next major capability is the **Pinak-Env** service.
