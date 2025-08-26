@@ -1,2 +1,3 @@
 # httpx is a modern, async-capable HTTP client
 httpx
+pydantic>=2
