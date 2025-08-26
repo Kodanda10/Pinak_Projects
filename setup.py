@@ -7,7 +7,7 @@ with open('requirements.txt', 'r') as f:
 
 setup(
     name="Pinak_Project",
-    version="1.0.0", # Major version bump for new stable structure
+    version="1.0.1", # Patch: auth support & tests
     author="Abhijita/Gemini",
     description="A unified local-first package for AI memory and security auditing.",
     
