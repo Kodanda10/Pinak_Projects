@@ -27,6 +27,7 @@ setup(
         'console_scripts': [
             'pinak-memory=pinak.memory.cli:main',
             'pinak-bridge=pinak.bridge.cli:main',
+            'pinak=pinak.cli:main',
         ]
     },
 
