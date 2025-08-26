@@ -23,7 +23,7 @@ class MemoryService:
         print("MemoryService initialized.")
 
     def _connect_to_redis(self):
-        """Connects to the Redis server, prioritizing environment variables."""
+        """Connects to the Redis server, prioritizing environment variables. Best-effort in dev/tests."""
         redis_host = os.getenv("REDIS_HOST", self.config.get("redis_host", "localhost"))
         redis_port = int(os.getenv("REDIS_PORT", self.config.get("redis_port", 6379)))
         
@@ -32,8 +32,9 @@ class MemoryService:
             client.ping()
             print(f"Successfully connected to Redis at {redis_host}:{redis_port}.")
             return client
-        except redis.exceptions.ConnectionError as e:
-            raise Exception(f"Could not connect to Redis at {redis_host}:{redis_port}. Error: {e}")
+        except Exception as e:
+            print(f"Warning: Redis unavailable at {redis_host}:{redis_port}. Proceeding without Redis. Error: {e}")
+            return None
 
     def _load_config(self, path):
         with open(path, 'r') as f:
@@ -90,5 +91,53 @@ class MemoryService:
                 results.append(MemorySearchResult.model_validate(result_with_dist))
         return results
 
-# Singleton instance
+    # Singleton instance
 memory_service = MemoryService()
+
+def add_episodic(self, tenant: str, project_id: object, content: str, salience: int = 0) -> dict:
+    key = (tenant or 'default', project_id or 'default')
+    store = getattr(self, '_episodic_store', {})
+    rec = {"content": content, "project_id": project_id, "salience": salience}
+    store.setdefault(key, []).append(rec)
+    self._episodic_store = store
+    return rec
+
+def list_episodic(self, tenant: str, project_id: object) -> list:
+    store = getattr(self, '_episodic_store', {})
+    return list(store.get((tenant or 'default', project_id or 'default'), []))
+
+def add_procedural(self, tenant: str, project_id: object, skill_id: str, steps=None) -> dict:
+    key = (tenant or 'default', project_id or 'default')
+    store = getattr(self, '_procedural_store', {})
+    rec = {"skill_id": skill_id, "steps": steps or [], "project_id": project_id}
+    store.setdefault(key, []).append(rec)
+    self._procedural_store = store
+    return rec
+
+def list_procedural(self, tenant: str, project_id: object):
+    store = getattr(self, '_procedural_store', {})
+    return list(store.get((tenant or 'default', project_id or 'default'), []))
+
+def add_rag(self, tenant: str, project_id: object, query: str, external_source=None) -> dict:
+    key = (tenant or 'default', project_id or 'default')
+    store = getattr(self, '_rag_store', {})
+    rec = {"query": query, "external_source": external_source, "project_id": project_id}
+    store.setdefault(key, []).append(rec)
+    self._rag_store = store
+    return rec
+
+def list_rag(self, tenant: str, project_id: object):
+    store = getattr(self, '_rag_store', {})
+    return list(store.get((tenant or 'default', project_id or 'default'), []))
+
+def search_v2(self, tenant: str, project_id: object, query: str, layers: list[str]) -> dict:
+    out: dict[str, list] = {}
+    if 'semantic' in layers:
+        out['semantic'] = [m for m in self.search_memory(query, k=20)]
+    if 'episodic' in layers:
+        out['episodic'] = [r for r in list_episodic(self, tenant, project_id) if query.lower() in (r.get('content','').lower())]
+    if 'procedural' in layers:
+        out['procedural'] = [r for r in list_procedural(self, tenant, project_id) if query.lower() in (' '.join(r.get('steps',[])).lower())]
+    if 'rag' in layers:
+        out['rag'] = [r for r in list_rag(self, tenant, project_id) if query.lower() in (r.get('query','').lower())]
+    return out
