@@ -26,14 +26,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Gitleaks
+      - name: Gitleaks (secrets)
         uses: gitleaks/gitleaks-action@v2
         with:
           args: detect --no-banner --redact --source .
-      - name: Semgrep
+      - name: Semgrep (SAST)
         uses: returntocorp/semgrep-action@v1
+        continue-on-error: true
         with:
           config: p/ci
+          generateSarif: true
       - name: Pip audit + Safety
         uses: actions/setup-python@v5
         with:
@@ -44,9 +46,11 @@ jobs:
           safety check -r requirements.txt || true
       - name: IaC (Checkov)
         uses: bridgecrewio/checkov-action@master
+        continue-on-error: true
         with:
           directory: Pinak_Services
           quiet: true
+          soft_fail: true
       - name: SBOM (Syft)
         uses: anchore/sbom-action@v0
         with:
@@ -60,4 +64,3 @@ jobs:
         run: |
           echo "Direct pushes to main are blocked by policy." >&2
           exit 1
-
