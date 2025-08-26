@@ -111,3 +111,31 @@ def search_v2(query: str, layers: str = 'semantic', limit: int = 20, offset: int
 def redact(memory_id: str = Body(..., embed=True), reason: str = Body('redact', embed=True), request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project")) -> Dict[str, Any]:
     tenant = resolve_tenant(request, {}) if request is not None else "default"
     return memory_service.redact_memory(memory_id, tenant, project_id, reason)
+
+@router.post("/event", status_code=status.HTTP_201_CREATED)
+def add_event(payload: Dict[str, Any] = Body(...), request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project")) -> Dict[str, Any]:
+    tenant = resolve_tenant(request, payload) if request is not None else payload.get("tenant", "default")
+    base = memory_service._store_dir(tenant, project_id)
+    import datetime, os, json
+    ev = {"ts": datetime.datetime.utcnow().isoformat(), **payload, "project_id": project_id}
+    memory_service._append_jsonl(os.path.join(base, 'events.jsonl'), ev)
+    return {"status":"ok"}
+
+@router.get("/events", status_code=status.HTTP_200_OK)
+def list_events(q: Optional[str] = None, request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project")) -> List[Dict[str, Any]]:
+    import json, os
+    tenant = resolve_tenant(request, {}) if request is not None else "default"
+    base = memory_service._store_dir(tenant, project_id)
+    p = os.path.join(base, 'events.jsonl')
+    out=[]
+    if os.path.exists(p):
+        with open(p,'r',encoding='utf-8') as fh:
+            for line in fh:
+                try:
+                    obj = json.loads(line)
+                    if q and q not in json.dumps(obj):
+                        continue
+                    out.append(obj)
+                except Exception:
+                    pass
+    return out
