@@ -36,6 +36,7 @@ jobs:
         continue-on-error: true
         with:
           config: p/ci
+          generateSarif: true
       - name: Pip audit + Safety
         uses: actions/setup-python@v5
         with:

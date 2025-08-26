@@ -7,7 +7,10 @@ import uuid
 from pathlib import Path
 import json
 from app.services.memory_service import memory_service
-from pinak.ledger.hash_chain import append_entry, verify_chain  # provided by SDK
+from pinak.ledger.hash_chain import append_entry  # provided by SDK
+from app.core.tenancy import resolve_tenant
+from app.core.ttl import ttl_for_layer
+from app.core.openlineage import emit_openlineage
 from typing import List
 
 router = APIRouter()
@@ -24,7 +27,7 @@ def search_memory(query: str, k: int = 5):
 
 
 @router.post("/add_v2", status_code=status.HTTP_201_CREATED)
-def add_memory_v2(payload: Dict[str, Any] = Body(...)) -> Dict[str, Any]:
+def add_memory_v2(payload: Dict[str, Any] = Body(...), request=None) -> Dict[str, Any]:
     """
     Non-breaking v2 endpoint that accepts layered payloads.
     - If payload resembles MemoryCreate, store semantic memory as before.
@@ -34,6 +37,7 @@ def add_memory_v2(payload: Dict[str, Any] = Body(...)) -> Dict[str, Any]:
     # Idempotency via op_id
     op_id = payload.get("op_id") or str(uuid.uuid4())
     layer = payload.get("layer") or "semantic"
+    tenant = resolve_tenant(request, payload) if request is not None else payload.get("tenant", "default")
     content = payload.get("content") or payload.get("text")
     tags = payload.get("tags") or []
 
@@ -43,13 +47,15 @@ def add_memory_v2(payload: Dict[str, Any] = Body(...)) -> Dict[str, Any]:
         stored = memory_service.add_memory(MemoryCreate(content=content, tags=tags))
 
     # Append to hash-chain ledger (per-project/tenant future-ready)
-    ledger_dir = Path("/code/data")
+    ledger_dir = Path(f"/code/data/tenants/{tenant}")
     ledger_dir.mkdir(parents=True, exist_ok=True)
     ledger_file = ledger_dir / "ledger.jsonl"
     entry = {
         "op_id": op_id,
         "layer": layer,
         "ts": datetime.now(timezone.utc).isoformat(),
+        "tenant": tenant,
+        "ttl_seconds": ttl_for_layer(layer),
         "content_ref": getattr(stored, "id", None),
         "payload_meta": {k: v for k, v in payload.items() if k not in {"content", "text"}},
     }
@@ -75,10 +81,20 @@ def add_memory_v2(payload: Dict[str, Any] = Body(...)) -> Dict[str, Any]:
     except Exception:
         h = None
 
+    # Best-effort OpenLineage event
+    emit_openlineage({
+        "job": "memory.write",
+        "dataset": f"mem:{layer}",
+        "tenant": tenant,
+        "run": op_id,
+        "outputs": [getattr(stored, "id", None)],
+    })
+
     return {
         "status": "ok",
         "op_id": op_id,
         "layer": layer,
+        "tenant": tenant,
         "stored_id": getattr(stored, "id", None),
         "ledger_hash": h,
     }
