@@ -44,7 +44,18 @@ def add_memory_v2(payload: Dict[str, Any] = Body(...), request=None) -> Dict[str
     # Store semantic content using existing service when content present
     stored = None
     if content:
+        # Per-tenant isolation for semantic store
+        try:
+            memory_service.switch_tenant(tenant)
+        except Exception:
+            pass
         stored = memory_service.add_memory(MemoryCreate(content=content, tags=tags))
+        # Apply TTL if provided by policy
+        try:
+            ttl = ttl_for_layer(layer)
+            memory_service.set_expiry_by_id(stored.id, ttl)
+        except Exception:
+            pass
 
     # Append to hash-chain ledger (per-project/tenant future-ready)
     ledger_dir = Path(f"/code/data/tenants/{tenant}")

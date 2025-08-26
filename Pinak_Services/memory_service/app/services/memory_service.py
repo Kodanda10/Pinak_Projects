@@ -8,7 +8,7 @@ import faiss
 import redis
 from sentence_transformers import SentenceTransformer
 from app.core.schemas import MemoryCreate, MemoryRead, MemorySearchResult
-from typing import List
+from typing import List, Optional, Tuple, Dict, Any
 
 class MemoryService:
     """The core logic for the memory service, handling vector search and storage."""
@@ -18,6 +18,9 @@ class MemoryService:
         self.config = self._load_config(config_path)
         self._ensure_data_directory()
         self.model = SentenceTransformer(self.config['embedding_model'])
+        # tenant -> (index, metadata)
+        self._tenant_stores: Dict[str, Tuple[Any, Dict[str, Any]]] = {}
+        self._current_tenant: str = "default"
         self.index, self.metadata = self._load_or_create_vector_db()
         self.redis_client = self._connect_to_redis()
         print("MemoryService initialized.")
@@ -44,9 +47,27 @@ class MemoryService:
         if not os.path.exists(data_dir):
             os.makedirs(data_dir)
 
+    def _paths_for_tenant(self, tenant: Optional[str] = None) -> Tuple[str, str]:
+        t = tenant or self._current_tenant
+        base = os.path.dirname(self.config['vector_db_path'])
+        if t == "default":
+            return (self.config['vector_db_path'], self.config['metadata_db_path'])
+        tdir = os.path.join(base, 'tenants', t)
+        os.makedirs(tdir, exist_ok=True)
+        return (os.path.join(tdir, 'memory.faiss'), os.path.join(tdir, 'metadata.json'))
+
+    def switch_tenant(self, tenant: str) -> None:
+        if not tenant:
+            tenant = "default"
+        self._current_tenant = tenant
+        if tenant in self._tenant_stores:
+            self.index, self.metadata = self._tenant_stores[tenant]
+            return
+        self.index, self.metadata = self._load_or_create_vector_db()
+        self._tenant_stores[tenant] = (self.index, self.metadata)
+
     def _load_or_create_vector_db(self):
-        db_path = self.config['vector_db_path']
-        meta_path = self.config['metadata_db_path']
+        db_path, meta_path = self._paths_for_tenant()
         if os.path.exists(db_path) and os.path.exists(meta_path):
             index = faiss.read_index(db_path)
             with open(meta_path, 'r') as f:
@@ -58,8 +79,9 @@ class MemoryService:
         return index, metadata
 
     def _save_vector_db(self):
-        faiss.write_index(self.index, self.config['vector_db_path'])
-        with open(self.config['metadata_db_path'], 'w') as f:
+        db_path, meta_path = self._paths_for_tenant()
+        faiss.write_index(self.index, db_path)
+        with open(meta_path, 'w') as f:
             json.dump(self.metadata, f, indent=2)
 
     def add_memory(self, memory_data: MemoryCreate) -> MemoryRead:
@@ -77,6 +99,19 @@ class MemoryService:
         self._save_vector_db()
         return MemoryRead.model_validate(new_meta)
 
+    def set_expiry_by_id(self, memory_id: str, ttl_seconds: Optional[int]) -> None:
+        if not ttl_seconds or ttl_seconds <= 0:
+            return
+        expires_at = (datetime.datetime.utcnow() + datetime.timedelta(seconds=ttl_seconds)).isoformat()
+        changed = False
+        for k, v in self.metadata.items():
+            if isinstance(v, dict) and v.get("id") == memory_id:
+                v["expires_at"] = expires_at
+                changed = True
+                break
+        if changed:
+            self._save_vector_db()
+
     def search_memory(self, query: str, k: int = 5) -> List[MemorySearchResult]:
         query_embedding = self.model.encode([query])[0].astype('float32')
         distances, indices = self.index.search(np.array([query_embedding]), k)
@@ -86,6 +121,13 @@ class MemoryService:
             index_pos = str(indices[0][i])
             if index_pos in self.metadata:
                 meta = self.metadata[index_pos]
+                exp = meta.get("expires_at")
+                if exp:
+                    try:
+                        if datetime.datetime.fromisoformat(exp) < datetime.datetime.utcnow():
+                            continue
+                    except Exception:
+                        pass
                 result_with_dist = {**meta, "distance": float(distances[0][i])}
                 results.append(MemorySearchResult.model_validate(result_with_dist))
         return results
