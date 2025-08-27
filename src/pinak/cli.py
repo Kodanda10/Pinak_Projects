@@ -137,6 +137,41 @@ def cmd_memory(args: argparse.Namespace) -> int:
     from .memory.cli import main as mem_main
     return mem_main(args.rest)
 
+def cmd_governance(args: argparse.Namespace) -> int:
+    # Simple passthrough using httpx to the gateway
+    import httpx, json
+    base = os.getenv('PINAK_GOV_URL', 'http://localhost:8880')
+    # Bridge context auto-discovery
+    pid = os.getenv('PINAK_PROJECT_ID')
+    tok = os.getenv('PINAK_TOKEN')
+    try:
+        from .bridge.context import ProjectContext
+        if not pid or not tok:
+            ctx = ProjectContext.find()
+            if ctx:
+                pid = pid or ctx.project_id
+                tok = tok or ctx.get_token()
+    except Exception:
+        pass
+    headers = {}
+    if pid:
+        headers['X-Pinak-Project'] = pid
+    if tok:
+        headers['Authorization'] = f'Bearer {tok}'
+    rest = args.rest or []
+    method = rest[0].upper() if rest else 'GET'
+    path = rest[1] if len(rest)>1 else 'health'
+    body = None
+    if len(rest)>2:
+        try:
+            body = json.loads(' '.join(rest[2:]))
+        except Exception:
+            print('Body must be JSON if provided', file=sys.stderr)
+            return 2
+    with httpx.Client(timeout=15.0) as client:
+        r = client.request(method, f"{base}/{path.lstrip('/')}", headers=headers, json=body)
+        print(r.text)
+        return 0 if r.status_code < 400 else 1
 
 def cmd_token(args: argparse.Namespace) -> int:
     script = Path(__file__).parent.parent.parent/"scripts"/"dev_token.sh"
@@ -158,6 +193,9 @@ def main(argv: Optional[list[str]] = None) -> int:
     d = sub.add_parser("doctor"); d.set_defaults(func=cmd_doctor)
     b = sub.add_parser("bridge"); b.add_argument("rest", nargs=argparse.REMAINDER); b.set_defaults(func=cmd_bridge)
     m = sub.add_parser("memory"); m.add_argument("rest", nargs=argparse.REMAINDER); m.set_defaults(func=cmd_memory)
+    g = sub.add_parser("governance", help="Governance passthrough to Pinak_Gov gateway")
+    g.add_argument("rest", nargs=argparse.REMAINDER)
+    g.set_defaults(func=cmd_governance)
     t = sub.add_parser("token"); t.add_argument("--sub", default="analyst"); t.add_argument("--secret", default=os.getenv("SECRET_KEY","change-me-in-prod")); t.add_argument("--set", action="store_true"); t.set_defaults(func=cmd_token)
     args = p.parse_args(argv)
     return args.func(args)
@@ -165,4 +203,3 @@ def main(argv: Optional[list[str]] = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

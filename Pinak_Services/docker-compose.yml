@@ -22,3 +22,21 @@ services:
     ports:
       - "6379:6379"
 
+  # Pinak Governance (Gateway)
+  pinak-gov-gateway:
+    build: ./pinak_gov_gateway
+    environment:
+      - GOV_UPSTREAM=http://parlant:8800
+      - SECRET_KEY=change-me-in-prod
+      - REQUIRE_PROJECT_HEADER=true
+    ports:
+      - "8880:8880"
+    networks:
+      - prodnet
+
+  # Parlant upstream (optional): user can run their own image or we can publish one.
+  # Uncomment and adjust to point to the actual Parlant server image when available.
+  # parlant:
+  #   image: emcieco/parlant:latest
+  #   ports: ["8800:8800"]
+  #   networks: [prodnet]
