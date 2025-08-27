@@ -30,6 +30,14 @@ try:
 except Exception:
     REQ_COUNTER = None  # type: ignore
 
+# Optional tracer from app.main (when OTEL enabled)
+try:
+    from opentelemetry import trace  # type: ignore
+    TRACER = trace.get_tracer("pinak.memory")  # type: ignore
+except Exception:
+    TRACER = None  # type: ignore
+
+
 @router.post("/add", response_model=MemoryRead, status_code=status.HTTP_201_CREATED)
 def add_memory(memory: MemoryCreate):
     """API endpoint to add a new memory."""

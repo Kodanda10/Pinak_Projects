@@ -8,6 +8,7 @@ import sys
 import time
 from pathlib import Path
 from typing import Optional
+import socket
 
 
 def have(cmd: str) -> bool:
@@ -108,6 +109,23 @@ def cmd_up(args: argparse.Namespace) -> int:
     if drc != 0:
         print("Preflight failed; fix issues before starting services.")
         return drc
+    # Ensure data volume paths exist
+    try:
+        base = Path.cwd()/"Pinak_Services"/"memory_service"/"data"
+        base.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        print(f"Warning: could not ensure data volume path: {e}")
+    # Port availability hints (non-fatal)
+    def port_in_use(port: int) -> bool:
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(0.2)
+                return s.connect_ex(("127.0.0.1", port)) == 0
+        except Exception:
+            return False
+    for pnum, name in [(8001, 'memory-api'), (8880, 'gov-gateway'), (8800, 'parlant')]:
+        if port_in_use(pnum):
+            print(f"Note: port {pnum} appears in use (possibly {name}).")
     if not ensure_docker():
         return 2
     ok = try_up_services()
