@@ -6,7 +6,7 @@ with open('requirements.txt', 'r') as f:
     install_requires = [line.strip() for line in f if line.strip() and not line.startswith('#')]
 
 setup(
-    name="Pinak_Project",
+    name="Pinak",
     version="1.1.0",
     author="Abhijita/Gemini",
     description="A unified local-first package for AI memory and security auditing.",

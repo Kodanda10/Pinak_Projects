@@ -123,11 +123,13 @@ def add_event(payload: Dict[str, Any] = Body(...), request: Request = None, proj
     base = memory_service._store_dir(tenant, project_id)
     import datetime, os, json
     ev = {"ts": datetime.datetime.utcnow().isoformat(), **payload, "project_id": project_id}
-    memory_service._append_jsonl(os.path.join(base, 'events.jsonl'), ev)
+    ep = memory_service._dated_file(base, 'events', 'events')
+    memory_service._append_audit_jsonl(ep, ev)
     # If this is a governance audit event, mirror into changelog as change_type=governance
     try:
         if payload.get('type') == 'gov_audit':
-            memory_service._append_jsonl(os.path.join(base, 'changelog.jsonl'), {
+            cp = memory_service._dated_file(base, 'changelog', 'changes')
+            memory_service._append_audit_jsonl(cp, {
                 'change_type': 'governance',
                 'ts': ev['ts'],
                 'project_id': project_id,
@@ -145,7 +147,6 @@ def list_events(q: Optional[str] = None, since: Optional[str] = None, until: Opt
     import json, os, datetime
     tenant = resolve_tenant(request, {}) if request is not None else "default"
     base = memory_service._store_dir(tenant, project_id)
-    p = os.path.join(base, 'events.jsonl')
     out=[]
     def parse_ts(ts: str):
         try:
@@ -155,21 +156,24 @@ def list_events(q: Optional[str] = None, since: Optional[str] = None, until: Opt
             return None
     t_since = parse_ts(since) if since else None
     t_until = parse_ts(until) if until else None
-    if os.path.exists(p):
-        with open(p,'r',encoding='utf-8') as fh:
-            for line in fh:
-                try:
-                    obj = json.loads(line)
-                    if q and q not in json.dumps(obj):
-                        continue
-                    ts = parse_ts(obj.get('ts',''))
-                    if t_since and ts and ts < t_since:
-                        continue
-                    if t_until and ts and ts > t_until:
-                        continue
-                    out.append(obj)
-                except Exception:
-                    pass
+    import glob
+    folder = os.path.join(base, 'events')
+    for fp in sorted(glob.glob(os.path.join(folder, 'events_*.jsonl'))):
+        if os.path.exists(fp):
+            with open(fp,'r',encoding='utf-8') as fh:
+                for line in fh:
+                    try:
+                        obj = json.loads(line)
+                        if q and q not in json.dumps(obj):
+                            continue
+                        ts = parse_ts(obj.get('ts',''))
+                        if t_since and ts and ts < t_since:
+                            continue
+                        if t_until and ts and ts > t_until:
+                            continue
+                        out.append(obj)
+                    except Exception:
+                        pass
     return out[offset:offset+limit]
 
 # --- Session endpoints (persisted JSONL with TTL support) ---
@@ -179,7 +183,8 @@ def session_add(payload: Dict[str, Any] = Body(...), request: Request = None, pr
     tenant = resolve_tenant(request, payload) if request is not None else payload.get("tenant", "default")
     base = memory_service._store_dir(tenant, project_id)
     sid = payload.get('session_id') or 'default'
-    path = os.path.join(base, f'session_{sid}.jsonl')
+    # new partition path under session/
+    path = memory_service._session_file(base, sid)
     rec = {
         'session_id': sid,
         'content': payload.get('content') or '',
@@ -200,7 +205,12 @@ def session_list(session_id: str, limit: int = 100, offset: int = 0, since: Opti
     import os, json, datetime
     tenant = resolve_tenant(request, {}) if request is not None else "default"
     base = memory_service._store_dir(tenant, project_id)
-    path = os.path.join(base, f'session_{session_id}.jsonl')
+    # prefer new path under session/, fallback to old if missing
+    path = memory_service._session_file(base, session_id)
+    if not os.path.exists(path):
+        legacy = os.path.join(base, f'session_{session_id}.jsonl')
+        if os.path.exists(legacy):
+            path = legacy
     out=[]
     def parse_ts(ts: str):
         try:
@@ -238,7 +248,7 @@ def working_add(payload: Dict[str, Any] = Body(...), request: Request = None, pr
     import os, json, datetime
     tenant = resolve_tenant(request, payload) if request is not None else payload.get("tenant", "default")
     base = memory_service._store_dir(tenant, project_id)
-    path = os.path.join(base, 'working.jsonl')
+    path = memory_service._working_file(base)
     rec = {
         'content': payload.get('content') or '',
         'project_id': project_id,
@@ -257,7 +267,7 @@ def working_list(limit: int = 100, offset: int = 0, since: Optional[str] = None,
     import os, json, datetime
     tenant = resolve_tenant(request, {}) if request is not None else "default"
     base = memory_service._store_dir(tenant, project_id)
-    path = os.path.join(base, 'working.jsonl')
+    path = memory_service._working_file(base)
     out=[]
     def parse_ts(ts: str):
         try:

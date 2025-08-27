@@ -6,7 +6,7 @@ import datetime
 import numpy as np
 import faiss
 import redis
-from typing import List
+from typing import List, Optional
 try:
     from sentence_transformers import SentenceTransformer
 except Exception:
@@ -85,8 +85,81 @@ class MemoryService:
         return base
 
     def _append_jsonl(self, path: str, obj: dict) -> None:
+        # File-locked append; try portalocker, fallback to fcntl, then plain append
+        try:
+            import portalocker  # type: ignore
+            with open(path, 'a', encoding='utf-8') as fh:
+                with portalocker.Lock(fh, timeout=5):
+                    fh.write(json.dumps(obj) + "\n")
+            return
+        except Exception:
+            pass
+        try:
+            import fcntl  # type: ignore
+            with open(path, 'a', encoding='utf-8') as fh:
+                try:
+                    fcntl.flock(fh, fcntl.LOCK_EX)
+                    fh.write(json.dumps(obj) + "\n")
+                finally:
+                    try:
+                        fcntl.flock(fh, fcntl.LOCK_UN)
+                    except Exception:
+                        pass
+            return
+        except Exception:
+            pass
         with open(path, 'a', encoding='utf-8') as fh:
             fh.write(json.dumps(obj) + "\n")
+
+    # Partition + audit helpers
+    def _today(self) -> str:
+        return datetime.datetime.utcnow().strftime('%Y-%m-%d')
+
+    def _ensure_dir(self, path: str) -> None:
+        if not os.path.exists(path):
+            os.makedirs(path, exist_ok=True)
+
+    def _dated_file(self, base: str, subdir: str, prefix: str, date: Optional[str] = None) -> str:
+        d = date or self._today()
+        folder = os.path.join(base, subdir)
+        self._ensure_dir(folder)
+        return os.path.join(folder, f"{prefix}_{d}.jsonl")
+
+    def _session_file(self, base: str, session_id: str) -> str:
+        folder = os.path.join(base, 'session')
+        self._ensure_dir(folder)
+        return os.path.join(folder, f'session_{session_id}.jsonl')
+
+    def _working_file(self, base: str) -> str:
+        folder = os.path.join(base, 'working')
+        self._ensure_dir(folder)
+        return os.path.join(folder, 'working.jsonl')
+
+    def _last_entry_hash(self, path: str) -> str:
+        try:
+            if not os.path.exists(path):
+                return '0'
+            last = None
+            with open(path, 'r', encoding='utf-8') as fh:
+                for line in fh:
+                    if line.strip():
+                        last = line
+            if last:
+                obj = json.loads(last)
+                return obj.get('entry_hash') or '0'
+        except Exception:
+            pass
+        return '0'
+
+    def _append_audit_jsonl(self, path: str, entry: dict) -> None:
+        import hashlib as _hash
+        e = dict(entry)
+        e.setdefault('ts', datetime.datetime.utcnow().isoformat())
+        prev = self._last_entry_hash(path)
+        e['prev_hash'] = prev
+        base = json.dumps(e, sort_keys=True)
+        e['entry_hash'] = _hash.sha256((prev + base).encode()).hexdigest()
+        self._append_jsonl(path, e)
 
     def add_memory(self, memory_data: MemoryCreate) -> MemoryRead:
         memory_id = str(uuid.uuid4())
@@ -101,13 +174,14 @@ class MemoryService:
         }
         self.metadata[str(self.index.ntotal - 1)] = new_meta
         self._save_vector_db()
-        # Append changelog (append-only)
+        # Append changelog (append-only, hash-chained)
         try:
             tenant = 'default'
             proj = 'default'
             base = self._store_dir(tenant, proj)
-            self._append_jsonl(os.path.join(base, 'changelog.jsonl'), {
-                'change_type':'create','target_id': new_meta['id'], 'ts': datetime.datetime.utcnow().isoformat(), 'reason': 'add_memory'
+            p = self._dated_file(base, 'changelog', 'changes')
+            self._append_audit_jsonl(p, {
+                'change_type':'create','target_id': new_meta['id'], 'reason': 'add_memory'
             })
         except Exception:
             pass
@@ -137,8 +211,9 @@ class MemoryService:
                 self._save_vector_db()
                 break
         base = self._store_dir(tenant, project_id)
-        self._append_jsonl(os.path.join(base, 'changelog.jsonl'), {
-            'change_type':'redact','target_id': memory_id, 'ts': datetime.datetime.utcnow().isoformat(), 'reason': reason
+        p = self._dated_file(base, 'changelog', 'changes')
+        self._append_audit_jsonl(p, {
+            'change_type':'redact','target_id': memory_id, 'reason': reason
         })
         return {'status':'ok','redacted_id': memory_id}
 
@@ -146,7 +221,8 @@ class MemoryService:
     def list_changelog(self, tenant: str, project_id: object, change_type=None, since=None, until=None, limit: int = 100, offset: int = 0) -> list:
         import json, datetime
         base = self._store_dir(tenant or 'default', project_id)
-        p = os.path.join(base, 'changelog.jsonl')
+        import glob
+        folder = os.path.join(base, 'changelog')
         out=[]
         def parse_ts(ts: str):
             try:
@@ -155,21 +231,22 @@ class MemoryService:
                 return None
         t_since = parse_ts(since) if since else None
         t_until = parse_ts(until) if until else None
-        if os.path.exists(p):
-            with open(p,'r',encoding='utf-8') as fh:
-                for line in fh:
-                    try:
-                        obj = json.loads(line)
-                        if change_type and obj.get('change_type') != change_type:
-                            continue
-                        ts = parse_ts(obj.get('ts',''))
-                        if t_since and ts and ts < t_since:
-                            continue
-                        if t_until and ts and ts > t_until:
-                            continue
-                        out.append(obj)
-                    except Exception:
-                        pass
+        for fp in sorted(glob.glob(os.path.join(folder, 'changes_*.jsonl'))):
+            if os.path.exists(fp):
+                with open(fp,'r',encoding='utf-8') as fh:
+                    for line in fh:
+                        try:
+                            obj = json.loads(line)
+                            if change_type and obj.get('change_type') != change_type:
+                                continue
+                            ts = parse_ts(obj.get('ts',''))
+                            if t_since and ts and ts < t_since:
+                                continue
+                            if t_until and ts and ts > t_until:
+                                continue
+                            out.append(obj)
+                        except Exception:
+                            pass
         return out[offset:offset+limit]
 
     # Singleton instance
@@ -181,11 +258,34 @@ def add_episodic(self, tenant: str, project_id: object, content: str, salience: 
     rec = {"content": content, "project_id": project_id, "salience": salience}
     store.setdefault(key, []).append(rec)
     self._episodic_store = store
+    # Persist to partitioned JSONL per tenant/project
+    import datetime
+    base = self._store_dir(tenant, project_id)
+    p = self._dated_file(base, 'episodic', 'episodic')
+    self._append_jsonl(p, {**rec, 'ts': datetime.datetime.utcnow().isoformat()})
     return rec
 
 def list_episodic(self, tenant: str, project_id: object) -> list:
+    import os, json
+    out = []
+    # Load from partitioned JSONL if present
+    try:
+        base = self._store_dir(tenant, project_id)
+        import glob
+        for fp in sorted(glob.glob(os.path.join(base, 'episodic', 'episodic_*.jsonl'))):
+            if os.path.exists(fp):
+                with open(fp, 'r', encoding='utf-8') as fh:
+                    for line in fh:
+                        try:
+                            out.append(json.loads(line))
+                        except Exception:
+                            pass
+    except Exception:
+        pass
+    # Also include any in-memory items (during same process lifetime)
     store = getattr(self, '_episodic_store', {})
-    return list(store.get((tenant or 'default', project_id or 'default'), []))
+    out.extend(store.get((tenant or 'default', project_id or 'default'), []))
+    return out
 
 def add_procedural(self, tenant: str, project_id: object, skill_id: str, steps=None) -> dict:
     key = (tenant or 'default', project_id or 'default')
@@ -193,11 +293,32 @@ def add_procedural(self, tenant: str, project_id: object, skill_id: str, steps=N
     rec = {"skill_id": skill_id, "steps": steps or [], "project_id": project_id}
     store.setdefault(key, []).append(rec)
     self._procedural_store = store
+    # Persist to partitioned JSONL per tenant/project
+    import datetime
+    base = self._store_dir(tenant, project_id)
+    p = self._dated_file(base, 'procedural', 'procedural')
+    self._append_jsonl(p, {**rec, 'ts': datetime.datetime.utcnow().isoformat()})
     return rec
 
 def list_procedural(self, tenant: str, project_id: object):
+    import os, json
+    out = []
+    try:
+        base = self._store_dir(tenant, project_id)
+        import glob
+        for fp in sorted(glob.glob(os.path.join(base, 'procedural', 'procedural_*.jsonl'))):
+            if os.path.exists(fp):
+                with open(fp, 'r', encoding='utf-8') as fh:
+                    for line in fh:
+                        try:
+                            out.append(json.loads(line))
+                        except Exception:
+                            pass
+    except Exception:
+        pass
     store = getattr(self, '_procedural_store', {})
-    return list(store.get((tenant or 'default', project_id or 'default'), []))
+    out.extend(store.get((tenant or 'default', project_id or 'default'), []))
+    return out
 
 def add_rag(self, tenant: str, project_id: object, query: str, external_source=None) -> dict:
     key = (tenant or 'default', project_id or 'default')
@@ -205,11 +326,32 @@ def add_rag(self, tenant: str, project_id: object, query: str, external_source=N
     rec = {"query": query, "external_source": external_source, "project_id": project_id}
     store.setdefault(key, []).append(rec)
     self._rag_store = store
+    # Persist to partitioned JSONL per tenant/project
+    import datetime
+    base = self._store_dir(tenant, project_id)
+    p = self._dated_file(base, 'rag', 'rag')
+    self._append_jsonl(p, {**rec, 'ts': datetime.datetime.utcnow().isoformat()})
     return rec
 
 def list_rag(self, tenant: str, project_id: object):
+    import os, json
+    out = []
+    try:
+        base = self._store_dir(tenant, project_id)
+        import glob
+        for fp in sorted(glob.glob(os.path.join(base, 'rag', 'rag_*.jsonl'))):
+            if os.path.exists(fp):
+                with open(fp, 'r', encoding='utf-8') as fh:
+                    for line in fh:
+                        try:
+                            out.append(json.loads(line))
+                        except Exception:
+                            pass
+    except Exception:
+        pass
     store = getattr(self, '_rag_store', {})
-    return list(store.get((tenant or 'default', project_id or 'default'), []))
+    out.extend(store.get((tenant or 'default', project_id or 'default'), []))
+    return out
 
 def search_v2(self, tenant: str, project_id: object, query: str, layers: list[str]) -> dict:
     out: dict[str, list] = {}
