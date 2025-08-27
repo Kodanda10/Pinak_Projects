@@ -4,6 +4,7 @@ import os
 import uuid
 import datetime
 import numpy as np
+import hashlib
 import faiss
 import redis
 from typing import List, Optional
@@ -160,6 +161,47 @@ class MemoryService:
         base = json.dumps(e, sort_keys=True)
         e['entry_hash'] = _hash.sha256((prev + base).encode()).hexdigest()
         self._append_jsonl(path, e)
+
+    def verify_audit_chain(self, tenant: str, project_id: object, kind: str, date: Optional[str] = None) -> dict:
+        """Verifies hash-chain continuity for events or changelog for a given date (UTC)."""
+        base = self._store_dir(tenant or 'default', project_id)
+        if kind not in {'events','changelog'}:
+            return {"ok": False, "error": "invalid kind"}
+        prefix = 'events' if kind == 'events' else 'changes'
+        path = self._dated_file(base, kind, prefix, date)
+        if not os.path.exists(path):
+            return {"ok": False, "error": "file not found", "path": path}
+        count = 0
+        ok = True
+        first_hash = '0'
+        last_hash = '0'
+        prev = '0'
+        try:
+            with open(path, 'r', encoding='utf-8') as fh:
+                for line in fh:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    obj = json.loads(line)
+                    # accept missing prev/entry for first entries - recompute
+                    exp_prev = prev
+                    got_prev = obj.get('prev_hash', '0')
+                    # Recompute entry_hash deterministically (excluding entry_hash itself)
+                    temp = dict(obj)
+                    eh = temp.pop('entry_hash', None)
+                    base = json.dumps(temp, sort_keys=True)
+                    comp = hashlib.sha256((exp_prev + base).encode()).hexdigest()
+                    if count == 0:
+                        first_hash = comp
+                    if got_prev != exp_prev or eh != comp:
+                        ok = False
+                        break
+                    prev = comp
+                    last_hash = comp
+                    count += 1
+        except Exception as e:
+            return {"ok": False, "error": str(e), "path": path}
+        return {"ok": ok, "count": count, "first": first_hash, "last": last_hash, "path": path}
 
     def add_memory(self, memory_data: MemoryCreate) -> MemoryRead:
         memory_id = str(uuid.uuid4())

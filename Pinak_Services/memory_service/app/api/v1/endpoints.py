@@ -214,6 +214,11 @@ def list_events(q: Optional[str] = None, since: Optional[str] = None, until: Opt
                         pass
     return out[offset:offset+limit]
 
+@router.get("/audit/verify", status_code=status.HTTP_200_OK)
+def audit_verify(kind: str = 'events', date: Optional[str] = None, request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project")) -> Dict[str, Any]:
+    tenant = resolve_tenant(request, {}) if request is not None else "default"
+    return memory_service.verify_audit_chain(tenant, project_id, kind, date)
+
 # --- Session endpoints (persisted JSONL with TTL support) ---
 @router.post("/session/add", status_code=status.HTTP_201_CREATED)
 def session_add(payload: Dict[str, Any] = Body(...), request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project")) -> Dict[str, Any]:

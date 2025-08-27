@@ -147,5 +147,47 @@
     "content": "The sky is blue on a clear day.",
     "tags": [],
     "created_at": "2025-08-27T18:40:51.208330"
+  },
+  "21": {
+    "id": "f9a24228-6fb1-4a3d-ae0e-3a4519e35fa0",
+    "content": "to redact",
+    "tags": [],
+    "created_at": "2025-08-27T20:07:36.916198",
+    "redacted": true
+  },
+  "22": {
+    "id": "e34c0ab4-b374-4cff-8498-ebc1f3ae7948",
+    "content": "test memory",
+    "tags": [
+      "test"
+    ],
+    "created_at": "2025-08-27T20:07:37.360214"
+  },
+  "23": {
+    "id": "d53cd4c9-1ded-411b-a61e-4a8021dd50ae",
+    "content": "The sky is blue on a clear day.",
+    "tags": [],
+    "created_at": "2025-08-27T20:07:38.004969"
+  },
+  "24": {
+    "id": "3b6ddcdf-5aa0-4ce6-9137-d334c43abc98",
+    "content": "to redact",
+    "tags": [],
+    "created_at": "2025-08-27T20:08:51.262053",
+    "redacted": true
+  },
+  "25": {
+    "id": "16b76dd6-2110-490a-acfe-a48d13f6e807",
+    "content": "test memory",
+    "tags": [
+      "test"
+    ],
+    "created_at": "2025-08-27T20:08:51.456947"
+  },
+  "26": {
+    "id": "16aa8160-a5c8-4ff5-84c2-be120df456b1",
+    "content": "The sky is blue on a clear day.",
+    "tags": [],
+    "created_at": "2025-08-27T20:08:51.512334"
   }
 }
