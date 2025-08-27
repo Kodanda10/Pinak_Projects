@@ -193,3 +193,36 @@ allow {
 3. Hash-chain events & changelog with hourly anchors  
 4. Enforce **file-locking** everywhere  
 5. Ship `/metrics` + OTEL spans  
+
+---
+
+## ✅ Acceptance Checklist (Executable)
+
+- One-click orchestration
+  - `pinak up` runs security preflight and brings up services.
+  - `pinak status` shows Memory API healthy.
+  - `pinak down` stops containers.
+
+- Identity + rotation
+  - `pinak token --exp 30 --set` mints a short-lived JWT and stores it.
+  - `pinak-bridge token rotate --exp 60 --role editor` refreshes token.
+
+- 8-layer memory verification
+  - Run: `python3 Pinak_Package/scripts/demo_all_layers.py`
+  - Verify files under `Pinak_Services/memory_service/data/tenants/<tenant>/<project>/`:
+    - episodic/episodic_YYYY-MM-DD.jsonl
+    - procedural/procedural_YYYY-MM-DD.jsonl
+    - rag/rag_YYYY-MM-DD.jsonl
+    - session/session_<id>.jsonl
+    - working/working.jsonl
+    - events/events_YYYY-MM-DD.jsonl (hash-chained)
+    - changelog/changes_YYYY-MM-DD.jsonl (hash-chained)
+    - semantic index: data/memory.faiss + data/metadata.json
+
+- Observability
+  - Metrics: ensure `PINAK_METRICS=true` (compose sets it). Hit `/metrics` and see `pinak_requests_total`.
+  - Tracing: set `PINAK_OTEL=true` to emit dev spans (ConsoleSpanExporter) in logs.
+
+- Security & image policy
+  - Containers run as non-root user, with read-only root FS; `/data` is a writable volume.
+  - CI gates enforce secrets scanning, SAST critical=0, KEVs=0.
