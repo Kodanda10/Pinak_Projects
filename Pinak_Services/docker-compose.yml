@@ -34,9 +34,8 @@ services:
     networks:
       - prodnet
 
-  # Parlant upstream (optional): user can run their own image or we can publish one.
-  # Uncomment and adjust to point to the actual Parlant server image when available.
-  # parlant:
-  #   image: emcieco/parlant:latest
-  #   ports: ["8800:8800"]
-  #   networks: [prodnet]
+  parlant:
+    build: ./parlant
+    ports:
+      - "8800:8800"
+    networks: [prodnet]

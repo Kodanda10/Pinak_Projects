@@ -26,6 +26,7 @@ def ensure_docker(timeout: int = 120) -> bool:
         run(["docker", "info"], check=True)
         return True
     except Exception:
+        # 1) Try Docker Desktop on macOS
         if sys.platform == "darwin" and have("open") and Path("/Applications/Docker.app").exists():
             print("Starting Docker Desktop…")
             run(["open","-a","Docker"], check=False)
@@ -33,11 +34,27 @@ def ensure_docker(timeout: int = 120) -> bool:
             while waited < timeout:
                 try:
                     run(["docker","info"], check=True)
-                    print("Docker engine is ready.")
+                    print("Docker engine is ready (Docker Desktop).")
                     return True
                 except Exception:
                     time.sleep(3); waited += 3
-        print("Docker engine unavailable.")
+        # 2) Fallback to Colima (macOS/Linux) for BCM
+        if have("colima"):
+            print("Starting Colima (fallback)…")
+            # Start with modest defaults; user can override externally
+            try:
+                run(["colima","start","--cpu","2","--memory","4","--disk","20"], check=False)
+            except Exception:
+                pass
+            waited = 0
+            while waited < timeout:
+                try:
+                    run(["docker","info"], check=True)
+                    print("Docker engine is ready (Colima).")
+                    return True
+                except Exception:
+                    time.sleep(3); waited += 3
+        print("Docker engine unavailable. Install Docker Desktop or Colima.")
         return False
 
 

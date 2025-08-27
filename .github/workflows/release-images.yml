@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'v*.*.*'
+  workflow_dispatch:
 
 jobs:
   build-and-push:
@@ -17,7 +18,8 @@ jobs:
         uses: docker/setup-qemu-action@v3
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-      - name: Login to Docker Hub
+      - name: Login to Docker Hub (optional)
+        if: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
@@ -28,7 +30,18 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build and push memory-api
+      - name: Build and push memory-api (GHCR)
+        uses: docker/build-push-action@v6
+        with:
+          context: ./Pinak_Services/memory_service
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/pinak-memory-api:latest
+            ghcr.io/${{ github.repository_owner }}/pinak-memory-api:${{ github.ref_name }}
+
+      - name: Build and push memory-api (Docker Hub)
+        if: ${{ secrets.DOCKERHUB_USERNAME != '' && secrets.DOCKERHUB_TOKEN != '' }}
         uses: docker/build-push-action@v6
         with:
           context: ./Pinak_Services/memory_service
@@ -37,5 +50,3 @@ jobs:
           tags: |
             ${{ secrets.DOCKERHUB_USERNAME }}/pinak-memory-api:latest
             ${{ secrets.DOCKERHUB_USERNAME }}/pinak-memory-api:${{ github.ref_name }}
-            ghcr.io/${{ github.repository_owner }}/pinak-memory-api:latest
-            ghcr.io/${{ github.repository_owner }}/pinak-memory-api:${{ github.ref_name }}
