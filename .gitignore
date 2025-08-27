@@ -17,3 +17,4 @@ security-baseline/reports/
 Pinak_Services/memory_service/venv/
 **/venv/
 
+.pinak/
