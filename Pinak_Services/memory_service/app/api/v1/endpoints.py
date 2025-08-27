@@ -124,6 +124,20 @@ def add_event(payload: Dict[str, Any] = Body(...), request: Request = None, proj
     import datetime, os, json
     ev = {"ts": datetime.datetime.utcnow().isoformat(), **payload, "project_id": project_id}
     memory_service._append_jsonl(os.path.join(base, 'events.jsonl'), ev)
+    # If this is a governance audit event, mirror into changelog as change_type=governance
+    try:
+        if payload.get('type') == 'gov_audit':
+            memory_service._append_jsonl(os.path.join(base, 'changelog.jsonl'), {
+                'change_type': 'governance',
+                'ts': ev['ts'],
+                'project_id': project_id,
+                'path': payload.get('path'),
+                'method': payload.get('method'),
+                'status': payload.get('status'),
+                'role': payload.get('role')
+            })
+    except Exception:
+        pass
     return {"status":"ok"}
 
 @router.get("/events", status_code=status.HTTP_200_OK)

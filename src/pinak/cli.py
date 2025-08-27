@@ -139,6 +139,14 @@ def cmd_doctor(args: argparse.Namespace) -> int:
             ok = False; print(f"Missing security file: {p}")
     if not (Path.cwd()/".pinak"/"pinak.json").exists():
         ok = False; print("No project identity found (.pinak/pinak.json)")
+    # ensure .pinak is not tracked by git
+    if (Path.cwd()/".git").exists():
+        try:
+            out = subprocess.run(["git","ls-files","--error-unmatch",".pinak"], capture_output=True)
+            if out.returncode == 0:
+                ok = False; print("Security: .pinak directory must not be tracked by git")
+        except Exception:
+            pass
     if not have("docker"):
         ok = False; print("Docker not installed")
     print("Doctor:", "OK" if ok else "Issues found")
@@ -191,15 +199,38 @@ def cmd_governance(args: argparse.Namespace) -> int:
         return 0 if r.status_code < 400 else 1
 
 def cmd_token(args: argparse.Namespace) -> int:
-    script = Path(__file__).parent.parent.parent/"scripts"/"dev_token.sh"
-    if not script.exists():
-        print("dev_token.sh not found")
+    # Mint a JWT with pid bound to current project and optional role, then optionally store
+    try:
+        from jose import jwt
+    except Exception:
+        print("Please install 'python-jose' to use token minting", file=sys.stderr)
         return 2
-    cmd = ["bash", str(script)]
-    if args.sub: cmd += ["--sub", args.sub]
-    if args.secret: cmd += ["--secret", args.secret]
-    if args.set: cmd += ["--set"]
-    run(cmd, check=False)
+    pid = os.getenv('PINAK_PROJECT_ID')
+    try:
+        from .bridge.context import ProjectContext
+        if not pid:
+            ctx = ProjectContext.find()
+            if ctx:
+                pid = ctx.project_id
+    except Exception:
+        pass
+    if not pid:
+        print("No project identity found. Run 'pinak bridge init' first.", file=sys.stderr)
+        return 2
+    claims = {"sub": args.sub or "analyst", "pid": pid}
+    if args.role:
+        claims["role"] = args.role
+    token = jwt.encode(claims, args.secret, algorithm="HS256")
+    print(token)
+    if args.set:
+        try:
+            from .bridge.context import ProjectContext
+            ctx = ProjectContext.find()
+            if ctx:
+                ctx.set_token(token)
+                print("Token stored in keyring/.pinak/token")
+        except Exception:
+            pass
     return 0
 
 
@@ -213,7 +244,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     g = sub.add_parser("governance", help="Governance passthrough to Pinak_Gov gateway")
     g.add_argument("rest", nargs=argparse.REMAINDER)
     g.set_defaults(func=cmd_governance)
-    t = sub.add_parser("token"); t.add_argument("--sub", default="analyst"); t.add_argument("--secret", default=os.getenv("SECRET_KEY","change-me-in-prod")); t.add_argument("--set", action="store_true"); t.set_defaults(func=cmd_token)
+    t = sub.add_parser("token"); t.add_argument("--sub", default="analyst"); t.add_argument("--role", default=None); t.add_argument("--secret", default=os.getenv("SECRET_KEY","change-me-in-prod")); t.add_argument("--set", action="store_true"); t.set_defaults(func=cmd_token)
     args = p.parse_args(argv)
     return args.func(args)
 

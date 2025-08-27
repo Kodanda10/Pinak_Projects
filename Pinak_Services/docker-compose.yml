@@ -27,6 +27,7 @@ services:
     build: ./pinak_gov_gateway
     environment:
       - GOV_UPSTREAM=http://parlant:8800
+      - MEMORY_API_URL=http://memory-api:8000
       - SECRET_KEY=change-me-in-prod
       - REQUIRE_PROJECT_HEADER=true
     ports:
@@ -35,7 +36,13 @@ services:
       - prodnet
 
   parlant:
-    build: ./parlant
+    # Default to a published image for speed and reproducibility.
+    # You can pin by digest using PARLANT_IMAGE_REF, e.g.
+    # ghcr.io/pinak/parlant:1.0.0@sha256:abcdef...
+    image: ${PARLANT_IMAGE_REF:-${PARLANT_IMAGE:-ghcr.io/pinak/parlant:1.0.0}}
+    # To build from source instead, uncomment the next two lines and remove the image line.
+    # build: ./parlant
+    # pull_policy: build
     ports:
       - "8800:8800"
     networks: [prodnet]

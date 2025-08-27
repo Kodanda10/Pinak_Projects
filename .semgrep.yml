@@ -44,3 +44,28 @@ rules:
     message: "Avoid subprocess with shell=True"
     pattern: subprocess.Popen(..., shell=True, ...)
     severity: WARNING
+  - id: python-jwt-decode-without-verify
+    languages: [python]
+    message: "JWT decode must verify signature"
+    patterns:
+      - pattern: jwt.decode($TOKEN, None, ...)
+    severity: ERROR
+  - id: python-request-missing-timeout
+    languages: [python]
+    message: "HTTP client without a timeout"
+    patterns:
+      - pattern: requests.$FUNC(...)
+      - pattern-not: requests.$FUNC(..., timeout=...)
+    severity: WARNING
+  - id: python-httpx-missing-timeout
+    languages: [python]
+    message: "HTTPX client without a timeout"
+    patterns:
+      - pattern: httpx.$FUNC(...)
+      - pattern-not: httpx.$FUNC(..., timeout=...)
+    severity: WARNING
+  - id: python-os-system
+    languages: [python]
+    message: "Avoid os.system; use subprocess"
+    pattern: os.system(...)
+    severity: WARNING

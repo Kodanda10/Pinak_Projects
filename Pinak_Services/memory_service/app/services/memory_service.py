@@ -144,10 +144,17 @@ class MemoryService:
 
     # Changelog reader
     def list_changelog(self, tenant: str, project_id: object, change_type=None, since=None, until=None, limit: int = 100, offset: int = 0) -> list:
-        import json
+        import json, datetime
         base = self._store_dir(tenant or 'default', project_id)
         p = os.path.join(base, 'changelog.jsonl')
         out=[]
+        def parse_ts(ts: str):
+            try:
+                return datetime.datetime.fromisoformat(ts.replace('Z','+00:00'))
+            except Exception:
+                return None
+        t_since = parse_ts(since) if since else None
+        t_until = parse_ts(until) if until else None
         if os.path.exists(p):
             with open(p,'r',encoding='utf-8') as fh:
                 for line in fh:
@@ -155,7 +162,11 @@ class MemoryService:
                         obj = json.loads(line)
                         if change_type and obj.get('change_type') != change_type:
                             continue
-                        # TODO: since/until time filtering
+                        ts = parse_ts(obj.get('ts',''))
+                        if t_since and ts and ts < t_since:
+                            continue
+                        if t_until and ts and ts > t_until:
+                            continue
                         out.append(obj)
                     except Exception:
                         pass
