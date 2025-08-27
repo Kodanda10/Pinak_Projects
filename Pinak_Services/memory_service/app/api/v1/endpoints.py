@@ -144,3 +144,95 @@ def list_events(q: Optional[str] = None, request: Request = None, project_id: Op
                 except Exception:
                     pass
     return out
+
+# --- Session endpoints (persisted JSONL with TTL support) ---
+@router.post("/session/add", status_code=status.HTTP_201_CREATED)
+def session_add(payload: Dict[str, Any] = Body(...), request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project")) -> Dict[str, Any]:
+    import os, json, datetime
+    tenant = resolve_tenant(request, payload) if request is not None else payload.get("tenant", "default")
+    base = memory_service._store_dir(tenant, project_id)
+    sid = payload.get('session_id') or 'default'
+    path = os.path.join(base, f'session_{sid}.jsonl')
+    rec = {
+        'session_id': sid,
+        'content': payload.get('content') or '',
+        'project_id': project_id,
+        'ts': payload.get('ts') or datetime.datetime.utcnow().isoformat(),
+    }
+    ttl = payload.get('ttl_seconds')
+    if ttl:
+        rec['expires_at'] = (datetime.datetime.utcnow()+datetime.timedelta(seconds=int(ttl))).isoformat()
+    # allow explicit expires_at for testing
+    if payload.get('expires_at'):
+        rec['expires_at'] = payload['expires_at']
+    memory_service._append_jsonl(path, rec)
+    return {'status':'ok'}
+
+@router.get("/session/list", status_code=status.HTTP_200_OK)
+def session_list(session_id: str, limit: int = 100, offset: int = 0, since: Optional[str] = None, until: Optional[str] = None, request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project")) -> List[Dict[str, Any]]:
+    import os, json, datetime
+    tenant = resolve_tenant(request, {}) if request is not None else "default"
+    base = memory_service._store_dir(tenant, project_id)
+    path = os.path.join(base, f'session_{session_id}.jsonl')
+    out=[]
+    if os.path.exists(path):
+        with open(path,'r',encoding='utf-8') as fh:
+            for line in fh:
+                try:
+                    obj = json.loads(line)
+                    # filter expired
+                    exp = obj.get('expires_at')
+                    if exp:
+                        try:
+                            if datetime.datetime.fromisoformat(exp) < datetime.datetime.utcnow():
+                                continue
+                        except Exception:
+                            pass
+                    out.append(obj)
+                except Exception:
+                    pass
+    return out[offset:offset+limit]
+
+# --- Working endpoints (persisted JSONL with TTL support) ---
+@router.post("/working/add", status_code=status.HTTP_201_CREATED)
+def working_add(payload: Dict[str, Any] = Body(...), request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project")) -> Dict[str, Any]:
+    import os, json, datetime
+    tenant = resolve_tenant(request, payload) if request is not None else payload.get("tenant", "default")
+    base = memory_service._store_dir(tenant, project_id)
+    path = os.path.join(base, 'working.jsonl')
+    rec = {
+        'content': payload.get('content') or '',
+        'project_id': project_id,
+        'ts': payload.get('ts') or datetime.datetime.utcnow().isoformat(),
+    }
+    ttl = payload.get('ttl_seconds')
+    if ttl:
+        rec['expires_at'] = (datetime.datetime.utcnow()+datetime.timedelta(seconds=int(ttl))).isoformat()
+    if payload.get('expires_at'):
+        rec['expires_at'] = payload['expires_at']
+    memory_service._append_jsonl(path, rec)
+    return {'status':'ok'}
+
+@router.get("/working/list", status_code=status.HTTP_200_OK)
+def working_list(limit: int = 100, offset: int = 0, request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project")) -> List[Dict[str, Any]]:
+    import os, json, datetime
+    tenant = resolve_tenant(request, {}) if request is not None else "default"
+    base = memory_service._store_dir(tenant, project_id)
+    path = os.path.join(base, 'working.jsonl')
+    out=[]
+    if os.path.exists(path):
+        with open(path,'r',encoding='utf-8') as fh:
+            for line in fh:
+                try:
+                    obj = json.loads(line)
+                    exp = obj.get('expires_at')
+                    if exp:
+                        try:
+                            if datetime.datetime.fromisoformat(exp) < datetime.datetime.utcnow():
+                                continue
+                        except Exception:
+                            pass
+                    out.append(obj)
+                except Exception:
+                    pass
+    return out[offset:offset+limit]
