@@ -101,6 +101,33 @@ services:
         return False
 
 
+def cmd_up(args: argparse.Namespace) -> int:
+    # Security preflight
+    print("Running security preflight (doctor)…")
+    drc = cmd_doctor(argparse.Namespace())
+    if drc != 0:
+        print("Preflight failed; fix issues before starting services.")
+        return drc
+    if not ensure_docker():
+        return 2
+    ok = try_up_services()
+    if not ok:
+        return 2
+    # Health check retries for memory-api
+    try:
+        from .memory.cli import main as mem_main
+        healthy = False
+        for _ in range(10):
+            if mem_main(["health"]) == 0:
+                healthy = True
+                break
+            time.sleep(1)
+        print("Memory API healthy." if healthy else "Memory API unhealthy; verify compose up and ports.")
+    except Exception:
+        pass
+    return 0
+
+
 def cmd_down(args: argparse.Namespace) -> int:
     if not have("docker"):
         print("Docker not installed.")
@@ -292,7 +319,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     t = sub.add_parser("token"); t.add_argument("--sub", default="analyst"); t.add_argument("--role", default=None); t.add_argument("--exp", type=int, default=None, help="Expiry in minutes (optional)"); t.add_argument("--secret", default=os.getenv("SECRET_KEY","change-me-in-prod")); t.add_argument("--set", action="store_true"); t.set_defaults(func=cmd_token)
 
     # one-click orchestration
-    up = sub.add_parser("up", help="Start Memory + Gov + Parlant (compose)"); up.set_defaults(func=lambda a: (0 if (ensure_docker() and try_up_services()) else 2))
+    up = sub.add_parser("up", help="Start Memory + Gov + Parlant (compose)"); up.set_defaults(func=cmd_up)
     dn = sub.add_parser("down", help="Stop services (compose)"); dn.set_defaults(func=cmd_down)
     st = sub.add_parser("status", help="Health check for services")
     st.set_defaults(func=cmd_services_status)
