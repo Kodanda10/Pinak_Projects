@@ -4,3 +4,13 @@ rules:
     message: "Avoid eval() in Python"
     pattern: eval(...)
     severity: ERROR
+  - id: python-weak-hash-md5
+    languages: [python]
+    message: "Avoid weak hash MD5; use sha256 or better"
+    pattern: hashlib.md5(...)
+    severity: WARNING
+  - id: python-subprocess-shell-true
+    languages: [python]
+    message: "Avoid subprocess with shell=True"
+    pattern: subprocess.Popen(..., shell=True, ...)
+    severity: WARNING
