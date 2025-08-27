@@ -112,6 +112,11 @@ def redact(memory_id: str = Body(..., embed=True), reason: str = Body('redact', 
     tenant = resolve_tenant(request, {}) if request is not None else "default"
     return memory_service.redact_memory(memory_id, tenant, project_id, reason)
 
+@router.get("/changelog", status_code=status.HTTP_200_OK)
+def list_changelog(change_type: Optional[str] = None, since: Optional[str] = None, until: Optional[str] = None, limit: int = 100, offset: int = 0, request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project")) -> List[Dict[str, Any]]:
+    tenant = resolve_tenant(request, {}) if request is not None else "default"
+    return memory_service.list_changelog(tenant, project_id, change_type, since, until, limit, offset)
+
 @router.post("/event", status_code=status.HTTP_201_CREATED)
 def add_event(payload: Dict[str, Any] = Body(...), request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project")) -> Dict[str, Any]:
     tenant = resolve_tenant(request, payload) if request is not None else payload.get("tenant", "default")

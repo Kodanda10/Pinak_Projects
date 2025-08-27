@@ -142,6 +142,25 @@ class MemoryService:
         })
         return {'status':'ok','redacted_id': memory_id}
 
+    # Changelog reader
+    def list_changelog(self, tenant: str, project_id: object, change_type=None, since=None, until=None, limit: int = 100, offset: int = 0) -> list:
+        import json
+        base = self._store_dir(tenant or 'default', project_id)
+        p = os.path.join(base, 'changelog.jsonl')
+        out=[]
+        if os.path.exists(p):
+            with open(p,'r',encoding='utf-8') as fh:
+                for line in fh:
+                    try:
+                        obj = json.loads(line)
+                        if change_type and obj.get('change_type') != change_type:
+                            continue
+                        # TODO: since/until time filtering
+                        out.append(obj)
+                    except Exception:
+                        pass
+        return out[offset:offset+limit]
+
     # Singleton instance
 memory_service = MemoryService()
 
