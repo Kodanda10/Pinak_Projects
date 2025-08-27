@@ -67,7 +67,18 @@ def add_episodic(payload: Dict[str, Any] = Body(...), request: Request = None, p
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
     tenant = resolve_tenant(request, payload) if request is not None else payload.get("tenant", "default")
-    rec = svc_add_episodic(memory_service, tenant, project_id, payload.get('content') or '', int(payload.get('salience') or 0))
+    try:
+        from opentelemetry import trace  # type: ignore
+        tracer = trace.get_tracer("pinak.memory")  # type: ignore
+    except Exception:
+        tracer = None  # type: ignore
+    if tracer:
+        with tracer.start_as_current_span("memory.add.episodic") as span:  # type: ignore
+            if project_id:
+                span.set_attribute("pinak.project_id", project_id)
+            rec = svc_add_episodic(memory_service, tenant, project_id, payload.get('content') or '', int(payload.get('salience') or 0))
+    else:
+        rec = svc_add_episodic(memory_service, tenant, project_id, payload.get('content') or '', int(payload.get('salience') or 0))
     try:
         if REQ_COUNTER is not None:
             REQ_COUNTER.labels(layer='episodic', project_id=project_id or 'default').inc()
@@ -102,7 +113,18 @@ def add_procedural(payload: Dict[str, Any] = Body(...), request: Request = None,
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
     tenant = resolve_tenant(request, payload) if request is not None else payload.get("tenant", "default")
-    rec = svc_add_procedural(memory_service, tenant, project_id, payload.get('skill_id') or 'skill', payload.get('steps') or [])
+    try:
+        from opentelemetry import trace  # type: ignore
+        tracer = trace.get_tracer("pinak.memory")  # type: ignore
+    except Exception:
+        tracer = None  # type: ignore
+    if tracer:
+        with tracer.start_as_current_span("memory.add.procedural") as span:  # type: ignore
+            if project_id:
+                span.set_attribute("pinak.project_id", project_id)
+            rec = svc_add_procedural(memory_service, tenant, project_id, payload.get('skill_id') or 'skill', payload.get('steps') or [])
+    else:
+        rec = svc_add_procedural(memory_service, tenant, project_id, payload.get('skill_id') or 'skill', payload.get('steps') or [])
     return rec
 
 @router.get("/procedural/list", status_code=status.HTTP_200_OK)
