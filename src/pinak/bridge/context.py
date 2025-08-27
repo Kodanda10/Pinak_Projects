@@ -134,3 +134,18 @@ class ProjectContext:
         t = _walk_up_for((self.root_dir or Path.cwd()), PINAK_TOKEN_FILE)
         return t.read_text(encoding="utf-8").strip() if t and t.exists() else None
 
+    # Rotation helper: mint a short-lived JWT and store it
+    def rotate_token(self, minutes: int = 60, secret: Optional[str] = None, sub: str = "analyst", role: Optional[str] = None) -> str:
+        try:
+            from jose import jwt
+        except Exception as e:
+            raise RuntimeError("python-jose required for token rotation") from e
+        import datetime
+        secret = secret or os.getenv("SECRET_KEY", "change-me-in-prod")
+        exp_ts = int((datetime.datetime.utcnow() + datetime.timedelta(minutes=int(minutes))).timestamp())
+        claims = {"sub": sub, "pid": self.project_id, "exp": exp_ts}
+        if role:
+            claims["role"] = role
+        token = jwt.encode(claims, secret, algorithm="HS256")
+        self.set_token(token)
+        return token

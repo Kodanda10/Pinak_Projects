@@ -131,6 +131,20 @@ def cmd_token_revoke(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_token_rotate(args: argparse.Namespace) -> int:
+    ctx = ProjectContext.find()
+    if not ctx:
+        print("No Pinak project found.")
+        return 1
+    try:
+        tok = ctx.rotate_token(minutes=int(args.exp or 60), secret=args.secret, sub=args.sub or "analyst", role=args.role)
+        print(tok)
+        return 0
+    except Exception as e:
+        print(f"Rotation failed: {e}", file=sys.stderr)
+        return 2
+
+
 def main(argv: Optional[list[str]] = None) -> int:
     p = argparse.ArgumentParser(prog="pinak-bridge", description="Pinak Bridge: project identity + token management")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -155,6 +169,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     pts = tsub.add_parser("set"); pts.add_argument("--token", required=True); pts.set_defaults(func=cmd_token_set)
     ptp = tsub.add_parser("print"); ptp.set_defaults(func=cmd_token_print)
     ptr = tsub.add_parser("revoke"); ptr.set_defaults(func=cmd_token_revoke)
+    pto = tsub.add_parser("rotate"); pto.add_argument("--exp", type=int, default=60); pto.add_argument("--secret", default=os.getenv("SECRET_KEY","change-me-in-prod")); pto.add_argument("--sub", default="analyst"); pto.add_argument("--role", default=None); pto.set_defaults(func=cmd_token_rotate)
 
     args = p.parse_args(argv)
     return args.func(args)
@@ -162,4 +177,3 @@ def main(argv: Optional[list[str]] = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
