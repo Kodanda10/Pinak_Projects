@@ -101,6 +101,41 @@ services:
         return False
 
 
+def cmd_down(args: argparse.Namespace) -> int:
+    if not have("docker"):
+        print("Docker not installed.")
+        return 2
+    # Try local compose first
+    local = Path.cwd()/"Pinak_Services"/"docker-compose.yml"
+    if local.exists():
+        try:
+            run(["docker","compose","-f", str(local), "down"], check=False)
+        except Exception as e:
+            print(f"Compose down (local) warning: {e}")
+    # Try production locations if present
+    base = Path.home()/"production"/"docker-compose.yml"
+    infra = Path.home()/"production"/"infra"/"docker-compose.yml"
+    for f in [infra, base]:
+        if f.exists():
+            try:
+                run(["docker","compose","-f", str(f), "down"], check=False)
+            except Exception:
+                pass
+    print("Services stopped (where applicable).")
+    return 0
+
+
+def cmd_services_status(args: argparse.Namespace) -> int:
+    # Memory API health via pinak memory health
+    try:
+        from .memory.cli import main as mem_main
+        rc = mem_main(["health"])
+    except Exception:
+        rc = 1
+    print({"memory_api_ok": rc == 0})
+    return 0 if rc == 0 else 1
+
+
 def cmd_quickstart(args: argparse.Namespace) -> int:
     if not ensure_docker():
         return 2
@@ -217,9 +252,19 @@ def cmd_token(args: argparse.Namespace) -> int:
     if not pid:
         print("No project identity found. Run 'pinak bridge init' first.", file=sys.stderr)
         return 2
+    import time, datetime
     claims = {"sub": args.sub or "analyst", "pid": pid}
     if args.role:
         claims["role"] = args.role
+    # Optional short-lived expiry in minutes
+    if args.exp is not None:
+        try:
+            mins = int(args.exp)
+            exp_ts = int((datetime.datetime.utcnow() + datetime.timedelta(minutes=mins)).timestamp())
+            claims["exp"] = exp_ts
+        except Exception:
+            print("Invalid --exp value; must be integer minutes", file=sys.stderr)
+            return 2
     token = jwt.encode(claims, args.secret, algorithm="HS256")
     print(token)
     if args.set:
@@ -244,7 +289,13 @@ def main(argv: Optional[list[str]] = None) -> int:
     g = sub.add_parser("governance", help="Governance passthrough to Pinak_Gov gateway")
     g.add_argument("rest", nargs=argparse.REMAINDER)
     g.set_defaults(func=cmd_governance)
-    t = sub.add_parser("token"); t.add_argument("--sub", default="analyst"); t.add_argument("--role", default=None); t.add_argument("--secret", default=os.getenv("SECRET_KEY","change-me-in-prod")); t.add_argument("--set", action="store_true"); t.set_defaults(func=cmd_token)
+    t = sub.add_parser("token"); t.add_argument("--sub", default="analyst"); t.add_argument("--role", default=None); t.add_argument("--exp", type=int, default=None, help="Expiry in minutes (optional)"); t.add_argument("--secret", default=os.getenv("SECRET_KEY","change-me-in-prod")); t.add_argument("--set", action="store_true"); t.set_defaults(func=cmd_token)
+
+    # one-click orchestration
+    up = sub.add_parser("up", help="Start Memory + Gov + Parlant (compose)"); up.set_defaults(func=lambda a: (0 if (ensure_docker() and try_up_services()) else 2))
+    dn = sub.add_parser("down", help="Stop services (compose)"); dn.set_defaults(func=cmd_down)
+    st = sub.add_parser("status", help="Health check for services")
+    st.set_defaults(func=cmd_services_status)
     args = p.parse_args(argv)
     return args.func(args)
 

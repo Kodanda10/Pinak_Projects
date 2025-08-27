@@ -25,11 +25,21 @@ def resolve_tenant(request, payload):
 from typing import List, Dict, Any, Optional
 
 router = APIRouter()
+try:
+    from app.main import REQ_COUNTER
+except Exception:
+    REQ_COUNTER = None  # type: ignore
 
 @router.post("/add", response_model=MemoryRead, status_code=status.HTTP_201_CREATED)
 def add_memory(memory: MemoryCreate):
     """API endpoint to add a new memory."""
-    return memory_service.add_memory(memory)
+    out = memory_service.add_memory(memory)
+    try:
+        if REQ_COUNTER is not None:
+            REQ_COUNTER.labels(layer='semantic', project_id='default').inc()
+    except Exception:
+        pass
+    return out
 
 @router.get("/search", response_model=List[MemorySearchResult])
 def search_memory(query: str, k: int = 5):
@@ -50,6 +60,21 @@ def add_episodic(payload: Dict[str, Any] = Body(...), request: Request = None, p
         raise HTTPException(status_code=401, detail="Invalid token")
     tenant = resolve_tenant(request, payload) if request is not None else payload.get("tenant", "default")
     rec = svc_add_episodic(memory_service, tenant, project_id, payload.get('content') or '', int(payload.get('salience') or 0))
+    try:
+        if REQ_COUNTER is not None:
+            REQ_COUNTER.labels(layer='episodic', project_id=project_id or 'default').inc()
+    except Exception:
+        pass
+    try:
+        if REQ_COUNTER is not None:
+            REQ_COUNTER.labels(layer='procedural', project_id=project_id or 'default').inc()
+    except Exception:
+        pass
+    try:
+        if REQ_COUNTER is not None:
+            REQ_COUNTER.labels(layer='rag', project_id=project_id or 'default').inc()
+    except Exception:
+        pass
     return rec
 
 @router.get("/episodic/list", status_code=status.HTTP_200_OK)
@@ -125,6 +150,11 @@ def add_event(payload: Dict[str, Any] = Body(...), request: Request = None, proj
     ev = {"ts": datetime.datetime.utcnow().isoformat(), **payload, "project_id": project_id}
     ep = memory_service._dated_file(base, 'events', 'events')
     memory_service._append_audit_jsonl(ep, ev)
+    try:
+        if REQ_COUNTER is not None:
+            REQ_COUNTER.labels(layer='events', project_id=project_id or 'default').inc()
+    except Exception:
+        pass
     # If this is a governance audit event, mirror into changelog as change_type=governance
     try:
         if payload.get('type') == 'gov_audit':
@@ -198,6 +228,16 @@ def session_add(payload: Dict[str, Any] = Body(...), request: Request = None, pr
     if payload.get('expires_at'):
         rec['expires_at'] = payload['expires_at']
     memory_service._append_jsonl(path, rec)
+    try:
+        if REQ_COUNTER is not None:
+            REQ_COUNTER.labels(layer='working', project_id=project_id or 'default').inc()
+    except Exception:
+        pass
+    try:
+        if REQ_COUNTER is not None:
+            REQ_COUNTER.labels(layer='session', project_id=project_id or 'default').inc()
+    except Exception:
+        pass
     return {'status':'ok'}
 
 @router.get("/session/list", status_code=status.HTTP_200_OK)

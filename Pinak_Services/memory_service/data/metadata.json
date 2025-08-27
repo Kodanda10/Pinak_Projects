@@ -126,5 +126,26 @@
     "content": "The sky is blue on a clear day.",
     "tags": [],
     "created_at": "2025-08-27T17:24:25.667277"
+  },
+  "18": {
+    "id": "c1c84ea2-d2cd-4e56-ae2a-54982350f4ab",
+    "content": "to redact",
+    "tags": [],
+    "created_at": "2025-08-27T18:40:51.108603",
+    "redacted": true
+  },
+  "19": {
+    "id": "64f89fab-284e-4c9b-ae5d-b649740a34c1",
+    "content": "test memory",
+    "tags": [
+      "test"
+    ],
+    "created_at": "2025-08-27T18:40:51.185044"
+  },
+  "20": {
+    "id": "e4fba8f7-cbd9-450d-8c3f-29b79954b142",
+    "content": "The sky is blue on a clear day.",
+    "tags": [],
+    "created_at": "2025-08-27T18:40:51.208330"
   }
 }
