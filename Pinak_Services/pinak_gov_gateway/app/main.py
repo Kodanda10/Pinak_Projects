@@ -14,6 +14,7 @@ from jose import jwt, JWTError
 
 GOV_UPSTREAM = os.getenv("GOV_UPSTREAM", "http://parlant:8800")
 MEMORY_API_URL = os.getenv("MEMORY_API_URL", "http://memory-api:8000")
+GOV_AUDIT_DIR = os.getenv("GOV_AUDIT_DIR", "/data/gov")
 SECRET_KEY = os.getenv("SECRET_KEY", "change-me-in-prod")
 REQUIRE_PROJECT_HEADER = os.getenv("REQUIRE_PROJECT_HEADER", "true").lower() in {"1","true","yes","on"}
 # Allowed roles for RBAC propagation; empty means don't enforce specific roles
@@ -77,7 +78,7 @@ async def proxy(path: str, request: Request, project_id: Optional[str] = Header(
     try:
         if method in {"POST","PUT","PATCH","DELETE"} and project_id and upstream.status_code < 400:
             # Write to per-tenant/project audit under /data/gov
-            base = Path("/data/gov") / (project_id or "default")
+            base = Path(GOV_AUDIT_DIR) / (project_id or "default")
             base.mkdir(parents=True, exist_ok=True)
             entry = {
                 "ts": datetime.now(timezone.utc).isoformat(),
