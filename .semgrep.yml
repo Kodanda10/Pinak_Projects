@@ -9,6 +9,23 @@ rules:
     message: "Avoid weak hash MD5; use sha256 or better"
     pattern: hashlib.md5(...)
     severity: WARNING
+  - id: python-requests-verify-disabled
+    languages: [python]
+    message: "HTTP client TLS verification disabled"
+    patterns:
+      - pattern: requests.$FUNC(..., verify=False, ...)
+    severity: WARNING
+  - id: python-httpx-verify-disabled
+    languages: [python]
+    message: "HTTPX client TLS verification disabled"
+    patterns:
+      - pattern: httpx.$FUNC(..., verify=False, ...)
+    severity: WARNING
+  - id: python-insecure-tempfile
+    languages: [python]
+    message: "Use tempfile.NamedTemporaryFile instead of predictable temp paths"
+    pattern: open('/tmp/' + ...)
+    severity: WARNING
   - id: python-subprocess-shell-true
     languages: [python]
     message: "Avoid subprocess with shell=True"

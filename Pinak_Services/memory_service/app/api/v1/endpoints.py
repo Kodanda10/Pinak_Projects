@@ -127,12 +127,20 @@ def add_event(payload: Dict[str, Any] = Body(...), request: Request = None, proj
     return {"status":"ok"}
 
 @router.get("/events", status_code=status.HTTP_200_OK)
-def list_events(q: Optional[str] = None, request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project")) -> List[Dict[str, Any]]:
-    import json, os
+def list_events(q: Optional[str] = None, since: Optional[str] = None, until: Optional[str] = None, limit: int = 100, offset: int = 0, request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project")) -> List[Dict[str, Any]]:
+    import json, os, datetime
     tenant = resolve_tenant(request, {}) if request is not None else "default"
     base = memory_service._store_dir(tenant, project_id)
     p = os.path.join(base, 'events.jsonl')
     out=[]
+    def parse_ts(ts: str):
+        try:
+            # allow Z suffix
+            return datetime.datetime.fromisoformat(ts.replace('Z','+00:00'))
+        except Exception:
+            return None
+    t_since = parse_ts(since) if since else None
+    t_until = parse_ts(until) if until else None
     if os.path.exists(p):
         with open(p,'r',encoding='utf-8') as fh:
             for line in fh:
@@ -140,10 +148,15 @@ def list_events(q: Optional[str] = None, request: Request = None, project_id: Op
                     obj = json.loads(line)
                     if q and q not in json.dumps(obj):
                         continue
+                    ts = parse_ts(obj.get('ts',''))
+                    if t_since and ts and ts < t_since:
+                        continue
+                    if t_until and ts and ts > t_until:
+                        continue
                     out.append(obj)
                 except Exception:
                     pass
-    return out
+    return out[offset:offset+limit]
 
 # --- Session endpoints (persisted JSONL with TTL support) ---
 @router.post("/session/add", status_code=status.HTTP_201_CREATED)
@@ -175,6 +188,13 @@ def session_list(session_id: str, limit: int = 100, offset: int = 0, since: Opti
     base = memory_service._store_dir(tenant, project_id)
     path = os.path.join(base, f'session_{session_id}.jsonl')
     out=[]
+    def parse_ts(ts: str):
+        try:
+            return datetime.datetime.fromisoformat(ts.replace('Z','+00:00'))
+        except Exception:
+            return None
+    t_since = parse_ts(since) if since else None
+    t_until = parse_ts(until) if until else None
     if os.path.exists(path):
         with open(path,'r',encoding='utf-8') as fh:
             for line in fh:
@@ -188,6 +208,11 @@ def session_list(session_id: str, limit: int = 100, offset: int = 0, since: Opti
                                 continue
                         except Exception:
                             pass
+                    ts = parse_ts(obj.get('ts',''))
+                    if t_since and ts and ts < t_since:
+                        continue
+                    if t_until and ts and ts > t_until:
+                        continue
                     out.append(obj)
                 except Exception:
                     pass
@@ -214,12 +239,19 @@ def working_add(payload: Dict[str, Any] = Body(...), request: Request = None, pr
     return {'status':'ok'}
 
 @router.get("/working/list", status_code=status.HTTP_200_OK)
-def working_list(limit: int = 100, offset: int = 0, request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project")) -> List[Dict[str, Any]]:
+def working_list(limit: int = 100, offset: int = 0, since: Optional[str] = None, until: Optional[str] = None, request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project")) -> List[Dict[str, Any]]:
     import os, json, datetime
     tenant = resolve_tenant(request, {}) if request is not None else "default"
     base = memory_service._store_dir(tenant, project_id)
     path = os.path.join(base, 'working.jsonl')
     out=[]
+    def parse_ts(ts: str):
+        try:
+            return datetime.datetime.fromisoformat(ts.replace('Z','+00:00'))
+        except Exception:
+            return None
+    t_since = parse_ts(since) if since else None
+    t_until = parse_ts(until) if until else None
     if os.path.exists(path):
         with open(path,'r',encoding='utf-8') as fh:
             for line in fh:
@@ -232,6 +264,11 @@ def working_list(limit: int = 100, offset: int = 0, request: Request = None, pro
                                 continue
                         except Exception:
                             pass
+                    ts = parse_ts(obj.get('ts',''))
+                    if t_since and ts and ts < t_since:
+                        continue
+                    if t_until and ts and ts > t_until:
+                        continue
                     out.append(obj)
                 except Exception:
                     pass
