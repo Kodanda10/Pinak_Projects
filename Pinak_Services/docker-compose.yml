@@ -4,6 +4,7 @@ version: '3.8'
 services:
   memory-api:
     build: ./memory_service
+    read_only: true
     ports:
       - "8001:8000"
     volumes:
@@ -11,9 +12,13 @@ services:
       - ./memory_service/app:/code/app
       # Mount the data directory to persist the vector index
       - ./memory_service/data:/code/data
+      - /tmp
     environment:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - PINAK_METRICS=true
+    tmpfs:
+      - /tmp:rw,size=64m
     depends_on:
       - redis
 
@@ -25,6 +30,7 @@ services:
   # Pinak Governance (Gateway)
   pinak-gov-gateway:
     build: ./pinak_gov_gateway
+    read_only: true
     environment:
       - GOV_UPSTREAM=http://parlant:8800
       - MEMORY_API_URL=http://memory-api:8000
@@ -32,6 +38,8 @@ services:
       - REQUIRE_PROJECT_HEADER=true
     ports:
       - "8880:8880"
+    tmpfs:
+      - /tmp:rw,size=64m
     networks:
       - prodnet
 

@@ -9,10 +9,14 @@ WORKDIR /code
 COPY ./requirements.txt /code/requirements.txt
 
 # Install any needed packages specified in requirements.txt
-RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt
+RUN pip install --no-cache-dir --upgrade -r /code/requirements.txt \
+    && useradd --no-log-init -r -m -d /home/app -s /usr/sbin/nologin app \
+    && mkdir -p /code/data /code/app \
+    && chown -R app:app /code /home/app
 
 # Copy the application code into the container
 COPY ./app /code/app
+USER app
 
 # Expose the port the app runs on
 EXPOSE 8000
