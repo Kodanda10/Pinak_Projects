@@ -144,7 +144,19 @@ def add_rag(payload: Dict[str, Any] = Body(...), request: Request = None, projec
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
     tenant = resolve_tenant(request, payload) if request is not None else payload.get("tenant", "default")
-    rec = svc_add_rag(memory_service, tenant, project_id, payload.get('query') or '', payload.get('external_source'))
+    # optional tracing
+    try:
+        from opentelemetry import trace  # type: ignore
+        tracer = trace.get_tracer("pinak.memory")  # type: ignore
+    except Exception:
+        tracer = None  # type: ignore
+    if tracer:
+        with tracer.start_as_current_span("memory.add.rag") as span:  # type: ignore
+            if project_id:
+                span.set_attribute("pinak.project_id", project_id)
+            rec = svc_add_rag(memory_service, tenant, project_id, payload.get('query') or '', payload.get('external_source'))
+    else:
+        rec = svc_add_rag(memory_service, tenant, project_id, payload.get('query') or '', payload.get('external_source'))
     return rec
 
 @router.get("/rag/list", status_code=status.HTTP_200_OK)
@@ -179,7 +191,20 @@ def add_event(payload: Dict[str, Any] = Body(...), request: Request = None, proj
     import datetime, os, json
     ev = {"ts": datetime.datetime.utcnow().isoformat(), **payload, "project_id": project_id}
     ep = memory_service._dated_file(base, 'events', 'events')
-    memory_service._append_audit_jsonl(ep, ev)
+    # optional tracing
+    try:
+        from opentelemetry import trace  # type: ignore
+        tracer = trace.get_tracer("pinak.memory")  # type: ignore
+    except Exception:
+        tracer = None  # type: ignore
+    if tracer:
+        with tracer.start_as_current_span("memory.add.event") as span:  # type: ignore
+            if project_id:
+                span.set_attribute("pinak.project_id", project_id)
+            span.set_attribute("event.type", payload.get('type'))
+            memory_service._append_audit_jsonl(ep, ev)
+    else:
+        memory_service._append_audit_jsonl(ep, ev)
     try:
         if REQ_COUNTER is not None:
             REQ_COUNTER.labels(layer='events', project_id=project_id or 'default').inc()
@@ -262,7 +287,19 @@ def session_add(payload: Dict[str, Any] = Body(...), request: Request = None, pr
     # allow explicit expires_at for testing
     if payload.get('expires_at'):
         rec['expires_at'] = payload['expires_at']
-    memory_service._append_jsonl(path, rec)
+    # optional tracing
+    try:
+        from opentelemetry import trace  # type: ignore
+        tracer = trace.get_tracer("pinak.memory")  # type: ignore
+    except Exception:
+        tracer = None  # type: ignore
+    if tracer:
+        with tracer.start_as_current_span("memory.add.session") as span:  # type: ignore
+            if project_id:
+                span.set_attribute("pinak.project_id", project_id)
+            memory_service._append_jsonl(path, rec)
+    else:
+        memory_service._append_jsonl(path, rec)
     try:
         if REQ_COUNTER is not None:
             REQ_COUNTER.labels(layer='working', project_id=project_id or 'default').inc()
@@ -334,7 +371,19 @@ def working_add(payload: Dict[str, Any] = Body(...), request: Request = None, pr
         rec['expires_at'] = (datetime.datetime.utcnow()+datetime.timedelta(seconds=int(ttl))).isoformat()
     if payload.get('expires_at'):
         rec['expires_at'] = payload['expires_at']
-    memory_service._append_jsonl(path, rec)
+    # optional tracing
+    try:
+        from opentelemetry import trace  # type: ignore
+        tracer = trace.get_tracer("pinak.memory")  # type: ignore
+    except Exception:
+        tracer = None  # type: ignore
+    if tracer:
+        with tracer.start_as_current_span("memory.add.working") as span:  # type: ignore
+            if project_id:
+                span.set_attribute("pinak.project_id", project_id)
+            memory_service._append_jsonl(path, rec)
+    else:
+        memory_service._append_jsonl(path, rec)
     return {'status':'ok'}
 
 @router.get("/working/list", status_code=status.HTTP_200_OK)
