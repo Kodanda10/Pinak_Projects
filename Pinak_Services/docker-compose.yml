@@ -36,10 +36,9 @@ services:
       - prodnet
 
   parlant:
-    # Default to a published image for speed and reproducibility.
-    # You can pin by digest using PARLANT_IMAGE_REF, e.g.
-    # ghcr.io/pinak/parlant:1.0.0@sha256:abcdef...
-    image: ${PARLANT_IMAGE_REF:-${PARLANT_IMAGE:-ghcr.io/pinak/parlant:1.0.0}}
+    # Prefer in-house GHCR image. Override with PARLANT_IMAGE_REF to pin by tag or digest, e.g.:
+    # ghcr.io/pinaka10/parlant:2025-08-27@sha256:abcdef...
+    image: ${PARLANT_IMAGE_REF:-ghcr.io/pinaka10/parlant:latest}
     # To build from source instead, uncomment the next two lines and remove the image line.
     # build: ./parlant
     # pull_policy: build

@@ -1,0 +1,9 @@
+# Ignore generated and cache directories
+**/__pycache__/**
+**/.pytest_cache/**
+
+# Ignore binary/vector store data
+Pinak_Services/memory_service/data/**
+
+# Ignore local audit outputs if created on dev machines
+Pinak_Services/pinak_gov_gateway/_gov_audit/**

@@ -31,3 +31,19 @@ Sample project policy
 Roadmap
 - Map project policy operations to Parlant authz at the upstream layer.
 - Enforce pid==header and role at Parlant for defense-in-depth.
+
+## Role → Operation Mapping (example)
+
+Until upstream enforcement is finalized in Parlant, the gateway forwards `X-Pinak-Role` for contextual policy checks. A typical mapping might look like:
+
+- viewer: read-only operations
+  - Parlant: GET /policies, GET /policies/{id}, GET /audit
+  - Pinak: GET /pinak-gov/audit
+- editor: read + write within project scope
+  - Parlant: POST/PUT/PATCH /policies, POST /guidelines
+  - Pinak: mirrored to changelog as `change_type=governance`
+- admin: full control
+  - Parlant: DELETE operations, capability toggles, admin endpoints
+  - Pinak: same as above, with heightened audit scrutiny
+
+Recommended practice: define `.pinak/policy.json` per project to document expected operations per role and reference it during reviews.
