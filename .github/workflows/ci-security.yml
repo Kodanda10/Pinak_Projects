@@ -22,8 +22,10 @@ jobs:
           python-version: '3.11'
       - name: Secrets scan (block on fail)
         uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          redact: true
+          args: "--redact"
       - name: Semgrep SAST (block on fail)
         uses: returntocorp/semgrep-action@v1
         with:
