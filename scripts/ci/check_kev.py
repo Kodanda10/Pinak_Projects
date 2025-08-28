@@ -4,8 +4,12 @@ import json, sys, urllib.request
 def load_kev_set():
     # CISA KEV catalog JSON
     url = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
-    with urllib.request.urlopen(url, timeout=30) as r:
-        data = json.load(r)
+    try:
+        with urllib.request.urlopen(url, timeout=30) as r:
+            data = json.load(r)
+    except Exception as e:
+        print(f"KEV feed unavailable: {e}. Skipping KEV gate.")
+        return None
     cves = {item.get("cveID") for item in data.get("vulnerabilities", []) if item.get("cveID")}
     return cves
 
@@ -14,6 +18,10 @@ def main():
         print("usage: check_kev.py <pip_audit.json>")
         return 2
     kev = load_kev_set()
+    if kev is None:
+        # Network failure or feed unavailable → do not fail the job for infra reasons
+        print("KEV gate skipped (feed unavailable)")
+        return 0
     with open(sys.argv[1], "r", encoding="utf-8") as fh:
         report = json.load(fh)
     bad = []
@@ -32,4 +40,3 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
-
