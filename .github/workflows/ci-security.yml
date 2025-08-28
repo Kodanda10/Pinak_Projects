@@ -22,9 +22,12 @@ jobs:
         with:
           python-version: '3.11'
       - name: Secrets scan (block on fail)
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ver=8.24.3
+          curl -sSLf https://github.com/gitleaks/gitleaks/releases/download/v${ver}/gitleaks_${ver}_linux_x64.tar.gz | tar -xz
+          ./gitleaks detect --source . --redact
       - name: Semgrep SAST (block on fail)
         uses: returntocorp/semgrep-action@v1
         with:
