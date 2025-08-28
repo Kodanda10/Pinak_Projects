@@ -42,7 +42,7 @@ jobs:
           pip install pytest python-jose
       - name: Run package tests
         run: |
-          pytest -q Pinak_Package/tests
+          pytest -q tests
   gateway-tests:
     runs-on: ubuntu-latest
     steps:
