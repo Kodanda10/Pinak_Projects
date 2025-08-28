@@ -273,5 +273,47 @@
     "content": "The sky is blue on a clear day.",
     "tags": [],
     "created_at": "2025-08-28T09:58:25.515465"
+  },
+  "39": {
+    "id": "52a4e358-be58-47a9-8bb5-1ebcc6931185",
+    "content": "to redact",
+    "tags": [],
+    "created_at": "2025-08-28T10:15:47.356037",
+    "redacted": true
+  },
+  "40": {
+    "id": "849b06e7-084c-4fac-94b4-5ce4823c0dc3",
+    "content": "test memory",
+    "tags": [
+      "test"
+    ],
+    "created_at": "2025-08-28T10:15:47.385357"
+  },
+  "41": {
+    "id": "c9fe45f1-c1cd-436f-9152-84f1151d5593",
+    "content": "The sky is blue on a clear day.",
+    "tags": [],
+    "created_at": "2025-08-28T10:15:47.386918"
+  },
+  "42": {
+    "id": "a9281471-b272-41e6-8703-02dc75ccb9b4",
+    "content": "to redact",
+    "tags": [],
+    "created_at": "2025-08-28T10:16:06.237724",
+    "redacted": true
+  },
+  "43": {
+    "id": "db4b0cf7-02c1-45f3-82e4-dd210e87a8b1",
+    "content": "test memory",
+    "tags": [
+      "test"
+    ],
+    "created_at": "2025-08-28T10:16:06.264124"
+  },
+  "44": {
+    "id": "d03addfc-8492-4531-8b89-836491ab4f32",
+    "content": "The sky is blue on a clear day.",
+    "tags": [],
+    "created_at": "2025-08-28T10:16:06.265769"
   }
 }

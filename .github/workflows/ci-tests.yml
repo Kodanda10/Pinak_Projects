@@ -19,11 +19,12 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest pytest-asyncio httpx asgi-lifespan
+          pip install pytest pytest-asyncio httpx asgi-lifespan python-jose
       - name: Run tests (mock embeddings)
         working-directory: Pinak_Services/memory_service
         env:
           USE_MOCK_EMBEDDINGS: 'true'
+          SECRET_KEY: 'change-me-in-prod'
         run: |
           pytest -q
   package-tests:

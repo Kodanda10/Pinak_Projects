@@ -1,5 +1,6 @@
 from fastapi import APIRouter, status, Header, HTTPException, Request, Body
 import os
+import secrets
 import jwt
 from app.core.schemas import MemoryCreate, MemoryRead, MemorySearchResult
 from app.services.memory_service import (
@@ -25,6 +26,7 @@ def resolve_tenant(request, payload):
 from typing import List, Dict, Any, Optional
 
 router = APIRouter()
+_SECRET_KEY = os.getenv('SECRET_KEY') or secrets.token_urlsafe(32)
 try:
     from app.main import REQ_COUNTER
 except Exception:
@@ -61,7 +63,7 @@ def add_episodic(payload: Dict[str, Any] = Body(...), request: Request = None, p
         auth = request.headers.get('Authorization') if request else None
         if auth and auth.lower().startswith('bearer '):
             token = auth.split(' ',1)[1]
-            claims = jwt.decode(token, os.getenv('SECRET_KEY','change-me-in-prod'), algorithms=["HS256"])
+            claims = jwt.decode(token, _SECRET_KEY, algorithms=["HS256"])
             if project_id and claims.get('pid') and claims['pid'] != project_id:
                 raise HTTPException(status_code=403, detail="Project header/token mismatch")
     except HTTPException:
@@ -109,7 +111,7 @@ def add_procedural(payload: Dict[str, Any] = Body(...), request: Request = None,
         auth = request.headers.get('Authorization') if request else None
         if auth and auth.lower().startswith('bearer '):
             token = auth.split(' ',1)[1]
-            claims = jwt.decode(token, os.getenv('SECRET_KEY','change-me-in-prod'), algorithms=["HS256"])
+            claims = jwt.decode(token, _SECRET_KEY, algorithms=["HS256"])
             if project_id and claims.get('pid') and claims['pid'] != project_id:
                 raise HTTPException(status_code=403, detail="Project header/token mismatch")
     except HTTPException:

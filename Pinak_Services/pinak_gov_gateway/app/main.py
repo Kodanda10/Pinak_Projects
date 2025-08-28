@@ -10,6 +10,7 @@ from pathlib import Path
 from fastapi import FastAPI, Request, Response, Header, HTTPException
 from fastapi.responses import JSONResponse
 import jwt
+import secrets
 
 
 GOV_UPSTREAM = os.getenv("GOV_UPSTREAM", "http://parlant:8800")
@@ -20,7 +21,8 @@ MEMORY_API_CLIENT_CERT = os.getenv("MEMORY_API_CLIENT_CERT")  # optional client 
 MEMORY_API_CLIENT_KEY = os.getenv("MEMORY_API_CLIENT_KEY")    # optional client key (mTLS)
 OPA_URL = os.getenv("OPA_URL")  # optional OPA for policy checks
 GOV_AUDIT_DIR = os.getenv("GOV_AUDIT_DIR", "/data/gov")
-SECRET_KEY = os.getenv("SECRET_KEY", "change-me-in-prod")
+# Do not hardcode secrets; prefer env. Generate ephemeral dev secret if unset.
+SECRET_KEY = os.getenv("SECRET_KEY") or secrets.token_urlsafe(32)
 REQUIRE_PROJECT_HEADER = os.getenv("REQUIRE_PROJECT_HEADER", "true").lower() in {"1","true","yes","on"}
 # Allowed roles for RBAC propagation; empty means don't enforce specific roles
 ALLOWED_ROLES = {r.strip() for r in os.getenv("PINAK_ALLOWED_ROLES", "viewer,editor,admin").split(',') if r.strip()}
