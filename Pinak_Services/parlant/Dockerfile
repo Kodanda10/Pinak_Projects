@@ -42,3 +42,9 @@ EXPOSE 8800
 
 # Run the official server entrypoint
 CMD ["parlant-server"]
+
+# Basic container healthcheck
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+USER app
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=5 CMD curl -fsS http://127.0.0.1:8800/ || exit 1

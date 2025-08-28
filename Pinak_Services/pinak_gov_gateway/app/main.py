@@ -13,7 +13,12 @@ from jose import jwt, JWTError
 
 
 GOV_UPSTREAM = os.getenv("GOV_UPSTREAM", "http://parlant:8800")
+GOV_UPSTREAM_CA = os.getenv("GOV_UPSTREAM_CA")  # optional CA bundle for TLS pinning
 MEMORY_API_URL = os.getenv("MEMORY_API_URL", "http://memory-api:8000")
+MEMORY_API_CA = os.getenv("MEMORY_API_CA")  # optional CA bundle for TLS pinning
+MEMORY_API_CLIENT_CERT = os.getenv("MEMORY_API_CLIENT_CERT")  # optional client cert (mTLS)
+MEMORY_API_CLIENT_KEY = os.getenv("MEMORY_API_CLIENT_KEY")    # optional client key (mTLS)
+OPA_URL = os.getenv("OPA_URL")  # optional OPA for policy checks
 GOV_AUDIT_DIR = os.getenv("GOV_AUDIT_DIR", "/data/gov")
 SECRET_KEY = os.getenv("SECRET_KEY", "change-me-in-prod")
 REQUIRE_PROJECT_HEADER = os.getenv("REQUIRE_PROJECT_HEADER", "true").lower() in {"1","true","yes","on"}
@@ -72,7 +77,27 @@ async def proxy(path: str, request: Request, project_id: Optional[str] = Header(
 
     body = await request.body()
     method = request.method.upper()
-    async with httpx.AsyncClient(follow_redirects=True, timeout=20.0) as client:
+    verify_param = GOV_UPSTREAM_CA if GOV_UPSTREAM_CA else True
+    async with httpx.AsyncClient(follow_redirects=True, timeout=20.0, verify=verify_param) as client:
+        # Optional OPA/Rego policy check
+        if OPA_URL:
+            try:
+                opa_in = {
+                    "claims": claims,
+                    "headers": {k.lower(): v for k, v in headers.items()},
+                    "request": {"path": f"/{path}", "method": method},
+                }
+                r = await client.post(f"{OPA_URL.rstrip('/')}/v1/data/pinak/policy/allow", json={"input": opa_in}, timeout=5.0)
+                if r.status_code == 200:
+                    data = r.json()
+                    decision = data.get("result")
+                    if decision is False:
+                        raise HTTPException(status_code=403, detail="Denied by policy")
+            except HTTPException:
+                raise
+            except Exception:
+                # Fail-open if OPA is unavailable
+                pass
         upstream = await client.request(method, url, headers=headers, content=body)
     # Best-effort governance audit sync for mutating ops
     try:
@@ -95,7 +120,9 @@ async def proxy(path: str, request: Request, project_id: Optional[str] = Header(
             (base / "audit.jsonl").write_text(((base / "audit.jsonl").read_text() if (base/"audit.jsonl").exists() else "") + json.dumps(entry) + "\n")
             # Also sync into memory events for unified audit
             try:
-                async with httpx.AsyncClient(timeout=5.0) as client:
+                verify_mem = MEMORY_API_CA if MEMORY_API_CA else True
+                cert_opt = (MEMORY_API_CLIENT_CERT, MEMORY_API_CLIENT_KEY) if MEMORY_API_CLIENT_CERT and MEMORY_API_CLIENT_KEY else None
+                async with httpx.AsyncClient(timeout=5.0, verify=verify_mem, cert=cert_opt) as client:
                     await client.post(f"{MEMORY_API_URL}/api/v1/memory/event", json={
                         "type": "gov_audit",
                         "path": f"/{path}",

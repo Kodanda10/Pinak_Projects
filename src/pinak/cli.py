@@ -72,6 +72,12 @@ def try_up_services() -> bool:
     local = Path.cwd()/"Pinak_Services"
     if (local/"docker-compose.yml").exists():
         try:
+            # Ensure dev TLS certs exist for HTTPS compose
+            cert_script = Path.cwd()/"scripts"/"dev_certs.sh"
+            cert_dir = local/"certs"
+            if cert_script.exists() and not cert_dir.exists():
+                print("Generating dev TLS certificates…")
+                run(["bash", str(cert_script)], check=True)
             run(["docker","network","create","prodnet"], check=False)
             run(["docker","compose","-f", str(local/"docker-compose.yml"), "up","-d","--build"], check=True)
             return True
@@ -185,18 +191,25 @@ def cmd_quickstart(args: argparse.Namespace) -> int:
     if not ensure_docker():
         return 2
     # Bridge init best-effort
-    try:
-        from .bridge.cli import main as bridge_main
-        bargs = ["init","--name", args.name or Path.cwd().name, "--url", args.url or os.getenv("PINAK_MEMORY_URL","http://localhost:8011")]
-        if args.tenant: bargs += ["--tenant", args.tenant]
-        if args.token: bargs += ["--token", args.token]
-        bridge_main(bargs)
-    except SystemExit:
-        pass
-    except Exception as e:
-        print(f"Bridge init skipped: {e}")
+        try:
+            from .bridge.cli import main as bridge_main
+            bargs = ["init","--name", args.name or Path.cwd().name, "--url", args.url or os.getenv("PINAK_MEMORY_URL","http://localhost:8011")]
+            if args.tenant: bargs += ["--tenant", args.tenant]
+            if args.token: bargs += ["--token", args.token]
+            bridge_main(bargs)
+        except SystemExit:
+            pass
+        except Exception as e:
+            print(f"Bridge init skipped: {e}")
     if not try_up_services():
         return 2
+    # If dev CA present, set default for memory client
+    try:
+        ca = Path.cwd()/"Pinak_Services"/"certs"/"ca.crt"
+        if ca.exists():
+            os.environ.setdefault("PINAK_MEMORY_CA", str(ca))
+    except Exception:
+        pass
     # Health check retries
     try:
         from .memory.cli import main as mem_main

@@ -152,15 +152,66 @@ class MemoryService:
             pass
         return '0'
 
+    def _last_entry_ts(self, path: str):
+        try:
+            if not os.path.exists(path):
+                return None
+            last = None
+            with open(path, 'r', encoding='utf-8') as fh:
+                for line in fh:
+                    if line.strip():
+                        last = line
+            if last:
+                obj = json.loads(last)
+                ts = obj.get('ts')
+                if ts:
+                    try:
+                        return datetime.datetime.fromisoformat(ts.replace('Z','+00:00'))
+                    except Exception:
+                        return None
+        except Exception:
+            return None
+        return None
+
     def _append_audit_jsonl(self, path: str, entry: dict) -> None:
         import hashlib as _hash
         e = dict(entry)
         e.setdefault('ts', datetime.datetime.utcnow().isoformat())
+        # Hourly anchor: if last entry hour differs, insert an anchor before the new entry
+        try:
+            last_ts = self._last_entry_ts(path)
+            cur_ts = datetime.datetime.fromisoformat(e['ts'].replace('Z','+00:00'))
+            if last_ts is not None and (last_ts.year, last_ts.month, last_ts.day, last_ts.hour) != (cur_ts.year, cur_ts.month, cur_ts.day, cur_ts.hour):
+                anc = {'anchor': True, 'reason': 'hourly_anchor', 'ts': e['ts']}
+                anc_prev = self._last_entry_hash(path)
+                anc['prev_hash'] = anc_prev
+                anc_base = json.dumps(anc, sort_keys=True)
+                anc['entry_hash'] = _hash.sha256((anc_prev + anc_base).encode()).hexdigest()
+                self._append_jsonl(path, anc)
+        except Exception:
+            pass
         prev = self._last_entry_hash(path)
         e['prev_hash'] = prev
         base = json.dumps(e, sort_keys=True)
         e['entry_hash'] = _hash.sha256((prev + base).encode()).hexdigest()
         self._append_jsonl(path, e)
+
+    def write_audit_anchor(self, tenant: str, project_id: object, kind: str, date: Optional[str] = None, reason: str = 'hourly_anchor') -> dict:
+        """Append an explicit anchor entry to the events/changelog chain for the given date.
+
+        This creates an entry with anchor=true so verifiers and auditors can quickly detect
+        periodic anchors per enterprise baseline.
+        """
+        if kind not in {'events','changelog'}:
+            return {"ok": False, "error": "invalid kind"}
+        base = self._store_dir(tenant or 'default', project_id)
+        p = self._dated_file(base, kind, 'events' if kind == 'events' else 'changes', date)
+        entry = {
+            'anchor': True,
+            'reason': reason,
+        }
+        self._append_audit_jsonl(p, entry)
+        return {"ok": True, "path": p}
 
     def verify_audit_chain(self, tenant: str, project_id: object, kind: str, date: Optional[str] = None) -> dict:
         """Verifies hash-chain continuity for events or changelog for a given date (UTC)."""

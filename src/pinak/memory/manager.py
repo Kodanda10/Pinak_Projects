@@ -40,7 +40,9 @@ class MemoryManager:
             headers["X-Pinak-Fingerprint"] = ctx.identity_fingerprint
         if default_headers:
             headers.update(default_headers)
-        self.client = client or httpx.Client(headers=headers, timeout=self._timeout)
+        ca = os.getenv("PINAK_MEMORY_CA")
+        verify_opt = ca if ca else True
+        self.client = client or httpx.Client(headers=headers, timeout=self._timeout, verify=verify_opt)
         print(f"MemoryManager client initialized. Pointing to service at: {self.base_url}")
 
     def add_memory(self, content: str, tags: list = None) -> Dict[str, Any]:

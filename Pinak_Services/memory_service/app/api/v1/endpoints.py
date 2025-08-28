@@ -227,6 +227,11 @@ def add_event(payload: Dict[str, Any] = Body(...), request: Request = None, proj
         pass
     return {"status":"ok"}
 
+@router.post("/audit/anchor", status_code=status.HTTP_200_OK)
+def add_audit_anchor(kind: str = Body(..., embed=True), date: Optional[str] = Body(default=None, embed=True), reason: str = Body('hourly_anchor', embed=True), request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project")) -> Dict[str, Any]:
+    tenant = resolve_tenant(request, {}) if request is not None else "default"
+    return memory_service.write_audit_anchor(tenant, project_id, kind, date, reason)
+
 @router.get("/events", status_code=status.HTTP_200_OK)
 def list_events(q: Optional[str] = None, since: Optional[str] = None, until: Optional[str] = None, limit: int = 100, offset: int = 0, request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project")) -> List[Dict[str, Any]]:
     import json, os, datetime
