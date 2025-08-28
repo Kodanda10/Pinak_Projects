@@ -1,5 +1,6 @@
 import os
 import httpx
+import sys
 from typing import List, Dict, Any, Optional, Mapping
 try:
     from ..bridge.context import ProjectContext
@@ -53,7 +54,9 @@ class MemoryManager:
                 json={"content": content, "tags": tags or []},
                 timeout=self._timeout
             )
-            response.raise_for_status() # Raise an exception for bad status codes (4xx or 5xx)
+            if response.status_code == 401:
+                print("Auth failed (401). Token may be missing or expired. Run 'pinak token --exp 120 --set' or 'pinak-bridge token rotate' and retry.", file=sys.stderr)
+            response.raise_for_status()  # Raise an exception for bad status codes (4xx or 5xx)
             return response.json()
         except httpx.RequestError as e:
             print(f"An error occurred while requesting {e.request.url!r}.")
@@ -67,6 +70,8 @@ class MemoryManager:
                 params={"query": query, "k": k},
                 timeout=self._timeout
             )
+            if response.status_code == 401:
+                print("Auth failed (401). Token may be missing or expired. Run 'pinak token --exp 120 --set' or 'pinak-bridge token rotate' and retry.", file=sys.stderr)
             response.raise_for_status()
             return response.json()
         except httpx.RequestError as e:

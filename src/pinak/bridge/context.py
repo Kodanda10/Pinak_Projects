@@ -142,7 +142,9 @@ class ProjectContext:
             raise RuntimeError("python-jose required for token rotation") from e
         import datetime
         secret = secret or os.getenv("SECRET_KEY", "change-me-in-prod")
-        exp_ts = int((datetime.datetime.utcnow() + datetime.timedelta(minutes=int(minutes))).timestamp())
+        # Use timezone-aware UTC to avoid local offset errors in exp
+        now_utc = datetime.datetime.now(datetime.timezone.utc)
+        exp_ts = int((now_utc + datetime.timedelta(minutes=int(minutes))).timestamp())
         claims = {"sub": sub, "pid": self.project_id, "exp": exp_ts}
         if role:
             claims["role"] = role

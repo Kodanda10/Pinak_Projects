@@ -7,7 +7,7 @@ with open('requirements.txt', 'r') as f:
 
 setup(
     name="Pinak",
-    version="1.1.0",
+    version="1.1.1",
     author="Abhijita/Gemini",
     description="A unified local-first package for AI memory and security auditing.",
     
@@ -28,6 +28,7 @@ setup(
             'pinak=pinak.cli:main',
             'pinak-bridge=pinak.bridge.cli:main',
             'pinak-memory=pinak.memory.cli:main',
+            'pinak-menubar=pinak.menubar.app:main',
         ]
     },
 

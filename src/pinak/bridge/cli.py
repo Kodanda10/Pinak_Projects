@@ -5,6 +5,7 @@ import json
 import subprocess
 from pathlib import Path
 from typing import Optional
+import os
 
 from .context import ProjectContext, PINAK_DIR, PINAK_CONFIG
 
@@ -78,7 +79,27 @@ def cmd_verify(args: argparse.Namespace) -> int:
     checks["git_ignores_.pinak"] = gi_ok
     if not gi_ok:
         ok = False
-    checks["token_present"] = bool(ctx and ctx.get_token())
+    tok = ctx.get_token() if ctx else None
+    checks["token_present"] = bool(tok)
+    # Token expiry diagnostics (non-fatal): warn if expired or expiring soon
+    try:
+        if tok:
+            try:
+                from jose import jwt
+                claims = jwt.get_unverified_claims(tok)  # type: ignore[attr-defined]
+                exp = int(claims.get("exp")) if claims.get("exp") is not None else None
+            except Exception:
+                exp = None
+            import time
+            now = int(time.time())
+            if exp is not None:
+                checks["token_expired"] = exp <= now
+                checks["token_expires_in_s"] = max(0, exp - now)
+                # Consider expired as a failed verify
+                if exp <= now:
+                    ok = False
+    except Exception:
+        pass
     print(json.dumps({"ok": ok, "checks": checks}, indent=2))
     return 0 if ok else 2
 

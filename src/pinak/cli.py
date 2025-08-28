@@ -318,7 +318,9 @@ def cmd_token(args: argparse.Namespace) -> int:
     if args.exp is not None:
         try:
             mins = int(args.exp)
-            exp_ts = int((datetime.datetime.utcnow() + datetime.timedelta(minutes=mins)).timestamp())
+            # Use timezone-aware UTC to avoid local offset errors in exp
+            now_utc = datetime.datetime.now(datetime.timezone.utc)
+            exp_ts = int((now_utc + datetime.timedelta(minutes=mins)).timestamp())
             claims["exp"] = exp_ts
         except Exception:
             print("Invalid --exp value; must be integer minutes", file=sys.stderr)
