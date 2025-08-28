@@ -6,7 +6,7 @@ sentence-transformers
 faiss-cpu
 redis
 numpy
-python-jose[cryptography]
+PyJWT>=2.8.0
 
 # TDD Dependencies
 pytest

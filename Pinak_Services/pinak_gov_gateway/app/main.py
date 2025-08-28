@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from fastapi import FastAPI, Request, Response, Header, HTTPException
 from fastapi.responses import JSONResponse
-from jose import jwt, JWTError
+import jwt
 
 
 GOV_UPSTREAM = os.getenv("GOV_UPSTREAM", "http://parlant:8800")
@@ -49,7 +49,9 @@ def enforce_project_and_pid(request: Request, project_id: Optional[str]) -> dict
                 if ALLOWED_ROLES and role not in ALLOWED_ROLES:
                     raise HTTPException(status_code=403, detail="Role not permitted")
             out_claims["pid"] = pid
-        except JWTError:
+        except HTTPException:
+            raise
+        except Exception:
             raise HTTPException(status_code=401, detail="Invalid token")
     return out_claims
 

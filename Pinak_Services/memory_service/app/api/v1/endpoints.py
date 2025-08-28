@@ -1,6 +1,6 @@
 from fastapi import APIRouter, status, Header, HTTPException, Request, Body
 import os
-from jose import jwt, JWTError
+import jwt
 from app.core.schemas import MemoryCreate, MemoryRead, MemorySearchResult
 from app.services.memory_service import (
     memory_service,
@@ -64,7 +64,9 @@ def add_episodic(payload: Dict[str, Any] = Body(...), request: Request = None, p
             claims = jwt.decode(token, os.getenv('SECRET_KEY','change-me-in-prod'), algorithms=["HS256"])
             if project_id and claims.get('pid') and claims['pid'] != project_id:
                 raise HTTPException(status_code=403, detail="Project header/token mismatch")
-    except JWTError:
+    except HTTPException:
+        raise
+    except Exception:
         raise HTTPException(status_code=401, detail="Invalid token")
     tenant = resolve_tenant(request, payload) if request is not None else payload.get("tenant", "default")
     try:
@@ -110,7 +112,9 @@ def add_procedural(payload: Dict[str, Any] = Body(...), request: Request = None,
             claims = jwt.decode(token, os.getenv('SECRET_KEY','change-me-in-prod'), algorithms=["HS256"])
             if project_id and claims.get('pid') and claims['pid'] != project_id:
                 raise HTTPException(status_code=403, detail="Project header/token mismatch")
-    except JWTError:
+    except HTTPException:
+        raise
+    except Exception:
         raise HTTPException(status_code=401, detail="Invalid token")
     tenant = resolve_tenant(request, payload) if request is not None else payload.get("tenant", "default")
     try:
