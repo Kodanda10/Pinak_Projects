@@ -42,7 +42,7 @@ jobs:
           pip install pytest python-jose
       - name: Run package tests
         run: |
-          pytest -q tests
+          pytest -q Pinak_Package/tests
   gateway-tests:
     runs-on: ubuntu-latest
     steps:
@@ -58,11 +58,14 @@ jobs:
           pip install fastapi httpx python-jose pytest
       - name: Run gateway RBAC tests
         working-directory: Pinak_Services/pinak_gov_gateway
+        env:
+          PYTHONPATH: .
         run: |
           pytest -q
       - name: Comment on PR when tests fail
         if: ${{ failure() && github.event_name == 'pull_request' }}
         uses: actions/github-script@v7
+        continue-on-error: true
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
