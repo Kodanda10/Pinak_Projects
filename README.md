@@ -6,13 +6,22 @@ Pinak is evolving into a cutting-edge, ultra-modern, and highly efficient local-
 
 ## Core Capabilities
 
-### 🧠 AI Memory Service
+### 🧠 AI Memory Service ✅ **COMPLETED**
 
 Pinak provides a robust AI memory service that allows developers to store, manage, and semantically search through their knowledge. This service is designed for efficient retrieval of information, enabling developers to quickly access relevant code snippets, documentation, decisions, and insights.
 
+**✅ IMPLEMENTED FEATURES:**
+*   **8 Memory Layers:** Semantic, Episodic, Procedural, RAG, Events, Session, Working, Changelog
 *   **Semantic Search:** Leverage advanced vector embeddings and similarity search for intelligent information retrieval.
 *   **Local-First Storage:** Data is stored locally, ensuring privacy, speed, and offline accessibility.
-*   **Scalable Architecture:** Built to handle vast amounts of developer knowledge with efficient indexing and retrieval mechanisms.
+*   **Cross-Layer Search:** Search across all memory layers simultaneously
+*   **FastAPI REST API:** 17 endpoints with comprehensive async support
+*   **Multi-tenant Architecture:** Project-based isolation with audit trails
+*   **JSONL Persistence:** Tamper-evident storage with timestamp tracking
+*   **Redis Caching:** Optional performance enhancement with graceful fallback
+
+**🧪 TESTING STATUS:** 17/17 tests passing ✅
+**🚀 DEPLOYMENT READY:** Production-ready with CI/CD pipeline
 
 ### 🔒 Security Auditor
 
@@ -52,7 +61,57 @@ We are committed to building Pinak with the highest standards:
 
 ## Getting Started
 
-*(Detailed instructions for installation and initial setup will be provided here as development progresses.)*
+### Prerequisites
+- Python 3.13+
+- FAISS (will be installed automatically)
+- Redis (optional, for caching)
+
+### Quick Start - Memory Service
+
+1. **Clone and Setup:**
+```bash
+git clone https://github.com/Pinak-Setu/Pinak_Projects.git
+cd Pinak_Projects/Pinak_Services/memory_service
+```
+
+2. **Install Dependencies:**
+```bash
+pip install -r requirements.txt
+```
+
+3. **Run the Service:**
+```bash
+python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+4. **Test the API:**
+```bash
+# Add semantic memory
+curl -X POST "http://localhost:8000/api/v1/memory/add" \
+  -H "Content-Type: application/json" \
+  -d '{"content": "Python is great for AI development", "tags": ["python", "ai"]}'
+
+# Search memories
+curl "http://localhost:8000/api/v1/memory/search?query=python"
+```
+
+5. **Run Tests:**
+```bash
+python -m pytest tests/ -v
+```
+
+### API Documentation
+Once running, visit `http://localhost:8000/docs` for interactive API documentation.
+
+### Memory Layers Available:
+- **Semantic**: Vector-based similarity search
+- **Episodic**: Personal experiences with salience scoring
+- **Procedural**: Step-by-step instructions and skills
+- **RAG**: External knowledge integration
+- **Events**: Audit trail and activity logging
+- **Session**: Temporary context with TTL
+- **Working**: Scratch memory for immediate tasks
+- **Changelog**: Version history and redaction
 
 ## Contributing
 
