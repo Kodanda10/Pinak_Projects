@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 import uvicorn, time
+from typing import Optional
 
 app = FastAPI(title="Pinak Mock Memory Service", version="1.0")
 
@@ -53,7 +54,7 @@ def list_rag(limit: int = 50):
     return {"ok": True, "data": DB["rag"][-limit:]}
 
 @app.get("/api/v1/memory/events")
-def list_events(limit: int = 50, type: str | None = None):
+def list_events(limit: int = 50, type: Optional[str] = None):
     ev = DB["events"]
     if type: ev = [e for e in ev if e["type"] == type]
     return {"ok": True, "data": ev[-limit:]}

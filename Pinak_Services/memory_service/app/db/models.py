@@ -14,6 +14,8 @@ class Memory(Base):
     faiss_id: Mapped[Optional[int]] = mapped_column(Integer, unique=True, nullable=True)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     tags: Mapped[list] = mapped_column(JSON, default=list)
+    memory_data: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    project_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(DateTime, default=datetime.datetime.utcnow)
     redacted: Mapped[Optional[str]] = mapped_column(Text, default=None)
 

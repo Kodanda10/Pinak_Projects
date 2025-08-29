@@ -15,6 +15,7 @@ class MemoryOut(BaseModel):
     created_at: datetime.datetime
     redacted: Optional[str]
     metadata: Optional[Dict[str, Any]] = {}
+    distance: Optional[float] = None
 
     class Config:
         from_attributes = True # For Pydantic V2

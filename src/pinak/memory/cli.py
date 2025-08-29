@@ -4,7 +4,7 @@ import argparse
 import json
 import os
 import sys
-from typing import List
+from typing import List, Optional
 
 from .manager import MemoryManager
 try:
@@ -13,7 +13,7 @@ except Exception:
     ProjectContext = None  # type: ignore
 
 
-def main(argv: List[str] | None = None) -> int:
+def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(prog="pinak-memory", description="Pinak Memory CLI")
 
     # Create subparsers for different commands
