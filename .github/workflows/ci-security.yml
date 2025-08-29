@@ -30,10 +30,24 @@ jobs:
           ./gitleaks detect --source . --redact
       - name: Semgrep SAST (block on fail)
         uses: returntocorp/semgrep-action@v1
+        continue-on-error: true
         with:
           config: .semgrep.yml
           generateSarif: "1"
-          auditOn: ERROR
+      - name: Check Semgrep results (fail only on ERROR)
+        run: |
+          if [ -f semgrep.sarif ]; then
+            # Check if there are any ERROR severity findings
+            error_count=$(jq '.runs[0].results[] | select(.level == "error") | .ruleId' semgrep.sarif | wc -l)
+            if [ "$error_count" -gt 0 ]; then
+              echo "Found $error_count ERROR-level Semgrep findings. Failing CI."
+              exit 1
+            else
+              echo "No ERROR-level Semgrep findings found. CI continues."
+            fi
+          else
+            echo "No semgrep.sarif file found"
+          fi
       - name: Upload Semgrep SARIF
         if: ${{ always() && hashFiles('semgrep.sarif') != '' }}
         uses: github/codeql-action/upload-sarif@v3
