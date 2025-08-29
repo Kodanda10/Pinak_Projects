@@ -10,7 +10,8 @@ from httpx import AsyncClient, ASGITransport # Import ASGITransport
 
 # Adjust these imports to your codebase:
 from app.main import app as fastapi_app
-from app.services.memory_service import MemoryService, Base # Import Base for metadata
+from app.services.memory_service import MemoryService
+from app.db.models import Base # Import Base for metadata
 from app.api.v1.endpoints import get_memory_service # Import here for dependency override
 
 

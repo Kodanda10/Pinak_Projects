@@ -80,3 +80,35 @@ jobs:
               issue_number: pr,
               body
             });
+  cli-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install package and CLI deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+          pip install fastapi uvicorn httpx
+      - name: Start mock server
+        run: |
+          nohup python -m uvicorn mock_server:app --host 127.0.0.1 --port 8000 &
+          for i in {1..30}; do
+            curl -fsS http://127.0.0.1:8000/api/v1/memory/health && break || sleep 1;
+          done
+      - name: Run CLI smoke
+        env:
+          PINAK_TOKEN: TEST_TOKEN
+        run: |
+          chmod +x ./cli_smoke.sh
+          ./cli_smoke.sh
+      - name: Upload CLI smoke logs
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-smoke-logs
+          path: |
+            ./cli_smoke.sh

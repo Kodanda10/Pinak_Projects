@@ -6,7 +6,8 @@ from httpx import AsyncClient
 from unittest.mock import MagicMock, patch
 
 from app.main import app as fastapi_app
-from app.services.memory_service import MemoryService, Base
+from app.services.memory_service import MemoryService
+from app.db.models import Base
 from app.core.schemas import MemoryCreate, MemorySearchResult
 
 pytestmark = pytest.mark.asyncio
