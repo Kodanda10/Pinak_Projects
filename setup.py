@@ -9,6 +9,7 @@ with open('requirements.txt', 'r') as f:
 # Add macOS-specific dependencies
 if sys.platform == 'darwin':  # macOS
     install_requires.append('pyobjc')
+    install_requires.append('rumps')
 
 setup(
     name="Pinak",
