@@ -83,3 +83,16 @@ class MemoryManager:
             return r.status_code == 200
         except Exception:
             return False
+
+    def add_event(self, payload: Dict[str, Any]) -> bool:
+        """Send a generic event to the Memory Service (/event).
+        Expected keys include: type, ts, project_id, and any domain-specific fields.
+        """
+        try:
+            base = self.base_url.rsplit('/api/v1/memory', 1)[0]
+            r = self.client.post(f"{base}/event", json=payload, timeout=self._timeout)
+            if r.status_code < 400:
+                return True
+            return False
+        except Exception:
+            return False

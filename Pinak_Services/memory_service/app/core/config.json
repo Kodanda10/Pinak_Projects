@@ -1,7 +1,13 @@
 {
   "embedding_model": "all-MiniLM-L6-v2",
   "vector_db_path": "data/memory.faiss",
-  "metadata_db_path": "data/metadata.json",
+  "metadata_db_url": "sqlite:///data/memory.db",
   "changelog_path": "data/changelog.log",
-  "redis_host": "redis"
+  "redis_host": "redis",
+  "redis_cache_ttl": 3600,
+  "faiss_index_type": "Flat",
+  "faiss_nlist": 100,
+  "faiss_nprobe": 10,
+  "faiss_M": 16,
+  "faiss_efConstruction": 200
 }

@@ -1,10 +1,10 @@
-from fastapi import APIRouter, status, Header, HTTPException, Request, Body
+from fastapi import APIRouter, status, Header, HTTPException, Request, Body, Depends
 import os
 import secrets
 import jwt
 from app.core.schemas import MemoryCreate, MemoryRead, MemorySearchResult
 from app.services.memory_service import (
-    memory_service,
+    MemoryService, # Import the class, not the instance
     add_episodic as svc_add_episodic,
     list_episodic as svc_list_episodic,
     add_procedural as svc_add_procedural,
@@ -13,6 +13,10 @@ from app.services.memory_service import (
     list_rag as svc_list_rag,
     search_v2 as svc_search_v2,
 )
+
+def get_memory_service():
+    """Dependency that provides a MemoryService instance."""
+    return MemoryService()
 def resolve_tenant(request, payload):
     try:
         # Best-effort tenant from header or payload
@@ -41,7 +45,7 @@ except Exception:
 
 
 @router.post("/add", response_model=MemoryRead, status_code=status.HTTP_201_CREATED)
-def add_memory(memory: MemoryCreate):
+def add_memory(memory: MemoryCreate, memory_service: MemoryService = Depends(get_memory_service)):
     """API endpoint to add a new memory."""
     out = memory_service.add_memory(memory)
     try:
@@ -52,12 +56,12 @@ def add_memory(memory: MemoryCreate):
     return out
 
 @router.get("/search", response_model=List[MemorySearchResult])
-def search_memory(query: str, k: int = 5):
+def search_memory(query: str, k: int = 5, memory_service: MemoryService = Depends(get_memory_service)):
     """API endpoint to search for relevant memories."""
     return memory_service.search_memory(query=query, k=k)
 
 @router.post("/episodic/add", status_code=status.HTTP_201_CREATED)
-def add_episodic(payload: Dict[str, Any] = Body(...), request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project")) -> Dict[str, Any]:
+def add_episodic(payload: Dict[str, Any] = Body(...), request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project"), memory_service: MemoryService = Depends(get_memory_service)) -> Dict[str, Any]:
     # Optional: if Authorization present, enforce pid == header
     try:
         auth = request.headers.get('Authorization') if request else None
@@ -101,12 +105,12 @@ def add_episodic(payload: Dict[str, Any] = Body(...), request: Request = None, p
     return rec
 
 @router.get("/episodic/list", status_code=status.HTTP_200_OK)
-def list_episodic(request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project")) -> list[Dict[str, Any]]:
+def list_episodic(request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project"), memory_service: MemoryService = Depends(get_memory_service)) -> list[Dict[str, Any]]:
     tenant = resolve_tenant(request, {}) if request is not None else "default"
     return svc_list_episodic(memory_service, tenant, project_id)
 
 @router.post("/procedural/add", status_code=status.HTTP_201_CREATED)
-def add_procedural(payload: Dict[str, Any] = Body(...), request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project")) -> Dict[str, Any]:
+def add_procedural(payload: Dict[str, Any] = Body(...), request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project"), memory_service: MemoryService = Depends(get_memory_service)) -> Dict[str, Any]:
     try:
         auth = request.headers.get('Authorization') if request else None
         if auth and auth.lower().startswith('bearer '):
@@ -134,12 +138,12 @@ def add_procedural(payload: Dict[str, Any] = Body(...), request: Request = None,
     return rec
 
 @router.get("/procedural/list", status_code=status.HTTP_200_OK)
-def list_procedural(request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project")) -> list[Dict[str, Any]]:
+def list_procedural(request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project"), memory_service: MemoryService = Depends(get_memory_service)) -> list[Dict[str, Any]]:
     tenant = resolve_tenant(request, {}) if request is not None else "default"
     return svc_list_procedural(memory_service, tenant, project_id)
 
 @router.post("/rag/add", status_code=status.HTTP_201_CREATED)
-def add_rag(payload: Dict[str, Any] = Body(...), request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project")) -> Dict[str, Any]:
+def add_rag(payload: Dict[str, Any] = Body(...), request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project"), memory_service: MemoryService = Depends(get_memory_service)) -> Dict[str, Any]:
     try:
         auth = request.headers.get('Authorization') if request else None
         if auth and auth.lower().startswith('bearer '):
@@ -166,12 +170,12 @@ def add_rag(payload: Dict[str, Any] = Body(...), request: Request = None, projec
     return rec
 
 @router.get("/rag/list", status_code=status.HTTP_200_OK)
-def list_rag(request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project")) -> list[Dict[str, Any]]:
+def list_rag(request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project"), memory_service: MemoryService = Depends(get_memory_service)) -> list[Dict[str, Any]]:
     tenant = resolve_tenant(request, {}) if request is not None else "default"
     return svc_list_rag(memory_service, tenant, project_id)
 
 @router.get("/search_v2", status_code=status.HTTP_200_OK)
-def search_v2(query: str, layers: str = 'semantic', limit: int = 20, offset: int = 0, request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project")) -> Dict[str, Any]:
+def search_v2(query: str, layers: str = 'semantic', limit: int = 20, offset: int = 0, request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project"), memory_service: MemoryService = Depends(get_memory_service)) -> Dict[str, Any]:
     tenant = resolve_tenant(request, {}) if request is not None else "default"
     layer_list = [s.strip() for s in layers.split(',') if s.strip()]
     res = svc_search_v2(memory_service, tenant, project_id, query, layer_list)
@@ -181,17 +185,17 @@ def search_v2(query: str, layers: str = 'semantic', limit: int = 20, offset: int
     return res
 
 @router.post("/changelog/redact", status_code=status.HTTP_200_OK)
-def redact(memory_id: str = Body(..., embed=True), reason: str = Body('redact', embed=True), request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project")) -> Dict[str, Any]:
+def redact(memory_id: str = Body(..., embed=True), reason: str = Body('redact', embed=True), request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project"), memory_service: MemoryService = Depends(get_memory_service)) -> Dict[str, Any]:
     tenant = resolve_tenant(request, {}) if request is not None else "default"
     return memory_service.redact_memory(memory_id, tenant, project_id, reason)
 
 @router.get("/changelog", status_code=status.HTTP_200_OK)
-def list_changelog(change_type: Optional[str] = None, since: Optional[str] = None, until: Optional[str] = None, limit: int = 100, offset: int = 0, request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project")) -> List[Dict[str, Any]]:
+def list_changelog(change_type: Optional[str] = None, since: Optional[str] = None, until: Optional[str] = None, limit: int = 100, offset: int = 0, request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project"), memory_service: MemoryService = Depends(get_memory_service)) -> List[Dict[str, Any]]:
     tenant = resolve_tenant(request, {}) if request is not None else "default"
     return memory_service.list_changelog(tenant, project_id, change_type, since, until, limit, offset)
 
 @router.post("/event", status_code=status.HTTP_201_CREATED)
-def add_event(payload: Dict[str, Any] = Body(...), request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project")) -> Dict[str, Any]:
+def add_event(payload: Dict[str, Any] = Body(...), request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project"), memory_service: MemoryService = Depends(get_memory_service)) -> Dict[str, Any]:
     tenant = resolve_tenant(request, payload) if request is not None else payload.get("tenant", "default")
     base = memory_service._store_dir(tenant, project_id)
     import datetime, os, json
@@ -234,12 +238,12 @@ def add_event(payload: Dict[str, Any] = Body(...), request: Request = None, proj
     return {"status":"ok"}
 
 @router.post("/audit/anchor", status_code=status.HTTP_200_OK)
-def add_audit_anchor(kind: str = Body(..., embed=True), date: Optional[str] = Body(default=None, embed=True), reason: str = Body('hourly_anchor', embed=True), request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project")) -> Dict[str, Any]:
+def add_audit_anchor(kind: str = Body(..., embed=True), date: Optional[str] = Body(default=None, embed=True), reason: str = Body('hourly_anchor', embed=True), request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project"), memory_service: MemoryService = Depends(get_memory_service)) -> Dict[str, Any]:
     tenant = resolve_tenant(request, {}) if request is not None else "default"
     return memory_service.write_audit_anchor(tenant, project_id, kind, date, reason)
 
 @router.get("/events", status_code=status.HTTP_200_OK)
-def list_events(q: Optional[str] = None, since: Optional[str] = None, until: Optional[str] = None, limit: int = 100, offset: int = 0, request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project")) -> List[Dict[str, Any]]:
+def list_events(q: Optional[str] = None, since: Optional[str] = None, until: Optional[str] = None, limit: int = 100, offset: int = 0, request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project"), memory_service: MemoryService = Depends(get_memory_service)) -> List[Dict[str, Any]]:
     import json, os, datetime
     tenant = resolve_tenant(request, {}) if request is not None else "default"
     base = memory_service._store_dir(tenant, project_id)
@@ -273,13 +277,13 @@ def list_events(q: Optional[str] = None, since: Optional[str] = None, until: Opt
     return out[offset:offset+limit]
 
 @router.get("/audit/verify", status_code=status.HTTP_200_OK)
-def audit_verify(kind: str = 'events', date: Optional[str] = None, request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project")) -> Dict[str, Any]:
+def audit_verify(kind: str = 'events', date: Optional[str] = None, request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project"), memory_service: MemoryService = Depends(get_memory_service)) -> Dict[str, Any]:
     tenant = resolve_tenant(request, {}) if request is not None else "default"
     return memory_service.verify_audit_chain(tenant, project_id, kind, date)
 
 # --- Session endpoints (persisted JSONL with TTL support) ---
 @router.post("/session/add", status_code=status.HTTP_201_CREATED)
-def session_add(payload: Dict[str, Any] = Body(...), request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project")) -> Dict[str, Any]:
+def session_add(payload: Dict[str, Any] = Body(...), request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project"), memory_service: MemoryService = Depends(get_memory_service)) -> Dict[str, Any]:
     import os, json, datetime
     tenant = resolve_tenant(request, payload) if request is not None else payload.get("tenant", "default")
     base = memory_service._store_dir(tenant, project_id)
@@ -324,7 +328,7 @@ def session_add(payload: Dict[str, Any] = Body(...), request: Request = None, pr
     return {'status':'ok'}
 
 @router.get("/session/list", status_code=status.HTTP_200_OK)
-def session_list(session_id: str, limit: int = 100, offset: int = 0, since: Optional[str] = None, until: Optional[str] = None, request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project")) -> List[Dict[str, Any]]:
+def session_list(session_id: str, limit: int = 100, offset: int = 0, since: Optional[str] = None, until: Optional[str] = None, request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project"), memory_service: MemoryService = Depends(get_memory_service)) -> List[Dict[str, Any]]:
     import os, json, datetime
     tenant = resolve_tenant(request, {}) if request is not None else "default"
     base = memory_service._store_dir(tenant, project_id)
@@ -367,7 +371,7 @@ def session_list(session_id: str, limit: int = 100, offset: int = 0, since: Opti
 
 # --- Working endpoints (persisted JSONL with TTL support) ---
 @router.post("/working/add", status_code=status.HTTP_201_CREATED)
-def working_add(payload: Dict[str, Any] = Body(...), request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project")) -> Dict[str, Any]:
+def working_add(payload: Dict[str, Any] = Body(...), request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project"), memory_service: MemoryService = Depends(get_memory_service)) -> Dict[str, Any]:
     import os, json, datetime
     tenant = resolve_tenant(request, payload) if request is not None else payload.get("tenant", "default")
     base = memory_service._store_dir(tenant, project_id)
@@ -398,7 +402,7 @@ def working_add(payload: Dict[str, Any] = Body(...), request: Request = None, pr
     return {'status':'ok'}
 
 @router.get("/working/list", status_code=status.HTTP_200_OK)
-def working_list(limit: int = 100, offset: int = 0, since: Optional[str] = None, until: Optional[str] = None, request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project")) -> List[Dict[str, Any]]:
+def working_list(limit: int = 100, offset: int = 0, since: Optional[str] = None, until: Optional[str] = None, request: Request = None, project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project"), memory_service: MemoryService = Depends(get_memory_service)) -> List[Dict[str, Any]]:
     import os, json, datetime
     tenant = resolve_tenant(request, {}) if request is not None else "default"
     base = memory_service._store_dir(tenant, project_id)
