@@ -1,9 +1,14 @@
 
 from setuptools import setup, find_namespace_packages
+import sys
 
 # Read dependencies from the master requirements.txt file
 with open('requirements.txt', 'r') as f:
     install_requires = [line.strip() for line in f if line.strip() and not line.startswith('#')]
+
+# Add macOS-specific dependencies
+if sys.platform == 'darwin':  # macOS
+    install_requires.append('pyobjc')
 
 setup(
     name="Pinak",

@@ -4,4 +4,3 @@ pydantic>=2
 keyring
 cryptography
 rumps
-pyobjc
