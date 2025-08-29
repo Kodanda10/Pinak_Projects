@@ -3,7 +3,7 @@ import asyncio
 import os
 import pytest
 import pytest_asyncio
-from typing import Awaitable, Callable
+from typing import Awaitable, Callable, Optional
 import json # Import json
 
 from httpx import AsyncClient, ASGITransport # Import ASGITransport
@@ -48,11 +48,15 @@ async def fresh_memory_service_factory():
     """
     instances = []
 
-    async def _factory(db_url: str | None = None):
+    async def _factory(db_url: Optional[str] = None):
         # Provide sane defaults; on-disk file recommended for FAISS + SQLite
         # Adjust constructor to pass db_url via config_path
         # Create a temporary config file for each service instance
         temp_config_path = f"temp_config_{os.urandom(8).hex()}.json"
+        
+        # Create a unique temporary data directory for this test instance
+        temp_data_dir = f"temp_data_{os.urandom(8).hex()}"
+        os.makedirs(temp_data_dir, exist_ok=True)
         
         # Read original config (assuming it exists and is accessible)
         original_config = {}
@@ -67,16 +71,16 @@ async def fresh_memory_service_factory():
         # Ensure vector_db_path points to a directory within tmp_path
         # The tmp_path fixture is available in setup_teardown_db, so we need to pass it here.
         # For now, let's make it relative to the temp_config_path, and ensure it's a directory.
-        temp_data_dir = os.path.join(os.path.dirname(temp_config_path), f"test_data_{os.urandom(8).hex()}")
-        os.makedirs(temp_data_dir, exist_ok=True)
-        updated_config['vector_db_path'] = os.path.join(temp_data_dir, "memory.faiss")
+        vector_data_dir = os.path.join(os.path.dirname(temp_config_path), f"test_data_{os.urandom(8).hex()}")
+        os.makedirs(vector_data_dir, exist_ok=True)
+        updated_config['vector_db_path'] = os.path.join(vector_data_dir, "memory.faiss")
         
         # Write to temporary config file
         with open(temp_config_path, 'w') as f:
             json.dump(updated_config, f, indent=2)
 
         # Pass the database_url directly to MemoryService constructor
-        service = MemoryService(config_path=temp_config_path, database_url=db_url) 
+        service = MemoryService(config_path=temp_config_path, database_url=db_url, data_dir=temp_data_dir) 
         instances.append(service)
         
         # Add create_all, drop_all, aclose methods to MemoryService if they don't exist
@@ -102,7 +106,44 @@ async def fresh_memory_service_factory():
         for f in os.listdir('.'):
             if f.startswith('temp_config_') and f.endswith('.json'):
                 os.remove(f)
+@pytest_asyncio.fixture(scope="function")
+async def setup_teardown_db(tmp_path, fresh_memory_service_factory):
+    """
+    Creates an isolated on-disk SQLite DB for each test, then drops & recreates all tables.
+    Yields a ready-to-use MemoryService instance.
+    """
+    db_path = tmp_path / "test.db"
+    service = await fresh_memory_service_factory(db_url=f"sqlite:///{db_path}")
+    await service.drop_all()
+    await service.create_all()
 
+    try:
+        yield service
+    finally:
+        # Clear the global FAISS index to ensure test isolation
+        from app.services.memory_service import _FAISS
+        if _FAISS._index is not None:
+            with _FAISS.lock:
+                _FAISS._index.reset()
+                _FAISS._index = None
+                _FAISS._dim = None
+        
+        try:
+            await service.drop_all()
+        finally:
+            await service.aclose()
+
+@pytest_asyncio.fixture(scope="function")
+async def client_and_memory_service(setup_teardown_db, fresh_test_client_factory):
+    """
+    Provides (httpx.AsyncClient, MemoryService) wired together so API uses THIS service instance.
+    """
+    service = setup_teardown_db
+    client = await fresh_test_client_factory(service)
+    try:
+        yield client, service
+    finally:
+        await client.aclose()
 
 @pytest_asyncio.fixture(scope="function")
 async def fresh_test_client_factory():
