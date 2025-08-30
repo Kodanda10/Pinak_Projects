@@ -18,17 +18,13 @@ def post(path, payload, extra_headers=None):
     h = dict(headers)
     if extra_headers:
         h.update(extra_headers)
-    r = requests.post(
-        f"{BASE}/api/v1/memory/{path}", json=payload, headers=h, timeout=10
-    )
+    r = requests.post(f"{BASE}/api/v1/memory/{path}", json=payload, headers=h, timeout=10)
     print(path, r.status_code, r.text[:120])
     return r
 
 
 def get(path, params=None):
-    r = requests.get(
-        f"{BASE}/api/v1/memory/{path}", params=params, headers=headers, timeout=10
-    )
+    r = requests.get(f"{BASE}/api/v1/memory/{path}", params=params, headers=headers, timeout=10)
     print(path, r.status_code)
     return r
 
@@ -61,9 +57,9 @@ def main():
     print("search:", get("search", {"query": "semantic"}).text)
     print(
         "search_v2:",
-        get(
-            "search_v2", {"query": "demo", "layers": "semantic,episodic,procedural,rag"}
-        ).text[:200],
+        get("search_v2", {"query": "demo", "layers": "semantic,episodic,procedural,rag"}).text[
+            :200
+        ],
     )
     print("events:", get("events").text[:200])
     print("changelog:", get("changelog").text[:200])

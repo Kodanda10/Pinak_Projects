@@ -12,9 +12,15 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from typing import Any, AsyncIterator, Dict, List, Optional, Set, Tuple, Union
 
-from ..core.models import (ContextItem, ContextLayer, ContextPriority,
-                           ContextQuery, ContextResponse,
-                           SecurityClassification)
+from ..core.models import (
+    ContextItem,
+    ContextLayer,
+    ContextPriority,
+    ContextQuery,
+    ContextResponse,
+    IContextStore,
+    SecurityClassification,
+)
 from .graph_expansion import GraphBasedExpander, GraphExpansionResult
 from .rl_optimizer import AdaptiveLearningEngine, adaptive_engine
 
@@ -248,9 +254,7 @@ class WorldBeatingRetrievalEngine:
                 return cached
 
             # Stage 3: Multi-stage retrieval pipeline
-            pipeline_results = await self._execute_retrieval_pipeline(
-                query, query_analysis
-            )
+            pipeline_results = await self._execute_retrieval_pipeline(query, query_analysis)
 
             # Stage 4: Advanced fusion and reranking
             final_items = await self._advanced_fusion_reranking(
@@ -258,14 +262,10 @@ class WorldBeatingRetrievalEngine:
             )
 
             # Stage 5: Build response with metadata
-            response = await self._build_advanced_response(
-                final_items, query, query_analysis
-            )
+            response = await self._build_advanced_response(final_items, query, query_analysis)
 
             # Stage 6: Cache and self-improvement
-            self._cache_semantic_response(
-                cache_key, response, query_analysis.intent_classification
-            )
+            self._cache_semantic_response(cache_key, response, query_analysis.intent_classification)
 
             if self.enable_self_improvement:
                 await self._self_improvement_feedback(query, response, pipeline_results)
@@ -322,10 +322,7 @@ class WorldBeatingRetrievalEngine:
         query_lower = query.lower()
 
         # Question patterns
-        if any(
-            word in query_lower
-            for word in ["what", "how", "why", "when", "where", "who"]
-        ):
+        if any(word in query_lower for word in ["what", "how", "why", "when", "where", "who"]):
             if "how to" in query_lower or "how do" in query_lower:
                 return "procedural"
             elif "what is" in query_lower or "what are" in query_lower:
@@ -334,10 +331,7 @@ class WorldBeatingRetrievalEngine:
                 return "informational"
 
         # Command patterns
-        elif any(
-            word in query_lower
-            for word in ["create", "update", "delete", "find", "search"]
-        ):
+        elif any(word in query_lower for word in ["create", "update", "delete", "find", "search"]):
             return "operational"
 
         # Complex patterns
@@ -430,9 +424,7 @@ class WorldBeatingRetrievalEngine:
 
         return expansions
 
-    def _get_contextual_expansions(
-        self, query: str, user_patterns: List[str]
-    ) -> List[str]:
+    def _get_contextual_expansions(self, query: str, user_patterns: List[str]) -> List[str]:
         """Get contextual expansions based on user history."""
         expansions = []
 
@@ -526,10 +518,7 @@ class WorldBeatingRetrievalEngine:
         complexity += min(punctuation_count / 10, 1.0) * 0.2
 
         # Question factor
-        if any(
-            word in query.lower()
-            for word in ["what", "how", "why", "when", "where", "who"]
-        ):
+        if any(word in query.lower() for word in ["what", "how", "why", "when", "where", "who"]):
             complexity += 0.2
 
         return min(complexity, 1.0)
@@ -573,21 +562,15 @@ class WorldBeatingRetrievalEngine:
         # Execute each stage in parallel where possible
         for stage in self.retrieval_stages:
             if stage.method == "parallel_hybrid":
-                results = await self._execute_parallel_hybrid_retrieval(
-                    query, analysis, stage
-                )
+                results = await self._execute_parallel_hybrid_retrieval(query, analysis, stage)
             elif stage.method == "semantic_expansion":
-                results = await self._execute_semantic_expansion_retrieval(
-                    query, analysis, stage
-                )
+                results = await self._execute_semantic_expansion_retrieval(query, analysis, stage)
             elif stage.method == "cross_encoder":
                 results = await self._execute_cross_encoder_reranking(
                     query, analysis, stage, all_results
                 )
             elif stage.method == "episodic_memory":
-                results = await self._execute_memory_augmentation_retrieval(
-                    query, analysis, stage
-                )
+                results = await self._execute_memory_augmentation_retrieval(query, analysis, stage)
             else:
                 results = []
 
@@ -605,9 +588,7 @@ class WorldBeatingRetrievalEngine:
 
         for layer in target_layers:
             if layer in self.stores:
-                task = self._retrieve_from_layer_advanced(
-                    query, layer, analysis, stage.config
-                )
+                task = self._retrieve_from_layer_advanced(query, layer, analysis, stage.config)
                 tasks.append(task)
 
         # Execute with semaphore for parallelism control
@@ -649,9 +630,7 @@ class WorldBeatingRetrievalEngine:
                 all_items = []
 
                 # Original query
-                items = await store.search_similar(
-                    query.query, config.get("max_candidates", 50)
-                )
+                items = await store.search_similar(query.query, config.get("max_candidates", 50))
                 all_items.extend(items)
 
                 # Expanded queries
@@ -738,9 +717,7 @@ class WorldBeatingRetrievalEngine:
                 unique_items.append(item)
 
         # Apply cross-encoder reranking (simplified implementation)
-        reranked_items = await self._cross_encoder_rerank(
-            unique_items, query.query, stage.config
-        )
+        reranked_items = await self._cross_encoder_rerank(unique_items, query.query, stage.config)
 
         execution_time = int((time.time() - start_time) * 1000)
         self._metrics["neural_reranks"] += 1
@@ -837,9 +814,7 @@ class WorldBeatingRetrievalEngine:
             )
         ]
 
-    def _calculate_advanced_semantic_score(
-        self, item: ContextItem, query: str
-    ) -> float:
+    def _calculate_advanced_semantic_score(self, item: ContextItem, query: str) -> float:
         """Advanced semantic scoring with better algorithms."""
         # Enhanced semantic similarity using TF-IDF and cosine similarity concepts
         query_words = Counter(query.lower().split())
@@ -847,9 +822,7 @@ class WorldBeatingRetrievalEngine:
 
         # Calculate cosine similarity
         intersection = set(query_words.keys()) & set(content_words.keys())
-        numerator = sum(
-            query_words[word] * content_words[word] for word in intersection
-        )
+        numerator = sum(query_words[word] * content_words[word] for word in intersection)
 
         query_norm = math.sqrt(sum(count**2 for count in query_words.values()))
         content_norm = math.sqrt(sum(count**2 for count in content_words.values()))
@@ -913,9 +886,7 @@ class WorldBeatingRetrievalEngine:
         score = 0.0
 
         # Recency boost for recent items
-        age_hours = (
-            datetime.now(timezone.utc) - item.created_at
-        ).total_seconds() / 3600
+        age_hours = (datetime.now(timezone.utc) - item.created_at).total_seconds() / 3600
         if age_hours < 24:
             score += 0.2
         elif age_hours < 168:  # Week
@@ -976,9 +947,7 @@ class WorldBeatingRetrievalEngine:
         """Calculate keyword-based relevance score."""
         query_lower = query.lower()
         title_match = 1.0 if query_lower in item.title.lower() else 0.0
-        content_match = item.content.lower().count(query_lower) / len(
-            item.content.split()
-        )
+        content_match = item.content.lower().count(query_lower) / len(item.content.split())
 
         return min(1.0, (title_match * 0.7) + (content_match * 0.3))
 
@@ -1031,11 +1000,7 @@ class WorldBeatingRetrievalEngine:
         intent_factor = 0.05 if analysis.intent_classification != "general" else 0.0
 
         confidence = (
-            base_confidence
-            + count_factor
-            + time_factor
-            + complexity_factor
-            + intent_factor
+            base_confidence + count_factor + time_factor + complexity_factor + intent_factor
         )
 
         return min(0.99, max(0.1, confidence))
@@ -1068,10 +1033,7 @@ class WorldBeatingRetrievalEngine:
         item_map = {}
         for item_meta in all_items_with_metadata:
             item_id = item_meta["item"].id
-            if (
-                item_id not in item_map
-                or item_meta["confidence"] > item_map[item_id]["confidence"]
-            ):
+            if item_id not in item_map or item_meta["confidence"] > item_map[item_id]["confidence"]:
                 item_map[item_id] = item_meta
 
         unique_items = list(item_map.values())
@@ -1089,15 +1051,9 @@ class WorldBeatingRetrievalEngine:
             advanced_score.semantic_score = self._calculate_advanced_semantic_score(
                 item, query.query
             )
-            advanced_score.keyword_score = self._calculate_advanced_keyword_score(
-                item, query.query
-            )
-            advanced_score.temporal_score = self._calculate_advanced_temporal_score(
-                item
-            )
-            advanced_score.contextual_score = self._calculate_contextual_score(
-                item, query.query
-            )
+            advanced_score.keyword_score = self._calculate_advanced_keyword_score(item, query.query)
+            advanced_score.temporal_score = self._calculate_advanced_temporal_score(item)
+            advanced_score.contextual_score = self._calculate_contextual_score(item, query.query)
 
             # Neural score (simplified)
             advanced_score.neural_score = (
@@ -1120,9 +1076,7 @@ class WorldBeatingRetrievalEngine:
 
             # Final score with uncertainty quantification
             uncertainty = self._calculate_uncertainty(advanced_score)
-            advanced_score.final_score = advanced_score.ensemble_score * (
-                1 - uncertainty
-            )
+            advanced_score.final_score = advanced_score.ensemble_score * (1 - uncertainty)
 
             # Store ranking factors for explainability
             advanced_score.ranking_factors = {
@@ -1213,9 +1167,7 @@ class WorldBeatingRetrievalEngine:
             return 0.0
 
         mean_score = sum(component_scores) / len(component_scores)
-        variance = sum((s - mean_score) ** 2 for s in component_scores) / len(
-            component_scores
-        )
+        variance = sum((s - mean_score) ** 2 for s in component_scores) / len(component_scores)
         uncertainty = min(0.5, variance)  # Cap uncertainty at 50%
 
         return uncertainty
@@ -1274,15 +1226,11 @@ class WorldBeatingRetrievalEngine:
         cache_efficiency = (
             self._metrics["cache_hits"] + self._metrics["semantic_cache_hits"]
         ) / self._metrics["total_queries"]
-        error_efficiency = 1.0 - (
-            self._metrics["error_count"] / self._metrics["total_queries"]
-        )
+        error_efficiency = 1.0 - (self._metrics["error_count"] / self._metrics["total_queries"])
 
         return (cache_efficiency * 0.6) + (error_efficiency * 0.4)
 
-    def _generate_semantic_cache_key(
-        self, query: ContextQuery, analysis: QueryAnalysis
-    ) -> str:
+    def _generate_semantic_cache_key(self, query: ContextQuery, analysis: QueryAnalysis) -> str:
         """Generate semantic cache key based on query meaning."""
         # Create semantic fingerprint
         semantic_data = {
@@ -1290,7 +1238,7 @@ class WorldBeatingRetrievalEngine:
             "intent": analysis.intent_classification,
             "domains": sorted(analysis.domain_context),
             "complexity": f"{analysis.complexity_score:.2f}",
-            "layers": sorted([l.value for l in query.layers]),
+            "layers": sorted([list_item.value for list_item in query.layers]),
             "user_clearance": query.user_clearance.value,
         }
 
@@ -1316,17 +1264,13 @@ class WorldBeatingRetrievalEngine:
 
         return None
 
-    def _cache_semantic_response(
-        self, cache_key: str, response: ContextResponse, intent: str
-    ):
+    def _cache_semantic_response(self, cache_key: str, response: ContextResponse, intent: str):
         """Cache response with semantic key."""
         self._semantic_cache[cache_key] = (response, time.time(), intent)
 
         # Cleanup old entries
         if len(self._semantic_cache) > 2000:  # Larger cache for semantic entries
-            oldest_key = min(
-                self._semantic_cache.keys(), key=lambda k: self._semantic_cache[k][1]
-            )
+            oldest_key = min(self._semantic_cache.keys(), key=lambda k: self._semantic_cache[k][1])
             del self._semantic_cache[oldest_key]
 
     async def _self_improvement_feedback(
@@ -1361,9 +1305,7 @@ class WorldBeatingRetrievalEngine:
 
             # Keep only recent patterns
             if len(self._query_patterns[query.user_id]) > 20:
-                self._query_patterns[query.user_id] = self._query_patterns[
-                    query.user_id
-                ][-20:]
+                self._query_patterns[query.user_id] = self._query_patterns[query.user_id][-20:]
 
         self._metrics["self_improvement_iterations"] += 1
 
@@ -1390,18 +1332,12 @@ class WorldBeatingRetrievalEngine:
     def _update_advanced_metrics(self, execution_time: int, pipeline_stages: int):
         """Update advanced performance metrics."""
         self._metrics["avg_execution_time_ms"] = (
-            (
-                self._metrics["avg_execution_time_ms"]
-                * (self._metrics["total_queries"] - 1)
-            )
+            (self._metrics["avg_execution_time_ms"] * (self._metrics["total_queries"] - 1))
             + execution_time
         ) / self._metrics["total_queries"]
 
         self._metrics["avg_pipeline_stages"] = (
-            (
-                self._metrics["avg_pipeline_stages"]
-                * (self._metrics["total_queries"] - 1)
-            )
+            (self._metrics["avg_pipeline_stages"] * (self._metrics["total_queries"] - 1))
             + pipeline_stages
         ) / self._metrics["total_queries"]
 
@@ -1412,9 +1348,9 @@ class WorldBeatingRetrievalEngine:
             + self._metrics["semantic_cache_hits"]
             + self._metrics["total_queries"]
         )
-        cache_hit_rate = (
-            self._metrics["cache_hits"] + self._metrics["semantic_cache_hits"]
-        ) / max(1, total_cache_requests)
+        cache_hit_rate = (self._metrics["cache_hits"] + self._metrics["semantic_cache_hits"]) / max(
+            1, total_cache_requests
+        )
 
         return {
             **self._metrics,
@@ -1429,13 +1365,10 @@ class WorldBeatingRetrievalEngine:
             "cache_hit_rate": cache_hit_rate,
             "embedding_dimensions": self.embedding_dimensions,
             "total_cache_requests": total_cache_requests,
-            "error_rate": self._metrics["error_count"]
-            / max(1, self._metrics["total_queries"]),
+            "error_rate": self._metrics["error_count"] / max(1, self._metrics["total_queries"]),
         }
 
-    async def _execute_dense_retrieval(
-        self, query: ContextQuery
-    ) -> DenseRetrievalResult:
+    async def _execute_dense_retrieval(self, query: ContextQuery) -> DenseRetrievalResult:
         """Stage 2: Dense Retrieval Pipeline."""
         # Simple mock implementation
         candidates = []
@@ -1468,9 +1401,7 @@ class WorldBeatingRetrievalEngine:
 
         return SparseHybridResult(
             bm25_score=(
-                sum(score for _, score in scored_items) / len(scored_items)
-                if scored_items
-                else 0
+                sum(score for _, score in scored_items) / len(scored_items) if scored_items else 0
             ),
             semantic_weight=0.6,
             lexical_weight=0.4,
@@ -1487,9 +1418,7 @@ class WorldBeatingRetrievalEngine:
         for item in items:
             # Mock expansion - in real implementation, use graph traversal
             if len(expanded) < 50:  # Limit expansion
-                related = await self.stores[item.layer].search_similar(
-                    item.title, limit=3
-                )
+                related = await self.stores[item.layer].search_similar(item.title, limit=3)
                 expanded.extend(related)
 
         # Remove duplicates
@@ -1547,12 +1476,9 @@ class WorldBeatingRetrievalEngine:
             contextual_score = self._calculate_contextual_score(item, query.query)
 
             ensemble_score = (
-                self.retrieval_stages[0].config.get("semantic_weight", 0.6)
-                * semantic_score
-                + self.retrieval_stages[0].config.get("keyword_weight", 0.3)
-                * keyword_score
-                + self.retrieval_stages[0].config.get("temporal_weight", 0.1)
-                * temporal_score
+                self.retrieval_stages[0].config.get("semantic_weight", 0.6) * semantic_score
+                + self.retrieval_stages[0].config.get("keyword_weight", 0.3) * keyword_score
+                + self.retrieval_stages[0].config.get("temporal_weight", 0.1) * temporal_score
                 + 0.1 * contextual_score
             )
 
@@ -1607,19 +1533,13 @@ class WorldBeatingRetrievalEngine:
             dense_result = await self._execute_dense_retrieval(query)
 
             # Stage 3: Sparse Hybrid Integration
-            hybrid_result = await self._execute_sparse_hybrid(
-                query, dense_result.top_candidates
-            )
+            hybrid_result = await self._execute_sparse_hybrid(query, dense_result.top_candidates)
 
             # Stage 4: Graph Expansion
-            graph_result = await self._execute_graph_expansion(
-                query, hybrid_result.reranked_items
-            )
+            graph_result = await self._execute_graph_expansion(query, hybrid_result.reranked_items)
 
             # Stage 5: Neural Reranking
-            neural_result = await self._execute_neural_rerank(
-                query, graph_result.expanded_items
-            )
+            neural_result = await self._execute_neural_rerank(query, graph_result.expanded_items)
 
             # Stage 6: Adaptive Learning
             adaptive_result = await self._execute_adaptive_learning(
@@ -1643,9 +1563,7 @@ class WorldBeatingRetrievalEngine:
         # Return empty response on error
         return ContextResponse()
 
-    async def _execute_intent_analysis(
-        self, query: ContextQuery
-    ) -> IntentAnalysisResult:
+    async def _execute_intent_analysis(self, query: ContextQuery) -> IntentAnalysisResult:
         """Stage 1: Intent Analysis & Query Expansion."""
         # Analyze query
         analysis = await self._analyze_query_advanced(query)

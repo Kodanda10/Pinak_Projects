@@ -20,8 +20,14 @@ from fastapi import Request, Response
 from fastapi.responses import JSONResponse
 
 try:
-    from prometheus_client import (CONTENT_TYPE_LATEST, CollectorRegistry,
-                                   Counter, Gauge, Histogram, generate_latest)
+    from prometheus_client import (
+        CONTENT_TYPE_LATEST,
+        CollectorRegistry,
+        Counter,
+        Gauge,
+        Histogram,
+        generate_latest,
+    )
 
     PROMETHEUS_AVAILABLE = True
 except ImportError:
@@ -174,13 +180,9 @@ class EnterpriseMetrics:
             registry=self.registry,
         )
 
-        logger.info(
-            "Enterprise metrics initialized", metrics_enabled=settings.METRICS_ENABLED
-        )
+        logger.info("Enterprise metrics initialized", metrics_enabled=settings.METRICS_ENABLED)
 
-    def record_http_request(
-        self, method: str, endpoint: str, status_code: int, duration: float
-    ):
+    def record_http_request(self, method: str, endpoint: str, status_code: int, duration: float):
         """Record HTTP request metrics."""
         if not settings.METRICS_ENABLED:
             return
@@ -189,9 +191,7 @@ class EnterpriseMetrics:
             method=method, endpoint=endpoint, status_code=status_code
         ).inc()
 
-        self.http_request_duration.labels(method=method, endpoint=endpoint).observe(
-            duration
-        )
+        self.http_request_duration.labels(method=method, endpoint=endpoint).observe(duration)
 
     def record_memory_operation(
         self, operation_type: str, layer: str, duration: Optional[float] = None
@@ -200,13 +200,9 @@ class EnterpriseMetrics:
         if not settings.METRICS_ENABLED:
             return
 
-        self.memory_operations_total.labels(
-            operation_type=operation_type, layer=layer
-        ).inc()
+        self.memory_operations_total.labels(operation_type=operation_type, layer=layer).inc()
 
-    def record_vector_search(
-        self, search_type: str, duration: float, results_count: int = 0
-    ):
+    def record_vector_search(self, search_type: str, duration: float, results_count: int = 0):
         """Record vector search metrics."""
         if not settings.METRICS_ENABLED:
             return
@@ -280,9 +276,7 @@ class EnterpriseMetrics:
             self.record_error("middleware_exception", "http")
             logger.error("Middleware exception", error=str(e))
             # Return error response
-            response = JSONResponse(
-                status_code=500, content={"detail": "Internal server error"}
-            )
+            response = JSONResponse(status_code=500, content={"detail": "Internal server error"})
             status_code = 500
 
         # Record metrics

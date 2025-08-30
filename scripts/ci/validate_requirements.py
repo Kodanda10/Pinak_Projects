@@ -46,9 +46,7 @@ def main():
     if invalid:
         print(f"Found {len(invalid)} invalid requirement version(s) in {path}:")
         for ln, raw, ver in invalid:
-            print(
-                f"  line {ln}: '{raw}' -> version token '{ver}' is not PEP 440 compliant"
-            )
+            print(f"  line {ln}: '{raw}' -> version token '{ver}' is not PEP 440 compliant")
         return 1
 
     print(f"All requirement versions in {path} appear PEP 440-compliant.")

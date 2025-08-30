@@ -17,4 +17,3 @@ Security Notes
 
 Troubleshooting
 - If the app fails to start, ensure dependencies are installed and run: `pip install -e .` in the repo venv.
-

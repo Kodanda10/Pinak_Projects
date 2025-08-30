@@ -12,13 +12,16 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 from typing import Dict, cast
 
 from pinak.context.broker.broker import ContextBroker
-from pinak.context.core.models import (ContextLayer, IContextStore,
-                                       SecurityClassification)
-from pinak.context.nudge.delivery import (CLINudgeDelivery,
-                                          CompositeNudgeDelivery)
+from pinak.context.core.models import ContextLayer, IContextStore, SecurityClassification
+from pinak.context.nudge.delivery import CLINudgeDelivery, CompositeNudgeDelivery
 from pinak.context.nudge.engine import NudgeEngine
-from pinak.context.nudge.models import (NudgeCondition, NudgePriority,
-                                        NudgeTemplate, NudgeTrigger, NudgeType)
+from pinak.context.nudge.models import (
+    NudgeCondition,
+    NudgePriority,
+    NudgeTemplate,
+    NudgeTrigger,
+    NudgeType,
+)
 from pinak.context.nudge.store import InMemoryNudgeStore
 
 
@@ -30,8 +33,7 @@ class MockContextStore:
 
     async def retrieve(self, query):
         """Mock retrieve method"""
-        from pinak.context.core.models import (ContextItem, ContextPriority,
-                                               ContextResponse)
+        from pinak.context.core.models import ContextItem, ContextPriority, ContextResponse
 
         return ContextResponse(
             items=[
@@ -118,9 +120,7 @@ async def test_nudge_engine():
             title_template="📝 Consider documenting your recent work",
             message_template="You haven't documented any context in the last 7 days. Consider adding some notes about your recent activities to help with future reference.",
             conditions=[
-                NudgeCondition(
-                    trigger_type=NudgeTrigger.TIME_BASED, time_window_minutes=60
-                )
+                NudgeCondition(trigger_type=NudgeTrigger.TIME_BASED, time_window_minutes=60)
             ],
         ),
         NudgeTemplate(
@@ -131,9 +131,7 @@ async def test_nudge_engine():
             title_template="🔒 Security Alert: Review Required",
             message_template="Some of your context items haven't been reviewed recently. Please review high-security items regularly.",
             conditions=[
-                NudgeCondition(
-                    trigger_type=NudgeTrigger.TIME_BASED, time_window_minutes=30
-                )
+                NudgeCondition(trigger_type=NudgeTrigger.TIME_BASED, time_window_minutes=30)
             ],
         ),
         NudgeTemplate(

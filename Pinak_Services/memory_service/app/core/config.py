@@ -46,9 +46,7 @@ class Settings(BaseModel):
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
     # CORS
-    ALLOWED_ORIGINS: List[str] = Field(
-        default=["http://localhost:3000", "http://localhost:8000"]
-    )
+    ALLOWED_ORIGINS: List[str] = Field(default=["http://localhost:3000", "http://localhost:8000"])
     ALLOWED_HOSTS: List[str] = Field(default=["*"])
 
     # Database

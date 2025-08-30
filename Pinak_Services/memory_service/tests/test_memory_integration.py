@@ -16,17 +16,29 @@ os.environ.setdefault("USE_MOCK_EMBEDDINGS", "true")
 
 import asyncio
 
-from app.services.memory_service import (MemoryService, add_episodic,
-                                         add_procedural, add_rag,
-                                         list_episodic, list_procedural,
-                                         list_rag, search_v2)
+from app.services.memory_service import (
+    MemoryService,
+    add_episodic,
+    add_procedural,
+    add_rag,
+    list_episodic,
+    list_procedural,
+    list_rag,
+    search_v2,
+)
 
 os.environ.setdefault("USE_MOCK_EMBEDDINGS", "true")
 
-from app.services.memory_service import (MemoryService, add_episodic,
-                                         add_procedural, add_rag,
-                                         list_episodic, list_procedural,
-                                         list_rag, search_v2)
+from app.services.memory_service import (
+    MemoryService,
+    add_episodic,
+    add_procedural,
+    add_rag,
+    list_episodic,
+    list_procedural,
+    list_rag,
+    search_v2,
+)
 
 
 class TestMemoryIntegration:
@@ -209,12 +221,8 @@ class TestMemoryIntegration:
 
         # Search should only return active memory
         results = list_episodic(memory_service, tenant, project_id)
-        active_results = [
-            r for r in results if active_memory["content"] in r.get("content", "")
-        ]
-        expired_results = [
-            r for r in results if expired_memory["content"] in r.get("content", "")
-        ]
+        active_results = [r for r in results if active_memory["content"] in r.get("content", "")]
+        expired_results = [r for r in results if expired_memory["content"] in r.get("content", "")]
 
         assert len(active_results) >= 1
         # Note: TTL is not implemented in the current episodic storage, so expired results may still be there
@@ -263,9 +271,7 @@ class TestMemoryIntegration:
                 audit_data = [json.loads(line) for line in f]
 
             # Should have audit entries for add operations and search
-            add_operations = [
-                entry for entry in audit_data if "add" in entry.get("operation", "")
-            ]
+            add_operations = [entry for entry in audit_data if "add" in entry.get("operation", "")]
             search_operations = [
                 entry for entry in audit_data if "search" in entry.get("operation", "")
             ]
@@ -383,9 +389,7 @@ class TestMemoryServiceRobustness:
 
         # Add many memories
         for i in range(100):
-            add_episodic(
-                memory_service, tenant, project_id, f"Large dataset memory {i}", 5
-            )
+            add_episodic(memory_service, tenant, project_id, f"Large dataset memory {i}", 5)
 
         # Search should work efficiently
         results = list_episodic(memory_service, tenant, project_id)
@@ -440,9 +444,7 @@ class TestMemoryServiceConfiguration:
 
         for tenant, project in tenants_projects:
             # Add memory for each combination
-            add_episodic(
-                memory_service, tenant, project, f"Test for {tenant}/{project}", 5
-            )
+            add_episodic(memory_service, tenant, project, f"Test for {tenant}/{project}", 5)
 
             # Verify isolation
             base = memory_service._store_dir(tenant, project)

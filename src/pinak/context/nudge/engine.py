@@ -10,11 +10,18 @@ from collections import defaultdict
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 from ..broker.broker import ContextBroker
-from ..core.models import (ContextItem, ContextLayer, ContextQuery,
-                           SecurityClassification)
-from .models import (INudgeDelivery, INudgeStore, Nudge, NudgeCondition,
-                     NudgeDeliveryResult, NudgePriority, NudgeTemplate,
-                     NudgeTrigger, NudgeType)
+from ..core.models import ContextItem, ContextLayer, ContextQuery, SecurityClassification
+from .models import (
+    INudgeDelivery,
+    INudgeStore,
+    Nudge,
+    NudgeCondition,
+    NudgeDeliveryResult,
+    NudgePriority,
+    NudgeTemplate,
+    NudgeTrigger,
+    NudgeType,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -62,9 +69,7 @@ class NudgeEngine:
             "avg_delivery_time_ms": 0.0,
         }
 
-        logger.info(
-            f"NudgeEngine initialized with {len(delivery_channels)} delivery channels"
-        )
+        logger.info(f"NudgeEngine initialized with {len(delivery_channels)} delivery channels")
 
     async def generate_nudges(
         self,
@@ -140,9 +145,7 @@ class NudgeEngine:
             NudgePriority.LOW,
         ]:
             if priority in priority_groups:
-                group_results = await self._deliver_priority_group(
-                    priority_groups[priority]
-                )
+                group_results = await self._deliver_priority_group(priority_groups[priority])
                 results.extend(group_results)
 
         return results
@@ -175,9 +178,7 @@ class NudgeEngine:
             user_id, project_id, tenant_id, trigger_events=trigger_events
         )
 
-    async def acknowledge_nudge(
-        self, nudge_id: str, user_response: Optional[str] = None
-    ) -> bool:
+    async def acknowledge_nudge(self, nudge_id: str, user_response: Optional[str] = None) -> bool:
         """
         Mark a nudge as acknowledged by the user.
         """
@@ -215,9 +216,7 @@ class NudgeEngine:
         context_patterns = self._analyze_context_patterns(context_items)
 
         # Check for missing context
-        missing_context = await self._identify_missing_context(
-            user_id, project_id, context_items
-        )
+        missing_context = await self._identify_missing_context(user_id, project_id, context_items)
         if missing_context:
             opportunities.append(
                 {
@@ -242,9 +241,7 @@ class NudgeEngine:
 
         # Check for relevant updates
         if trigger_events:
-            update_opportunities = self._analyze_trigger_events(
-                trigger_events, context_items
-            )
+            update_opportunities = self._analyze_trigger_events(trigger_events, context_items)
             opportunities.extend(update_opportunities)
 
         # Check for security alerts
@@ -261,9 +258,7 @@ class NudgeEngine:
 
         return opportunities
 
-    def _analyze_context_patterns(
-        self, context_items: List[ContextItem]
-    ) -> Dict[str, Any]:
+    def _analyze_context_patterns(self, context_items: List[ContextItem]) -> Dict[str, Any]:
         """
         Analyze patterns in user's context items.
         """
@@ -511,16 +506,13 @@ class NudgeEngine:
                 type=template.nudge_type,
                 priority=template.priority,
                 title=self._render_template(template.title_template, personalized_data),
-                message=self._render_template(
-                    template.message_template, personalized_data
-                ),
+                message=self._render_template(template.message_template, personalized_data),
                 suggested_action=template.action_template
                 and self._render_template(template.action_template, personalized_data),
                 personalization_data=personalized_data,
                 trigger_reason=opportunity.get("reason", "unknown"),
                 relevance_score=opportunity.get("confidence", 0.5),
-                expires_at=datetime.now(timezone.utc)
-                + timedelta(hours=self.nudge_expiry_hours),
+                expires_at=datetime.now(timezone.utc) + timedelta(hours=self.nudge_expiry_hours),
             )
 
             # Store nudge
@@ -534,9 +526,7 @@ class NudgeEngine:
             return nudge
 
         except Exception as e:
-            logger.error(
-                f"Failed to generate nudge from template {template.template_id}: {e}"
-            )
+            logger.error(f"Failed to generate nudge from template {template.template_id}: {e}")
             return None
 
     async def _personalize_nudge_content(
@@ -581,9 +571,7 @@ class NudgeEngine:
         except Exception:
             return template
 
-    def _group_nudges_by_priority(
-        self, nudges: List[Nudge]
-    ) -> Dict[NudgePriority, List[Nudge]]:
+    def _group_nudges_by_priority(self, nudges: List[Nudge]) -> Dict[NudgePriority, List[Nudge]]:
         """
         Group nudges by priority for efficient delivery.
         """
@@ -592,9 +580,7 @@ class NudgeEngine:
             groups[nudge.priority].append(nudge)
         return dict(groups)
 
-    async def _deliver_priority_group(
-        self, nudges: List[Nudge]
-    ) -> List[NudgeDeliveryResult]:
+    async def _deliver_priority_group(self, nudges: List[Nudge]) -> List[NudgeDeliveryResult]:
         """
         Deliver a group of nudges with the same priority.
         """
@@ -611,9 +597,7 @@ class NudgeEngine:
 
         for i, result in enumerate(batch_results):
             if isinstance(result, Exception):
-                logger.error(
-                    f"Delivery failed for nudge {nudges[i].nudge_id}: {result}"
-                )
+                logger.error(f"Delivery failed for nudge {nudges[i].nudge_id}: {result}")
                 # Create failure result
                 results.append(
                     NudgeDeliveryResult(
@@ -676,9 +660,7 @@ class NudgeEngine:
         # Simple selection logic - can be enhanced with ML-based routing
         if nudge.priority == NudgePriority.CRITICAL:
             # Use most reliable channel for critical nudges
-            return max(
-                available_channels, key=lambda ch: getattr(ch, "reliability_score", 0.5)
-            )
+            return max(available_channels, key=lambda ch: getattr(ch, "reliability_score", 0.5))
 
         # Use first available channel for others
         return available_channels[0]
@@ -710,9 +692,7 @@ class NudgeEngine:
 
         return context_items
 
-    async def _update_user_context_cache(
-        self, user_id: str, activity_data: Dict[str, Any]
-    ):
+    async def _update_user_context_cache(self, user_id: str, activity_data: Dict[str, Any]):
         """
         Update the context cache with new activity data.
         """
@@ -740,8 +720,7 @@ class NudgeEngine:
 
         if total_generated > 0:
             self._metrics["avg_generation_time_ms"] = (
-                (current_avg * (total_generated - nudge_count))
-                + (generation_time_ms * nudge_count)
+                (current_avg * (total_generated - nudge_count)) + (generation_time_ms * nudge_count)
             ) / total_generated
 
     def get_metrics(self) -> Dict[str, Any]:
@@ -752,9 +731,7 @@ class NudgeEngine:
             **self._metrics,
             "active_nudges": len(self._active_nudges),
             "cached_users": len(self._user_context_cache),
-            "available_channels": len(
-                [ch for ch in self.delivery_channels if ch.is_available()]
-            ),
+            "available_channels": len([ch for ch in self.delivery_channels if ch.is_available()]),
         }
 
     async def health_check(self) -> Dict[str, Any]:

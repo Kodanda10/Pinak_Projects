@@ -12,10 +12,15 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 from typing import Dict, cast
 
 from pinak.context.broker.broker import ContextBroker
-from pinak.context.core.models import (ContextItem, ContextLayer,
-                                       ContextPriority, ContextQuery,
-                                       ContextResponse, IContextStore,
-                                       SecurityClassification)
+from pinak.context.core.models import (
+    ContextItem,
+    ContextLayer,
+    ContextPriority,
+    ContextQuery,
+    ContextResponse,
+    IContextStore,
+    SecurityClassification,
+)
 
 
 class MockContextStore:

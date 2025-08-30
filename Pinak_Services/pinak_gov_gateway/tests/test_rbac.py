@@ -8,9 +8,7 @@ from jose import jwt
 
 
 def make_client():
-    os.environ.setdefault(
-        "GOV_UPSTREAM", "http://example-upstream"
-    )  # won't be called in tests
+    os.environ.setdefault("GOV_UPSTREAM", "http://example-upstream")  # won't be called in tests
     os.environ.setdefault("SECRET_KEY", "test-secret")
     os.environ.setdefault("REQUIRE_PROJECT_HEADER", "true")
     os.environ.setdefault("PINAK_ALLOWED_ROLES", "viewer,editor,admin")
@@ -67,9 +65,7 @@ def test_role_forwarding_header_present_on_proxy(monkeypatch):
 
     gateway.ALLOWED_ROLES = {"viewer", "editor", "admin"}
 
-    async def fake_request(
-        self, method, url, headers=None, content=None
-    ):  # noqa: ANN001
+    async def fake_request(self, method, url, headers=None, content=None):  # noqa: ANN001
         captured["headers"] = headers or {}
         # minimal httpx.Response mock
         return httpx.Response(200, json={"ok": True})
@@ -98,9 +94,7 @@ def test_audit_sync_posts_to_memory_api(monkeypatch, tmp_path):
 
     gateway.ALLOWED_ROLES = {"viewer", "editor", "admin"}
 
-    async def fake_request(
-        self, method, url, headers=None, content=None
-    ):  # noqa: ANN001
+    async def fake_request(self, method, url, headers=None, content=None):  # noqa: ANN001
         # First call is to upstream Parlant; capture it and return success
         if captured["upstream"] is None:
             captured["upstream"] = {"method": method, "url": url}

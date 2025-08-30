@@ -30,7 +30,7 @@ class PinakMonitoringDashboard:
         # Headers for API requests
         self.headers = {
             "Accept": "application/vnd.github.v3+json",
-            "User-Agent": "Pinak-Monitoring-Dashboard/1.0"
+            "User-Agent": "Pinak-Monitoring-Dashboard/1.0",
         }
         if self.token:
             self.headers["Authorization"] = f"token {self.token}"
@@ -61,7 +61,7 @@ class PinakMonitoringDashboard:
             "by_workflow": {},
             "recent_activity": [],
             "health_score": 0,
-            "issues": []
+            "issues": [],
         }
 
         if not workflow_runs:
@@ -80,20 +80,24 @@ class PinakMonitoringDashboard:
 
             # Count by conclusion
             if run_conclusion:
-                status["by_conclusion"][run_conclusion] = status["by_conclusion"].get(run_conclusion, 0) + 1
+                status["by_conclusion"][run_conclusion] = (
+                    status["by_conclusion"].get(run_conclusion, 0) + 1
+                )
 
             # Count by workflow
             status["by_workflow"][workflow_name] = status["by_workflow"].get(workflow_name, 0) + 1
 
             # Recent activity (last 5 runs)
             if len(status["recent_activity"]) < 5:
-                status["recent_activity"].append({
-                    "name": workflow_name,
-                    "status": run_status,
-                    "conclusion": run_conclusion,
-                    "created_at": run.get("created_at", ""),
-                    "html_url": run.get("html_url", "")
-                })
+                status["recent_activity"].append(
+                    {
+                        "name": workflow_name,
+                        "status": run_status,
+                        "conclusion": run_conclusion,
+                        "created_at": run.get("created_at", ""),
+                        "html_url": run.get("html_url", ""),
+                    }
+                )
 
         # Calculate health score
         if status["by_conclusion"]:
@@ -131,15 +135,11 @@ class PinakMonitoringDashboard:
             "coverage_percentage": 0,
             "lines_covered": 0,
             "lines_total": 0,
-            "status": "unknown"
+            "status": "unknown",
         }
 
         # Check for coverage files
-        coverage_files = [
-            Path("coverage.xml"),
-            Path("htmlcov/index.html"),
-            Path("coverage.json")
-        ]
+        coverage_files = [Path("coverage.xml"), Path("htmlcov/index.html"), Path("coverage.json")]
 
         for coverage_file in coverage_files:
             if coverage_file.exists():
@@ -148,18 +148,21 @@ class PinakMonitoringDashboard:
                 try:
                     if coverage_file.suffix == ".xml":
                         # Parse XML coverage (simplified)
-                        with open(coverage_file, 'r') as f:
+                        with open(coverage_file, "r") as f:
                             content = f.read()
                             # Extract basic coverage info
                             import re
+
                             match = re.search(r'line-rate="([0-9.]+)"', content)
                             if match:
                                 coverage_status["coverage_percentage"] = float(match.group(1)) * 100
 
                     elif coverage_file.suffix == ".json":
-                        with open(coverage_file, 'r') as f:
+                        with open(coverage_file, "r") as f:
                             data = json.load(f)
-                            coverage_status["coverage_percentage"] = data.get("totals", {}).get("percent_covered", 0)
+                            coverage_status["coverage_percentage"] = data.get("totals", {}).get(
+                                "percent_covered", 0
+                            )
 
                 except Exception as e:
                     print(f"Warning: Could not parse coverage file {coverage_file}: {e}")
@@ -184,7 +187,7 @@ class PinakMonitoringDashboard:
             "html_docs_exist": False,
             "markdown_docs_exist": False,
             "last_update": None,
-            "status": "unknown"
+            "status": "unknown",
         }
 
         # Check for documentation files
@@ -206,18 +209,20 @@ class PinakMonitoringDashboard:
                 # Check last update
                 if summary_json.exists():
                     try:
-                        with open(summary_json, 'r') as f:
+                        with open(summary_json, "r") as f:
                             data = json.load(f)
                             docs_status["last_update"] = data.get("timestamp")
                     except Exception:
                         pass
 
         # Determine status
-        doc_files_exist = sum([
-            docs_status["api_docs_exist"],
-            docs_status["html_docs_exist"],
-            docs_status["markdown_docs_exist"]
-        ])
+        doc_files_exist = sum(
+            [
+                docs_status["api_docs_exist"],
+                docs_status["html_docs_exist"],
+                docs_status["markdown_docs_exist"],
+            ]
+        )
 
         if doc_files_exist >= 2:
             docs_status["status"] = "🟢 COMPLETE"
@@ -230,9 +235,9 @@ class PinakMonitoringDashboard:
 
     def display_dashboard(self):
         """Display the comprehensive monitoring dashboard."""
-        print("\n" + "="*80)
+        print("\n" + "=" * 80)
         print("🎯 PINAK CI/CD MONITORING DASHBOARD")
-        print("="*80)
+        print("=" * 80)
         print(f"📊 Repository: {self.repo_owner}/{self.repo_name}")
         print(f"⏰ Updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}")
         print()
@@ -243,69 +248,87 @@ class PinakMonitoringDashboard:
 
         # CI/CD Status Section
         print("🚀 CI/CD PIPELINE STATUS")
-        print("-"*40)
+        print("-" * 40)
         print(f"Total Runs: {workflow_status['total_runs']}")
-        print(f"Health Score: {workflow_status['health_score']}% - {workflow_status['health_status']}")
+        print(
+            f"Health Score: {workflow_status['health_score']}% - {workflow_status['health_status']}"
+        )
 
-        if workflow_status['by_status']:
+        if workflow_status["by_status"]:
             print("\n📈 Status Breakdown:")
-            for status, count in workflow_status['by_status'].items():
+            for status, count in workflow_status["by_status"].items():
                 print(f"  {status.title()}: {count}")
 
-        if workflow_status['by_conclusion']:
+        if workflow_status["by_conclusion"]:
             print("\n✅ Conclusion Breakdown:")
-            for conclusion, count in workflow_status['by_conclusion'].items():
-                icon = "✅" if conclusion == "success" else "❌" if conclusion == "failure" else "⏳"
+            for conclusion, count in workflow_status["by_conclusion"].items():
+                icon = (
+                    "✅" if conclusion == "success" else "❌" if conclusion == "failure" else "⏳"
+                )
                 print(f"  {icon} {conclusion.title()}: {count}")
 
-        if workflow_status['issues']:
+        if workflow_status["issues"]:
             print("\n⚠️  Issues Detected:")
-            for issue in workflow_status['issues']:
+            for issue in workflow_status["issues"]:
                 print(f"  • {issue}")
 
         # Recent Activity
-        if workflow_status['recent_activity']:
+        if workflow_status["recent_activity"]:
             print("\n🔥 Recent Activity:")
-            for activity in workflow_status['recent_activity']:
-                status_icon = "✅" if activity['conclusion'] == "success" else "❌" if activity['conclusion'] == "failure" else "⏳"
+            for activity in workflow_status["recent_activity"]:
+                status_icon = (
+                    "✅"
+                    if activity["conclusion"] == "success"
+                    else "❌" if activity["conclusion"] == "failure" else "⏳"
+                )
                 print(f"  {status_icon} {activity['name']} - {activity['status']}")
 
         # Test Coverage Section
-        print("\n" + "-"*40)
+        print("\n" + "-" * 40)
         print("🧪 TEST COVERAGE STATUS")
-        print("-"*40)
+        print("-" * 40)
 
         coverage_status = self.get_test_coverage_status()
-        print(f"Coverage File: {'✅ Found' if coverage_status['coverage_file_exists'] else '❌ Missing'}")
-        print(f"Coverage: {coverage_status['coverage_percentage']:.1f}% - {coverage_status['status']}")
+        print(
+            f"Coverage File: {'✅ Found' if coverage_status['coverage_file_exists'] else '❌ Missing'}"
+        )
+        print(
+            f"Coverage: {coverage_status['coverage_percentage']:.1f}% - {coverage_status['status']}"
+        )
 
         # Documentation Section
-        print("\n" + "-"*40)
+        print("\n" + "-" * 40)
         print("📚 DOCUMENTATION STATUS")
-        print("-"*40)
+        print("-" * 40)
 
         docs_status = self.get_documentation_status()
-        print(f"Generated Docs: {'✅ Exist' if docs_status['generated_docs_exist'] else '❌ Missing'}")
+        print(
+            f"Generated Docs: {'✅ Exist' if docs_status['generated_docs_exist'] else '❌ Missing'}"
+        )
         print(f"API Docs: {'✅ Available' if docs_status['api_docs_exist'] else '❌ Missing'}")
         print(f"HTML Docs: {'✅ Available' if docs_status['html_docs_exist'] else '❌ Missing'}")
-        print(f"Markdown Docs: {'✅ Available' if docs_status['markdown_docs_exist'] else '❌ Missing'}")
+        print(
+            f"Markdown Docs: {'✅ Available' if docs_status['markdown_docs_exist'] else '❌ Missing'}"
+        )
         print(f"Status: {docs_status['status']}")
 
-        if docs_status['last_update']:
+        if docs_status["last_update"]:
             print(f"Last Update: {docs_status['last_update']}")
 
         # System Health Summary
-        print("\n" + "="*80)
+        print("\n" + "=" * 80)
         print("🏥 SYSTEM HEALTH SUMMARY")
-        print("="*80)
+        print("=" * 80)
 
         health_components = {
-            "CI/CD Pipeline": workflow_status['health_status'],
-            "Test Coverage": coverage_status['status'],
-            "Documentation": docs_status['status']
+            "CI/CD Pipeline": workflow_status["health_status"],
+            "Test Coverage": coverage_status["status"],
+            "Documentation": docs_status["status"],
         }
 
-        all_healthy = all("🟢" in status or "EXCELLENT" in status for status in health_components.values())
+        all_healthy = all(
+            "🟢" in status or "EXCELLENT" in status for status in health_components.values()
+        )
 
         for component, status in health_components.items():
             print(f"{component}: {status}")
@@ -316,7 +339,7 @@ class PinakMonitoringDashboard:
         else:
             print("⚠️  SOME SYSTEMS NEED ATTENTION")
 
-        print("\n" + "="*80)
+        print("\n" + "=" * 80)
 
         # Next Steps
         print("🎯 NEXT STEPS:")
@@ -332,7 +355,7 @@ class PinakMonitoringDashboard:
         print("\n🔗 Useful Links:")
         print(f"• GitHub Actions: https://github.com/{self.repo_owner}/{self.repo_name}/actions")
         print(f"• Repository: https://github.com/{self.repo_owner}/{self.repo_name}")
-        if docs_status['html_docs_exist']:
+        if docs_status["html_docs_exist"]:
             print(f"• Documentation: https://github.com/{self.repo_owner}/{self.repo_name}/docs")
         print()
 
@@ -362,11 +385,11 @@ class PinakMonitoringDashboard:
             "repository": f"{self.repo_owner}/{self.repo_name}",
             "ci_cd": self.get_workflow_status(self.get_workflow_runs()),
             "test_coverage": self.get_test_coverage_status(),
-            "documentation": self.get_documentation_status()
+            "documentation": self.get_documentation_status(),
         }
 
         if output_file:
-            with open(output_file, 'w') as f:
+            with open(output_file, "w") as f:
                 json.dump(status, f, indent=2, ensure_ascii=False)
             print(f"✅ Status exported to {output_file}")
 
@@ -381,7 +404,9 @@ def main():
     parser.add_argument("--repo-owner", default="Pinak-Setu", help="Repository owner")
     parser.add_argument("--repo-name", default="Pinak_Projects", help="Repository name")
     parser.add_argument("--realtime", action="store_true", help="Enable real-time monitoring")
-    parser.add_argument("--interval", type=int, default=60, help="Real-time update interval (seconds)")
+    parser.add_argument(
+        "--interval", type=int, default=60, help="Real-time update interval (seconds)"
+    )
     parser.add_argument("--export", type=str, help="Export status to JSON file")
     parser.add_argument("--quiet", action="store_true", help="Quiet mode (less verbose)")
 

@@ -106,9 +106,7 @@ class ProjectContext:
         ).hexdigest()
         cfg = dict(base)
         cfg.update({"created_at": _now_iso(), "identity_fingerprint": fp})
-        (pinak_dir / PINAK_CONFIG).write_text(
-            json.dumps(cfg, indent=2), encoding="utf-8"
-        )
+        (pinak_dir / PINAK_CONFIG).write_text(json.dumps(cfg, indent=2), encoding="utf-8")
         return ProjectContext(
             project_id=pid,
             project_name=project_name,

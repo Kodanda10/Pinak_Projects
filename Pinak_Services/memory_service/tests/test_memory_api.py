@@ -32,9 +32,7 @@ async def test_retrieve_memory(client_and_memory_service):
 
     # 1. Add a known memory first
     memory_content = "The sky is blue on a clear day."
-    add_response = await client.post(
-        "/api/v1/memory/add", json={"content": memory_content}
-    )
+    add_response = await client.post("/api/v1/memory/add", json={"content": memory_content})
     assert add_response.status_code == 201
 
     # 2. Try to retrieve it

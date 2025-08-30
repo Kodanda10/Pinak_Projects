@@ -262,11 +262,11 @@ allow {
 
 ## ✅ Next Steps
 
-1. Add **short-lived JWT refresh flow**  
-2. Time-partition JSONLs + nightly compaction to Parquet  
-3. Hash-chain events & changelog with hourly anchors  
-4. Enforce **file-locking** everywhere  
-5. Ship `/metrics` + OTEL spans  
+1. Add **short-lived JWT refresh flow**
+2. Time-partition JSONLs + nightly compaction to Parquet
+3. Hash-chain events & changelog with hourly anchors
+4. Enforce **file-locking** everywhere
+5. Ship `/metrics` + OTEL spans
 
 ---
 

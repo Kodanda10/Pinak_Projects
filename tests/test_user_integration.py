@@ -187,9 +187,7 @@ async def read_root():
     return {"message": "Hello from FastAPI"}
 """
             )
-            (project_dir / "requirements.txt").write_text(
-                "fastapi==0.100.0\nuvicorn==0.23.0\n"
-            )
+            (project_dir / "requirements.txt").write_text("fastapi==0.100.0\nuvicorn==0.23.0\n")
 
         # Add more project types as needed...
 
@@ -316,12 +314,10 @@ print("✅ Basic functionality test passed")
             os.chdir(project_dir)
             subprocess.run([sys.executable, "immediate_test.py"], check=True)
             return True
-        except:
+        except Exception as e:
             return False
 
-    def _integrate_with_project_type(
-        self, project_dir: Path, project_type: str
-    ) -> dict:
+    def _integrate_with_project_type(self, project_dir: Path, project_type: str) -> dict:
         """Test integration with specific project types."""
         result = {"compatible": True, "integration_steps": 1, "works_out_of_box": True}
 

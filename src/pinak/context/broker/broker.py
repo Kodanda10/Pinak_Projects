@@ -9,12 +9,17 @@ import logging
 from dataclasses import dataclass
 from typing import Any, AsyncIterator, Dict, List, Optional, Set
 
-from ..core.models import (ContextItem, ContextLayer, ContextPriority,
-                           ContextQuery, ContextResponse, IContextStore,
-                           SecurityClassification)
+from ..core.models import (
+    ContextItem,
+    ContextLayer,
+    ContextPriority,
+    ContextQuery,
+    ContextResponse,
+    IContextStore,
+    SecurityClassification,
+)
 from .graph_expansion import GraphBasedExpander, GraphExpansionResult
-from .rl_optimizer import (AdaptiveLearningEngine, QLearningOptimizer,
-                           adaptive_engine)
+from .rl_optimizer import AdaptiveLearningEngine, QLearningOptimizer, adaptive_engine
 
 # Neural reranker import (placeholder - needs implementation)
 # from .neural_reranker import NeuralReranker
@@ -82,9 +87,7 @@ class ContextBroker:
             # self.neural_reranker = NeuralReranker()  # Placeholder
             self.adaptive_optimizer = adaptive_engine
 
-            logger.info(
-                "🚀 World-beating components integrated: Graph Expansion, RL Optimization"
-            )
+            logger.info("🚀 World-beating components integrated: Graph Expansion, RL Optimization")
 
         # Performance and caching
         self._cache: Dict[str, tuple[ContextResponse, float]] = {}
@@ -180,9 +183,7 @@ class ContextBroker:
                 continue
 
             if not isinstance(result, RetrievalResult):
-                logger.warning(
-                    f"Unexpected result type for layer {layer}: {type(result)}"
-                )
+                logger.warning(f"Unexpected result type for layer {layer}: {type(result)}")
                 continue
 
             retrieval_result = result
@@ -241,9 +242,7 @@ class ContextBroker:
             execution_time = int((time.time() - start_time) * 1000)
 
             # Calculate confidence based on layer and result quality
-            confidence = self._calculate_layer_confidence(
-                layer, len(items), execution_time
-            )
+            confidence = self._calculate_layer_confidence(layer, len(items), execution_time)
 
             return RetrievalResult(
                 items=items,
@@ -317,17 +316,13 @@ class ContextBroker:
         """Calculate keyword-based relevance score."""
         query_lower = query.lower()
         title_match = 1.0 if query_lower in item.title.lower() else 0.0
-        content_match = item.content.lower().count(query_lower) / len(
-            item.content.split()
-        )
+        content_match = item.content.lower().count(query_lower) / len(item.content.split())
 
         return min(1.0, (title_match * 0.7) + (content_match * 0.3))
 
     def _calculate_temporal_score(self, item: ContextItem) -> float:
         """Calculate temporal freshness score."""
-        age_hours = (
-            datetime.now(timezone.utc) - item.created_at
-        ).total_seconds() / 3600
+        age_hours = (datetime.now(timezone.utc) - item.created_at).total_seconds() / 3600
 
         # Exponential decay with 48-hour half-life
         return 0.5 ** (age_hours / 48)
@@ -346,9 +341,7 @@ class ContextBroker:
         }
         return boosts.get(layer, 1.0)
 
-    def _apply_filters(
-        self, items: List[ContextItem], query: ContextQuery
-    ) -> List[ContextItem]:
+    def _apply_filters(self, items: List[ContextItem], query: ContextQuery) -> List[ContextItem]:
         """Apply final filtering based on query parameters."""
         filtered = []
 
@@ -366,9 +359,7 @@ class ContextBroker:
                 continue
 
             # Tags filter
-            if query.tags_filter and not any(
-                tag in item.tags for tag in query.tags_filter
-            ):
+            if query.tags_filter and not any(tag in item.tags for tag in query.tags_filter):
                 continue
 
             # Temporal filters
@@ -397,7 +388,7 @@ class ContextBroker:
         key_data = {
             "query": query.query,
             "project_id": query.project_id,
-            "layers": sorted([l.value for l in query.layers]),
+            "layers": sorted([list_item.value for list_item in query.layers]),
             "limit": query.limit,
             "user_clearance": query.user_clearance.value,
         }

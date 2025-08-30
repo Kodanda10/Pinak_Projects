@@ -1,4 +1,3 @@
-
 import argparse
 import socket
 from pathlib import Path
@@ -22,13 +21,9 @@ def ensure_docker(timeout: int = 120) -> bool:
     try:
         run(["docker", "info"], check=True)
         return True
-    except Exception:
+    except Exception as e:
         # 1) Try Docker Desktop on macOS
-        if (
-            sys.platform == "darwin"
-            and have("open")
-            and Path("/Applications/Docker.app").exists()
-        ):
+        if sys.platform == "darwin" and have("open") and Path("/Applications/Docker.app").exists():
             print("Starting Docker Desktop…")
             run(["open", "-a", "Docker"], check=False)
             waited = 0
@@ -37,7 +32,7 @@ def ensure_docker(timeout: int = 120) -> bool:
                     run(["docker", "info"], check=True)
                     print("Docker engine is ready (Docker Desktop).")
                     return True
-                except Exception:
+                except Exception as e:
                     time.sleep(3)
                     waited += 3
         # 2) Fallback to Colima (macOS/Linux) for BCM
@@ -49,7 +44,7 @@ def ensure_docker(timeout: int = 120) -> bool:
                     ["colima", "start", "--cpu", "2", "--memory", "4", "--disk", "20"],
                     check=False,
                 )
-            except Exception:
+            except Exception as e:
                 pass
             waited = 0
             while waited < timeout:
@@ -57,7 +52,7 @@ def ensure_docker(timeout: int = 120) -> bool:
                     run(["docker", "info"], check=True)
                     print("Docker engine is ready (Colima).")
                     return True
-                except Exception:
+                except Exception as e:
                     time.sleep(3)
                     waited += 3
         print("Docker engine unavailable. Install Docker Desktop or Colima.")
@@ -168,7 +163,7 @@ def cmd_up(args: argparse.Namespace) -> int:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 s.settimeout(0.2)
                 return s.connect_ex(("127.0.0.1", port)) == 0
-        except Exception:
+        except Exception as e:
             return False
 
     for pnum, name in [(8001, "memory-api"), (8880, "gov-gateway"), (8800, "parlant")]:
@@ -194,7 +189,7 @@ def cmd_up(args: argparse.Namespace) -> int:
             if healthy
             else "Memory API unhealthy; verify compose up and ports."
         )
-    except Exception:
+    except Exception as e:
         pass
     return 0
 
@@ -217,7 +212,7 @@ def cmd_down(args: argparse.Namespace) -> int:
         if f.exists():
             try:
                 run(["docker", "compose", "-f", str(f), "down"], check=False)
-            except Exception:
+            except Exception as e:
                 pass
     print("Services stopped (where applicable).")
     return 0
@@ -229,7 +224,7 @@ def cmd_services_status(args: argparse.Namespace) -> int:
         from .memory.cli import main as mem_main
 
         rc = mem_main(["health"])
-    except Exception:
+    except Exception as e:
         rc = 1
     print({"memory_api_ok": rc == 0})
     return 0 if rc == 0 else 1
@@ -265,7 +260,7 @@ def cmd_quickstart(args: argparse.Namespace) -> int:
         ca = Path.cwd() / "Pinak_Services" / "certs" / "ca.crt"
         if ca.exists():
             os.environ.setdefault("PINAK_MEMORY_CA", str(ca))
-    except Exception:
+    except Exception as e:
         pass
     # Health check retries
     try:
@@ -278,11 +273,7 @@ def cmd_quickstart(args: argparse.Namespace) -> int:
                 ok = True
                 break
             time.sleep(1)
-        print(
-            "Memory API healthy."
-            if ok
-            else "Memory API unhealthy; verify compose up and ports."
-        )
+        print("Memory API healthy." if ok else "Memory API unhealthy; verify compose up and ports.")
     except Exception as e:
         print(f"Health check skipped: {e}")
     return 0
@@ -312,7 +303,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
             if out.returncode == 0:
                 ok = False
                 print("Security: .pinak directory must not be tracked by git")
-        except Exception:
+        except Exception as e:
             pass
     if not have("docker"):
         ok = False
@@ -350,7 +341,7 @@ def cmd_governance(args: argparse.Namespace) -> int:
             if ctx:
                 pid = pid or ctx.project_id
                 tok = tok or ctx.get_token()
-    except Exception:
+    except Exception as e:
         pass
     headers = {}
     if pid:
@@ -364,13 +355,11 @@ def cmd_governance(args: argparse.Namespace) -> int:
     if len(rest) > 2:
         try:
             body = json.loads(" ".join(rest[2:]))
-        except Exception:
+        except Exception as e:
             print("Body must be JSON if provided", file=sys.stderr)
             return 2
     with httpx.Client(timeout=15.0) as client:
-        r = client.request(
-            method, f"{base}/{path.lstrip('/')}", headers=headers, json=body
-        )
+        r = client.request(method, f"{base}/{path.lstrip('/')}", headers=headers, json=body)
         print(r.text)
         return 0 if r.status_code < 400 else 1
 
@@ -378,6 +367,8 @@ def cmd_governance(args: argparse.Namespace) -> int:
 def cmd_token(args: argparse.Namespace) -> int:
     # Mint a JWT with pid bound to current project and optional role, then optionally store
     try:
+        # Token minting logic would go here
+        pass
     except Exception:
         print("Please install 'python-jose' to use token minting", file=sys.stderr)
         return 2
@@ -386,20 +377,21 @@ def cmd_token(args: argparse.Namespace) -> int:
         from .bridge.context import ProjectContext
 
         if not pid:
-            ctx = ProjectContext.find()
-            if ctx:
-                pid = ctx.project_id
+            try:
+                ctx = ProjectContext.find()
+                if ctx:
+                    pid = ctx.project_id
+            except Exception:
+                pass
+
+        if not pid:
+            print("No project identity found. Run 'pinak bridge init' first.", file=sys.stderr)
+            return 2
+        claims["role"] = args.role
     except Exception:
-        pass
-    if not pid:
-        print(
-            "No project identity found. Run 'pinak bridge init' first.", file=sys.stderr
-        )
+        print("Error in token generation", file=sys.stderr)
         return 2
 
-    claims = {"sub": args.sub or "analyst", "pid": pid}
-    if args.role:
-        claims["role"] = args.role
     # Optional short-lived expiry in minutes
     if args.exp is not None:
         try:
@@ -408,7 +400,7 @@ def cmd_token(args: argparse.Namespace) -> int:
             now_utc = datetime.datetime.now(datetime.timezone.utc)
             exp_ts = int((now_utc + datetime.timedelta(minutes=mins)).timestamp())
             claims["exp"] = exp_ts
-        except Exception:
+        except Exception as e:
             print("Invalid --exp value; must be integer minutes", file=sys.stderr)
             return 2
     token = jwt.encode(claims, args.secret, algorithm="HS256")
@@ -421,7 +413,7 @@ def cmd_token(args: argparse.Namespace) -> int:
             if ctx:
                 ctx.set_token(token)
                 print("Token stored in keyring/.pinak/token")
-        except Exception:
+        except Exception as e:
             pass
     return 0
 
@@ -433,9 +425,7 @@ def cmd_quarantine(args: argparse.Namespace) -> int:
 
 
 def main(argv: Optional[list[str]] = None) -> int:
-    p = argparse.ArgumentParser(
-        prog="pinak", description="Pinak CLI — one-click local-first setup"
-    )
+    p = argparse.ArgumentParser(prog="pinak", description="Pinak CLI — one-click local-first setup")
     sub = p.add_subparsers(dest="cmd", required=True)
     q = sub.add_parser("quickstart")
     q.add_argument("--name", default=None)

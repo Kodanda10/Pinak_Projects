@@ -13,9 +13,14 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 import networkx as nx
 
-from ..core.models import (ContextItem, ContextLayer, ContextPriority,
-                           ContextQuery, ContextResponse,
-                           SecurityClassification)
+from ..core.models import (
+    ContextItem,
+    ContextLayer,
+    ContextPriority,
+    ContextQuery,
+    ContextResponse,
+    SecurityClassification,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -444,9 +449,7 @@ class GraphBasedExpander:
                 execution_time_ms=execution_time,
             )
 
-    def _extract_new_relationships(
-        self, nodes: List[KnowledgeNode]
-    ) -> List[KnowledgeEdge]:
+    def _extract_new_relationships(self, nodes: List[KnowledgeNode]) -> List[KnowledgeEdge]:
         """Extract new relationships discovered during expansion."""
         new_relationships = []
 
@@ -514,16 +517,10 @@ class GraphBasedExpander:
 
         # Apply query filters
         if query.min_relevance > 0:
-            filtered = [
-                item for item in filtered if item.relevance_score >= query.min_relevance
-            ]
+            filtered = [item for item in filtered if item.relevance_score >= query.min_relevance]
 
         if query.min_confidence > 0:
-            filtered = [
-                item
-                for item in filtered
-                if item.confidence_score >= query.min_confidence
-            ]
+            filtered = [item for item in filtered if item.confidence_score >= query.min_confidence]
 
         # Sort by relevance score
         filtered.sort(key=lambda x: x.relevance_score, reverse=True)
@@ -545,12 +542,8 @@ class GraphBasedExpander:
         )
 
         # Confidence increases with moderate expansion and high relevance
-        ratio_confidence = min(
-            1.0, expansion_ratio / 2.0
-        )  # Optimal around 2x expansion
-        relevance_confidence = min(
-            1.0, average_relevance * 2.0
-        )  # Scale relevance to confidence
+        ratio_confidence = min(1.0, expansion_ratio / 2.0)  # Optimal around 2x expansion
+        relevance_confidence = min(1.0, average_relevance * 2.0)  # Scale relevance to confidence
 
         return (ratio_confidence + relevance_confidence) / 2.0
 

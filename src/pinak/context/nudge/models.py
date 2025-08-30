@@ -11,8 +11,7 @@ from typing import Any, Dict, List, Optional, Protocol, Union
 
 from pydantic import BaseModel, Field, validator
 
-from ..core.models import (ContextItem, ContextLayer, ContextQuery,
-                           SecurityClassification)
+from ..core.models import ContextItem, ContextLayer, ContextQuery, SecurityClassification
 
 logger = logging.getLogger(__name__)
 
@@ -73,9 +72,7 @@ class NudgeCondition(BaseModel):
 class NudgeTemplate(BaseModel):
     """Template for generating nudges."""
 
-    template_id: str = Field(
-        default_factory=lambda: f"template_{datetime.now().timestamp()}"
-    )
+    template_id: str = Field(default_factory=lambda: f"template_{datetime.now().timestamp()}")
     name: str = Field(..., min_length=1)
     description: str = Field(..., min_length=1)
 
@@ -216,9 +213,7 @@ class INudgeStore(Protocol):
         """Update nudge delivery/acknowledgment status."""
         ...
 
-    async def get_nudge_templates(
-        self, active_only: bool = True
-    ) -> List[NudgeTemplate]:
+    async def get_nudge_templates(self, active_only: bool = True) -> List[NudgeTemplate]:
         """Get available nudge templates."""
         ...
 

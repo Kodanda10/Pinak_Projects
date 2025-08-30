@@ -2,9 +2,7 @@ import importlib
 
 sys.path.insert(0, os.getcwd())
 # Add the src path for module imports
-sys.path.insert(
-    0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src"))
-)
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
 
 
 def MM():

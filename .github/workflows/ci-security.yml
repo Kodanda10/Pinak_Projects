@@ -34,7 +34,7 @@ jobs:
           if ! command -v semgrep &> /dev/null; then
             python -m pip install semgrep
           fi
-          
+
           # Run semgrep with --disable-version-check to avoid warnings
           # Use --error to ensure it doesn't fail on findings
           semgrep --config .semgrep.yml --sarif --sarif-output semgrep.sarif . || true

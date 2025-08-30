@@ -4,9 +4,7 @@ from setuptools import find_namespace_packages, setup
 
 # Read dependencies from the master requirements.txt file
 with open("requirements.txt", "r") as f:
-    install_requires = [
-        line.strip() for line in f if line.strip() and not line.startswith("#")
-    ]
+    install_requires = [line.strip() for line in f if line.strip() and not line.startswith("#")]
 
 # Add macOS-specific dependencies
 if sys.platform == "darwin":  # macOS

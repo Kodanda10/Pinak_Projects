@@ -70,4 +70,3 @@ Use `pinak quickstart` for local setup. Set registry env when using published im
 export PINAK_IMAGE_REGISTRY=PINAK10
 pinak quickstart --name "MyApp" --url http://localhost:8011
 ```
-

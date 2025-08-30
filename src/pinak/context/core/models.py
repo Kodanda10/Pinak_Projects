@@ -107,9 +107,7 @@ class ContextItem(BaseModel):
             "title": values.get("title", ""),
             "content": values.get("content", ""),
             "created_at": (
-                values.get("created_at", "").isoformat()
-                if values.get("created_at")
-                else ""
+                values.get("created_at", "").isoformat() if values.get("created_at") else ""
             ),
             "project_id": values.get("project_id", ""),
             "tenant_id": values.get("tenant_id", ""),
@@ -153,9 +151,7 @@ class ContextItem(BaseModel):
         age_score = 0.5 ** (age_hours / 24)
 
         # Bonus for recent updates
-        update_bonus = (
-            0.2 if update_age_hours < 1 else 0.1 if update_age_hours < 24 else 0
-        )
+        update_bonus = 0.2 if update_age_hours < 1 else 0.1 if update_age_hours < 24 else 0
 
         return min(1.0, age_score + update_bonus)
 
@@ -229,9 +225,7 @@ class ContextResponse(BaseModel):
     # Advanced metadata for world-beating retrieval
     metadata: Optional[Dict[str, Any]] = None
 
-    def add_item(
-        self, item: ContextItem, user_clearance: SecurityClassification
-    ) -> None:
+    def add_item(self, item: ContextItem, user_clearance: SecurityClassification) -> None:
         """Add an item with security filtering."""
         if user_clearance.value >= item.classification.value:
             self.items.append(item)

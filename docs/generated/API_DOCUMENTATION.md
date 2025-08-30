@@ -35,7 +35,7 @@ Generated on: 2025-08-31T00:09:46.065056
 
 ### File Quarantine
 - **Module:** pinak.file_quarantine
-- **Description:** 
+- **Description:**
 File Deletion Quarantine System for Pinak
 - **Classes:** 7
 - **Functions:** 7
@@ -53,7 +53,7 @@ File Deletion Quarantine System for Pinak
 
 #### tests/test_world_beating_retrieval.py
 - **Tests:** 5
-- **Markers:** 
+- **Markers:**
 
 #### tests/test_user_integration.py
 - **Tests:** 6
@@ -61,21 +61,20 @@ File Deletion Quarantine System for Pinak
 
 #### tests/test_token_rotation.py
 - **Tests:** 1
-- **Markers:** 
+- **Markers:**
 
 #### tests/test_world_beating_retrieval_comprehensive.py
 - **Tests:** 6
-- **Markers:** 
+- **Markers:**
 
 #### tests/test_governance_nudge_engine.py
 - **Tests:** 0
-- **Markers:** 
+- **Markers:**
 
 #### tests/test_token_cli.py
 - **Tests:** 1
-- **Markers:** 
+- **Markers:**
 
 #### tests/test_memory_layers.py
 - **Tests:** 9
-- **Markers:** 
-
+- **Markers:**

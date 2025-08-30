@@ -9,8 +9,13 @@ import argparse
 from pathlib import Path
 from typing import Any, Dict, List
 
-from .file_quarantine import (QuarantineAction, QuarantinePriority,
-                              get_quarantine_manager, safe_delete, safe_move)
+from .file_quarantine import (
+    QuarantineAction,
+    QuarantinePriority,
+    get_quarantine_manager,
+    safe_delete,
+    safe_move,
+)
 
 
 def cmd_quarantine(args: argparse.Namespace) -> int:
@@ -183,12 +188,8 @@ def main(argv: List[str] = None) -> int:
         default=QuarantineAction.DELETE_REQUESTED.value,
         help="Type of quarantine action",
     )
-    quarantine_parser.add_argument(
-        "--reason", required=True, help="Reason for quarantine"
-    )
-    quarantine_parser.add_argument(
-        "--user", default="cli_user", help="User performing the action"
-    )
+    quarantine_parser.add_argument("--reason", required=True, help="Reason for quarantine")
+    quarantine_parser.add_argument("--user", default="cli_user", help="User performing the action")
     quarantine_parser.add_argument(
         "--priority",
         choices=[p.value for p in QuarantinePriority],
@@ -220,9 +221,7 @@ def main(argv: List[str] = None) -> int:
         help="Filter by priority",
     )
     list_parser.add_argument("--user", help="Filter by user")
-    list_parser.add_argument(
-        "--limit", type=int, default=50, help="Maximum number of results"
-    )
+    list_parser.add_argument("--limit", type=int, default=50, help="Maximum number of results")
     list_parser.set_defaults(func=cmd_list)
 
     # Stats command
@@ -230,12 +229,8 @@ def main(argv: List[str] = None) -> int:
     stats_parser.set_defaults(func=cmd_stats)
 
     # Cleanup command
-    cleanup_parser = subparsers.add_parser(
-        "cleanup", help="Clean up old quarantined files"
-    )
-    cleanup_parser.add_argument(
-        "--days", type=int, default=90, help="Maximum age in days"
-    )
+    cleanup_parser = subparsers.add_parser("cleanup", help="Clean up old quarantined files")
+    cleanup_parser.add_argument("--days", type=int, default=90, help="Maximum age in days")
     cleanup_parser.add_argument(
         "--priority",
         choices=[p.value for p in QuarantinePriority],
@@ -253,9 +248,7 @@ def main(argv: List[str] = None) -> int:
         "safe-delete", help="Safely quarantine a file (like delete but recoverable)"
     )
     safe_delete_parser.add_argument("file", type=Path, help="File to quarantine")
-    safe_delete_parser.add_argument(
-        "--reason", required=True, help="Reason for quarantine"
-    )
+    safe_delete_parser.add_argument("--reason", required=True, help="Reason for quarantine")
     safe_delete_parser.add_argument("--user", help="User performing the action")
     safe_delete_parser.add_argument(
         "--no-patch", action="store_true", help="Do not patch system file operations"

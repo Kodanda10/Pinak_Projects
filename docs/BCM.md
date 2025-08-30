@@ -16,4 +16,3 @@ To ensure builds/run don’t block when Docker Desktop is unavailable, the Pinak
 ## Notes
 - Colima uses its own VM and socket; `docker` CLI will point to the Colima socket after `colima start`.
 - Resources are modest by default; adjust via `colima start` flags.
-

@@ -15,9 +15,7 @@ except Exception:
 
 
 def main(argv: Optional[List[str]] = None) -> int:
-    parser = argparse.ArgumentParser(
-        prog="pinak-memory", description="Pinak Memory CLI"
-    )
+    parser = argparse.ArgumentParser(prog="pinak-memory", description="Pinak Memory CLI")
 
     # Create subparsers for different commands
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
@@ -27,9 +25,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     health_parser.add_argument(
         "--url", default=os.getenv("PINAK_MEMORY_URL"), help="Memory API base URL"
     )
-    health_parser.add_argument(
-        "--token", default=os.getenv("PINAK_TOKEN"), help="Bearer token"
-    )
+    health_parser.add_argument("--token", default=os.getenv("PINAK_TOKEN"), help="Bearer token")
 
     # Search command
     search_parser = subparsers.add_parser("search", help="Search memory")
@@ -37,15 +33,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     search_parser.add_argument(
         "--url", default=os.getenv("PINAK_MEMORY_URL"), help="Memory API base URL"
     )
-    search_parser.add_argument(
-        "--token", default=os.getenv("PINAK_TOKEN"), help="Bearer token"
-    )
+    search_parser.add_argument("--token", default=os.getenv("PINAK_TOKEN"), help="Bearer token")
     search_parser.add_argument(
         "--layers", default="episodic,procedural,rag", help="Layers for search"
     )
-    search_parser.add_argument(
-        "--limit", type=int, default=100, help="Limit for results"
-    )
+    search_parser.add_argument("--limit", type=int, default=100, help="Limit for results")
 
     # Add command
     add_parser = subparsers.add_parser("add", help="Add memory")
@@ -59,9 +51,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     add_parser.add_argument(
         "--url", default=os.getenv("PINAK_MEMORY_URL"), help="Memory API base URL"
     )
-    add_parser.add_argument(
-        "--token", default=os.getenv("PINAK_TOKEN"), help="Bearer token"
-    )
+    add_parser.add_argument("--token", default=os.getenv("PINAK_TOKEN"), help="Bearer token")
     add_parser.add_argument(
         "--salience",
         type=int,
@@ -69,84 +59,54 @@ def main(argv: Optional[List[str]] = None) -> int:
         help="Salience score for episodic memory (0-10)",
     )
     add_parser.add_argument("--skill-id", help="Skill ID for procedural operations")
-    add_parser.add_argument(
-        "--steps", nargs="*", help="Steps for procedural operations"
-    )
-    add_parser.add_argument(
-        "--external-source", help="External source for RAG operations"
-    )
+    add_parser.add_argument("--steps", nargs="*", help="Steps for procedural operations")
+    add_parser.add_argument("--external-source", help="External source for RAG operations")
     add_parser.add_argument("--session-id", help="Session ID for session operations")
-    add_parser.add_argument(
-        "--ttl", type=int, help="TTL in seconds for session/working memory"
-    )
+    add_parser.add_argument("--ttl", type=int, help="TTL in seconds for session/working memory")
 
     # Layer-specific list commands
     episodic_parser = subparsers.add_parser("episodic", help="List episodic memories")
-    episodic_parser.add_argument(
-        "--limit", type=int, default=100, help="Limit for results"
-    )
+    episodic_parser.add_argument("--limit", type=int, default=100, help="Limit for results")
     episodic_parser.add_argument(
         "--url", default=os.getenv("PINAK_MEMORY_URL"), help="Memory API base URL"
     )
-    episodic_parser.add_argument(
-        "--token", default=os.getenv("PINAK_TOKEN"), help="Bearer token"
-    )
+    episodic_parser.add_argument("--token", default=os.getenv("PINAK_TOKEN"), help="Bearer token")
 
-    procedural_parser = subparsers.add_parser(
-        "procedural", help="List procedural memories"
-    )
-    procedural_parser.add_argument(
-        "--limit", type=int, default=100, help="Limit for results"
-    )
+    procedural_parser = subparsers.add_parser("procedural", help="List procedural memories")
+    procedural_parser.add_argument("--limit", type=int, default=100, help="Limit for results")
     procedural_parser.add_argument(
         "--url", default=os.getenv("PINAK_MEMORY_URL"), help="Memory API base URL"
     )
-    procedural_parser.add_argument(
-        "--token", default=os.getenv("PINAK_TOKEN"), help="Bearer token"
-    )
+    procedural_parser.add_argument("--token", default=os.getenv("PINAK_TOKEN"), help="Bearer token")
 
     rag_parser = subparsers.add_parser("rag", help="List RAG memories")
     rag_parser.add_argument("--limit", type=int, default=100, help="Limit for results")
     rag_parser.add_argument(
         "--url", default=os.getenv("PINAK_MEMORY_URL"), help="Memory API base URL"
     )
-    rag_parser.add_argument(
-        "--token", default=os.getenv("PINAK_TOKEN"), help="Bearer token"
-    )
+    rag_parser.add_argument("--token", default=os.getenv("PINAK_TOKEN"), help="Bearer token")
 
     events_parser = subparsers.add_parser("events", help="List events")
-    events_parser.add_argument(
-        "--limit", type=int, default=100, help="Limit for results"
-    )
+    events_parser.add_argument("--limit", type=int, default=100, help="Limit for results")
     events_parser.add_argument(
         "--url", default=os.getenv("PINAK_MEMORY_URL"), help="Memory API base URL"
     )
-    events_parser.add_argument(
-        "--token", default=os.getenv("PINAK_TOKEN"), help="Bearer token"
-    )
+    events_parser.add_argument("--token", default=os.getenv("PINAK_TOKEN"), help="Bearer token")
 
     session_parser = subparsers.add_parser("session", help="List session memories")
     session_parser.add_argument("--session-id", help="Session ID")
-    session_parser.add_argument(
-        "--limit", type=int, default=100, help="Limit for results"
-    )
+    session_parser.add_argument("--limit", type=int, default=100, help="Limit for results")
     session_parser.add_argument(
         "--url", default=os.getenv("PINAK_MEMORY_URL"), help="Memory API base URL"
     )
-    session_parser.add_argument(
-        "--token", default=os.getenv("PINAK_TOKEN"), help="Bearer token"
-    )
+    session_parser.add_argument("--token", default=os.getenv("PINAK_TOKEN"), help="Bearer token")
 
     working_parser = subparsers.add_parser("working", help="List working memories")
-    working_parser.add_argument(
-        "--limit", type=int, default=100, help="Limit for results"
-    )
+    working_parser.add_argument("--limit", type=int, default=100, help="Limit for results")
     working_parser.add_argument(
         "--url", default=os.getenv("PINAK_MEMORY_URL"), help="Memory API base URL"
     )
-    working_parser.add_argument(
-        "--token", default=os.getenv("PINAK_TOKEN"), help="Bearer token"
-    )
+    working_parser.add_argument("--token", default=os.getenv("PINAK_TOKEN"), help="Bearer token")
 
     # Parse arguments
     if argv is None:
@@ -160,9 +120,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 0
 
     # Auto-discover from Bridge context if not provided
-    if ProjectContext and (
-        not getattr(args, "url", None) or not getattr(args, "token", None)
-    ):
+    if ProjectContext and (not getattr(args, "url", None) or not getattr(args, "token", None)):
         ctx = ProjectContext.find()
         if ctx:
             if hasattr(args, "url") and not args.url:
@@ -171,11 +129,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                 args.token = ctx.get_token()
 
     # Initialize MemoryManager
-    url = (
-        getattr(args, "url", None)
-        or os.getenv("PINAK_MEMORY_URL")
-        or "http://localhost:8000"
-    )
+    url = getattr(args, "url", None) or os.getenv("PINAK_MEMORY_URL") or "http://localhost:8000"
     token = getattr(args, "token", None) or os.getenv("PINAK_TOKEN")
     mm = MemoryManager(service_base_url=url, token=token)
 
@@ -195,9 +149,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             res = mm.add_episodic(args.content, args.salience)
         elif args.layer == "procedural":
             if not args.skill_id or not args.steps:
-                print(
-                    "Procedural layer requires --skill-id and --steps", file=sys.stderr
-                )
+                print("Procedural layer requires --skill-id and --steps", file=sys.stderr)
                 return 2
             res = mm.add_procedural(args.skill_id, args.steps)
         elif args.layer == "rag":

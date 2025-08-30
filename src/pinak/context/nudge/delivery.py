@@ -78,9 +78,7 @@ class CLINudgeDelivery(INudgeDelivery):
 
         # Security-aware content filtering
         title = self._apply_security_filter(nudge.title, nudge.security_classification)
-        message = self._apply_security_filter(
-            nudge.message, nudge.security_classification
-        )
+        message = self._apply_security_filter(nudge.message, nudge.security_classification)
 
         return {
             "priority_color": color_code if self.enable_colors else "",
@@ -134,9 +132,7 @@ class CLINudgeDelivery(INudgeDelivery):
         icons = {"CRITICAL": "🚨", "HIGH": "⚠️", "MEDIUM": "ℹ️", "LOW": "💭"}
         return icons.get(priority, "📝")
 
-    def _apply_security_filter(
-        self, content: str, classification: SecurityClassification
-    ) -> str:
+    def _apply_security_filter(self, content: str, classification: SecurityClassification) -> str:
         """
         Apply security filtering to content based on classification.
         """
@@ -154,7 +150,7 @@ class CLINudgeDelivery(INudgeDelivery):
             # Check if we can write to stdout
 
             return sys.stdout.isatty()
-        except:
+        except Exception as e:
             return False
 
 
@@ -205,9 +201,7 @@ class APINudgeDelivery(INudgeDelivery):
                     channel="webhook",
                     recipient=nudge.user_id,
                     error_message=(
-                        None
-                        if success
-                        else f"HTTP {response.status_code}: {response.text}"
+                        None if success else f"HTTP {response.status_code}: {response.text}"
                     ),
                     delivery_confidence=self.reliability_score if success else 0.0,
                 )
@@ -289,9 +283,7 @@ class NotificationNudgeDelivery(INudgeDelivery):
             )
 
         except Exception as e:
-            logger.error(
-                f"Notification delivery failed for nudge {nudge.nudge_id}: {e}"
-            )
+            logger.error(f"Notification delivery failed for nudge {nudge.nudge_id}: {e}")
             return NudgeDeliveryResult(
                 nudge_id=nudge.nudge_id,
                 delivery_method="notification",
@@ -379,9 +371,7 @@ class NotificationNudgeDelivery(INudgeDelivery):
             from win10toast import ToastNotifier
 
             toaster = ToastNotifier()
-            toaster.show_toast(
-                f"Pinakontext: {nudge.title}", nudge.message[:200], duration=10
-            )
+            toaster.show_toast(f"Pinakontext: {nudge.title}", nudge.message[:200], duration=10)
             return True
         except ImportError:
             logger.debug("win10toast not available for Windows notifications")
@@ -452,9 +442,7 @@ class CompositeNudgeDelivery(INudgeDelivery):
         self.channels = channels
         self.strategy = strategy  # "priority", "round_robin", "success_rate"
         self.reliability_score = (
-            max(getattr(ch, "reliability_score", 0.5) for ch in channels)
-            if channels
-            else 0.0
+            max(getattr(ch, "reliability_score", 0.5) for ch in channels) if channels else 0.0
         )
 
     async def deliver_nudge(self, nudge: Nudge) -> NudgeDeliveryResult:

@@ -21,9 +21,7 @@ async def test_pid_must_match_header():
     pid = "Pnk-A"
     tok = mint(pid)
     async with LifespanManager(app):
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as ac:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
             r_ok = await ac.post(
                 "/api/v1/memory/episodic/add",
                 headers={"Authorization": f"Bearer {tok}", "X-Pinak-Project": pid},

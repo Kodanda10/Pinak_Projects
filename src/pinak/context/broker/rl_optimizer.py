@@ -13,9 +13,14 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 
-from ..core.models import (ContextItem, ContextLayer, ContextPriority,
-                           ContextQuery, ContextResponse,
-                           SecurityClassification)
+from ..core.models import (
+    ContextItem,
+    ContextLayer,
+    ContextPriority,
+    ContextQuery,
+    ContextResponse,
+    SecurityClassification,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -92,9 +97,7 @@ class QLearningOptimizer:
         self.exploration_decay = exploration_decay
 
         # Q-table: state -> action -> value
-        self.q_table: Dict[str, Dict[str, float]] = defaultdict(
-            lambda: defaultdict(float)
-        )
+        self.q_table: Dict[str, Dict[str, float]] = defaultdict(lambda: defaultdict(float))
 
         # Parameter bounds
         self.param_bounds = {
@@ -117,7 +120,7 @@ class QLearningOptimizer:
 
     def get_state_key(self, state: OptimizationState) -> str:
         """Convert optimization state to hashable key."""
-        return f"{state.semantic_weight:.2f}_{state.keyword_weight:.2f}_{state.temporal_weight:.2f}_{state.rerank_threshold:.2f}_{state.expansion_depth}"
+        return f"{state.semantic_weight:.2f}_{state.keyword_weight:.2f}_{state.temporal_weight:.2f}_{state.rerank_threshold:.2f}"
 
     def choose_action(self, state: OptimizationState) -> OptimizationAction:
         """Choose next action using epsilon-greedy policy."""
@@ -174,7 +177,7 @@ class QLearningOptimizer:
             return OptimizationAction(
                 parameter=param, value=value, expected_improvement=0.05, confidence=0.8
             )
-        except:
+        except Exception as e:
             return self._random_action()
 
     def update_q_value(
@@ -194,9 +197,7 @@ class QLearningOptimizer:
 
         # Maximum Q-value for next state
         next_max_q = (
-            max(self.q_table[next_state_key].values())
-            if self.q_table[next_state_key]
-            else 0.0
+            max(self.q_table[next_state_key].values()) if self.q_table[next_state_key] else 0.0
         )
 
         # Temporal difference update
@@ -259,11 +260,9 @@ class QLearningOptimizer:
                             try:
                                 value_str = action_key.split("_", 1)[1]
                                 best_value = (
-                                    float(value_str)
-                                    if "." in value_str
-                                    else int(value_str)
+                                    float(value_str) if "." in value_str else int(value_str)
                                 )
-                            except:
+                            except Exception as e:
                                 continue
 
             if best_value is not None:
@@ -335,8 +334,7 @@ class AdaptiveLearningEngine:
 
         # Check if adaptation is needed
         should_adapt = (
-            len(self.performance_history) >= self.adaptation_interval
-            and self._should_adapt()
+            len(self.performance_history) >= self.adaptation_interval and self._should_adapt()
         )
 
         if not should_adapt:
@@ -361,9 +359,7 @@ class AdaptiveLearningEngine:
 
         # Update Q-learning table
         improvement = (
-            predicted_improvement
-            if predicted_improvement > self.min_improvement_threshold
-            else 0.0
+            predicted_improvement if predicted_improvement > self.min_improvement_threshold else 0.0
         )
 
         self.q_optimizer.update_q_value(
@@ -416,9 +412,7 @@ class AdaptiveLearningEngine:
             user_satisfaction = user_feedback.get("satisfaction", 0.0)
 
         # Performance factors
-        speed_factor = max(
-            0, 1 - (response.execution_time_ms / 5000)
-        )  # Prefer <5s responses
+        speed_factor = max(0, 1 - (response.execution_time_ms / 5000))  # Prefer <5s responses
         quality_factor = (precision + recall) / 2
         satisfaction_factor = user_satisfaction
 
@@ -430,9 +424,7 @@ class AdaptiveLearningEngine:
             cache_hit_ratio=1.0 if response.cache_hit else 0.0,
         )
 
-    def _calculate_precision_at_k(
-        self, query: ContextQuery, response: ContextResponse
-    ) -> float:
+    def _calculate_precision_at_k(self, query: ContextQuery, response: ContextResponse) -> float:
         """Calculate precision at k for the query."""
         if not response.items:
             return 0.0
@@ -445,9 +437,7 @@ class AdaptiveLearningEngine:
 
         return relevant_count / min(len(response.items), query.limit)
 
-    def _calculate_recall_at_k(
-        self, query: ContextQuery, response: ContextResponse
-    ) -> float:
+    def _calculate_recall_at_k(self, query: ContextQuery, response: ContextResponse) -> float:
         """Calculate recall at k for the query."""
         # Simplified recall calculation - would need ground truth data
         return min(1.0, len(response.items) / max(1, query.limit * 2))
@@ -458,15 +448,11 @@ class AdaptiveLearningEngine:
             return False
 
         # Check for declining performance
-        recent_performance = [
-            reward.precision_at_k for reward in self.performance_history[-3:]
-        ]
+        recent_performance = [reward.precision_at_k for reward in self.performance_history[-3:]]
 
         # Simple trend detection
         if len(recent_performance) >= 3:
-            trend = (recent_performance[-1] - recent_performance[0]) / len(
-                recent_performance
-            )
+            trend = (recent_performance[-1] - recent_performance[0]) / len(recent_performance)
 
             if trend < -0.05:  # Declining performance
                 return True
@@ -512,12 +498,9 @@ class AdaptiveLearningEngine:
 
         if self.q_optimizer.optimization_history:
             improvements = [
-                result.improvement
-                for result in self.q_optimizer.optimization_history[-10:]
+                result.improvement for result in self.q_optimizer.optimization_history[-10:]
             ]
-            metrics["recent_average_improvement"] = (
-                np.mean(improvements) if improvements else 0.0
-            )
+            metrics["recent_average_improvement"] = np.mean(improvements) if improvements else 0.0
 
         metrics.update(
             {
@@ -564,9 +547,7 @@ class AdaptiveLearningEngine:
     def _adjust_learning_strategy(self) -> None:
         """Adjust learning strategy based on performance analysis."""
         # Increase exploration when stagnated
-        self.q_optimizer.exploration_rate = min(
-            0.3, self.q_optimizer.exploration_rate * 1.5
-        )
+        self.q_optimizer.exploration_rate = min(0.3, self.q_optimizer.exploration_rate * 1.5)
 
         # Reduce learning rate to stabilize
         self.q_optimizer.learning_rate *= 0.8
@@ -594,6 +575,4 @@ class AdaptiveLearningEngine:
 q_optimizer = QLearningOptimizer()
 adaptive_engine = AdaptiveLearningEngine(q_optimizer)
 
-logger.info(
-    "🚀 RL Optimization System initialized - Surpassing all LLMs through adaptive learning"
-)
+logger.info("🚀 RL Optimization System initialized - Surpassing all LLMs through adaptive learning")

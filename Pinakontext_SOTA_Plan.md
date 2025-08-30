@@ -59,10 +59,10 @@ graph TD
   F --- Q
 ```
 
-**Key roles**  
-- **Context Broker**: orchestrates 6-stage world-beater retrieval across memory layers + external signals; synthesizes concise, actionable context.  
-- **Governance Nudge Engine**: Parlant-integrated behavioral correction with proactive guidance.  
-- **Policy Gate**: enforces RBAC/ABAC, redaction, and release conditions.  
+**Key roles**
+- **Context Broker**: orchestrates 6-stage world-beater retrieval across memory layers + external signals; synthesizes concise, actionable context.
+- **Governance Nudge Engine**: Parlant-integrated behavioral correction with proactive guidance.
+- **Policy Gate**: enforces RBAC/ABAC, redaction, and release conditions.
 - **Parlant**: governance framework shaping behavioral corrections and ethical boundaries.
 
 ---
@@ -433,17 +433,17 @@ def authorize(claims: dict, headers: dict) -> bool:
 
 ## 8) Acceptance Tests (minimum)
 
-- `test_policy_gate_rejects_pid_mismatch`  
-- `test_nudge_respects_frequency_limit`  
-- `test_broker_merges_layers_without_duplicates`  
-- `test_tail_streams_new_events`  
+- `test_policy_gate_rejects_pid_mismatch`
+- `test_nudge_respects_frequency_limit`
+- `test_broker_merges_layers_without_duplicates`
+- `test_tail_streams_new_events`
 
 ---
 
 ## 9) 72‑Hour Delivery Plan
 
-**Day 1**: Scaffolding (files above), CLI end‑to‑end, stub broker, enable one nudge.  
-**Day 2**: Hybrid retrieval (episodic+semantic), rerank, recipe YAML, OTEL + /metrics.  
+**Day 1**: Scaffolding (files above), CLI end‑to‑end, stub broker, enable one nudge.
+**Day 2**: Hybrid retrieval (episodic+semantic), rerank, recipe YAML, OTEL + /metrics.
 **Day 3**: Policy Gate (OPA), redaction, hash‑chained audit of served contexts, chaos tests.
 
 ---

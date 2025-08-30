@@ -11,6 +11,7 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 import faiss
 import numpy as np
 from app.core.schemas import MemoryCreate, MemoryOut, MemorySearchResult
+
 # ---- Project imports (adjust paths if your structure differs) ----
 # Models / Schemas
 from app.db.models import Base, Memory
@@ -115,9 +116,7 @@ class MemoryService:
 
         # Initialize SQLAlchemy engine and session
         self.engine = create_engine(self.database_url, echo=False)
-        self.SessionLocal = sessionmaker(
-            autocommit=False, autoflush=False, bind=self.engine
-        )
+        self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
 
         self.embedder = get_embedder()
         # Initialize FAISS with correct dim once
@@ -152,9 +151,7 @@ class MemoryService:
 
     # ------------- Add -------------
 
-    def add_memory(
-        self, payload: MemoryCreate, db: Optional[Session] = None
-    ) -> MemoryOut:
+    def add_memory(self, payload: MemoryCreate, db: Optional[Session] = None) -> MemoryOut:
         """
         Single-commit add:
           1) Compute embedding
@@ -330,9 +327,7 @@ class MemoryService:
                     if "created_at" in result_dict and isinstance(
                         result_dict["created_at"], datetime.datetime
                     ):
-                        result_dict["created_at"] = result_dict[
-                            "created_at"
-                        ].isoformat()
+                        result_dict["created_at"] = result_dict["created_at"].isoformat()
                     cache_data.append(result_dict)
                 self.redis_client.setex(cache_key, 3600, json.dumps(cache_data))  # type: ignore
             except Exception as e:
@@ -504,7 +499,7 @@ class MemoryService:
                         try:
                             obj = json.loads(line)
                             out.append(obj)
-                        except:
+                        except Exception as e:
                             pass
         return out[offset : offset + limit]
 
@@ -577,7 +572,7 @@ def list_episodic(
                     try:
                         obj = json.loads(line)
                         out.append(obj)
-                    except:
+                    except Exception as e:
                         pass
     # Sort by salience in descending order (highest first)
     out.sort(key=lambda x: x.get("salience", 0), reverse=True)
@@ -620,7 +615,7 @@ def list_procedural(
                     try:
                         obj = json.loads(line)
                         out.append(obj)
-                    except:
+                    except Exception as e:
                         pass
     return out
 
@@ -661,7 +656,7 @@ def list_rag(
                     try:
                         obj = json.loads(line)
                         out.append(obj)
-                    except:
+                    except Exception as e:
                         pass
     return out
 
@@ -689,8 +684,6 @@ def search_v2(
         ][:5]
     if "rag" in layer_list:
         rag_results = list_rag(memory_service, tenant, project_id)
-        results["rag"] = [
-            r for r in rag_results if query.lower() in r.get("query", "").lower()
-        ][:5]
+        results["rag"] = [r for r in rag_results if query.lower() in r.get("query", "").lower()][:5]
     # Add other layers similarly
     return results

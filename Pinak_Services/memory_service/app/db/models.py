@@ -13,9 +13,7 @@ class Base(DeclarativeBase):
 class Memory(Base):
     __tablename__ = "memories"
 
-    id: Mapped[str] = mapped_column(
-        String, primary_key=True, default=lambda: str(uuid.uuid4())
-    )
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     faiss_id: Mapped[Optional[int]] = mapped_column(Integer, unique=True, nullable=True)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     tags: Mapped[list] = mapped_column(JSON, default=list)

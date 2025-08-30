@@ -1,7 +1,7 @@
-
 from typing import Optional
 
 try:
+    import rumps
 except Exception:
     rumps = None  # type: ignore
 
@@ -18,12 +18,11 @@ def check_health() -> dict:
 
         mm = MemoryManager()
         mem_ok = mm.health()
-    except Exception:
+    except Exception as e:
         mem_ok = False
     token_expired = None
     token_expires_in = None
     try:
-
 
         ctx = ProjectContext.find()
         tok = ctx.get_token() if ctx else None
@@ -31,13 +30,13 @@ def check_health() -> dict:
             try:
                 claims = jwt.get_unverified_claims(tok)  # type: ignore[attr-defined]
                 exp = int(claims.get("exp")) if claims.get("exp") is not None else None
-            except Exception:
+            except Exception as e:
                 exp = None
             now = int(time.time())
             if exp is not None:
                 token_expired = exp <= now
                 token_expires_in = max(0, exp - now)
-    except Exception:
+    except Exception as e:
         pass
     return {
         "memory_api_ok": bool(mem_ok),
@@ -51,7 +50,7 @@ def try_self_heal(log_cb=None) -> dict:
         if log_cb:
             try:
                 log_cb(msg)
-            except Exception:
+            except Exception as e:
                 pass
 
     info = check_health()
@@ -65,7 +64,7 @@ def try_self_heal(log_cb=None) -> dict:
                 ctx.rotate_token(minutes=240, secret=secret)
                 log("Token rotated (4h)")
                 changed = True
-        except Exception:
+        except Exception as e:
             log("Token rotation failed")
     if not info.get("memory_api_ok"):
         try:
@@ -73,10 +72,10 @@ def try_self_heal(log_cb=None) -> dict:
             rc = cmd_up(type("NS", (), {})())
             log(f"pinak up: rc={rc}")
             changed = True
-        except Exception:
+        except Exception as e:
             try:
                 subprocess.call(["pinak", "up"])  # last resort
-            except Exception:
+            except Exception as e:
                 log("Failed to start services")
     new_info = check_health()
     new_info["changed"] = changed
@@ -108,7 +107,7 @@ class PinakStatusApp(rumps.App):
     def notify(self, title: str, msg: str):
         try:
             rumps.notification(title, "", msg)
-        except Exception:
+        except Exception as e:
             pass
 
     def on_quit(self, _):
@@ -132,7 +131,7 @@ class PinakStatusApp(rumps.App):
                 secret = os.getenv("SECRET_KEY", "change-me-in-prod")
                 ctx.rotate_token(minutes=240, secret=secret)
                 self.notify("Pinak", "Token rotated (4h)")
-        except Exception:
+        except Exception as e:
             self.notify("Pinak", "Token rotation failed")
         self.update_status()
 
@@ -140,10 +139,10 @@ class PinakStatusApp(rumps.App):
         try:
 
             cmd_down(type("NS", (), {})())
-        except Exception:
+        except Exception as e:
             try:
                 subprocess.call(["pinak", "down"])  # last resort
-            except Exception:
+            except Exception as e:
                 pass
         self.update_status()
 

@@ -52,9 +52,7 @@ class MemoryManager:
         self.client = client or httpx.Client(
             headers=headers, timeout=self._timeout, verify=verify_opt
         )
-        print(
-            f"MemoryManager client initialized. Pointing to service at: {self.base_url}"
-        )
+        print(f"MemoryManager client initialized. Pointing to service at: {self.base_url}")
 
     def add_memory(
         self, content: str, tags: Optional[List[str]] = None
@@ -74,11 +72,7 @@ class MemoryManager:
                 )
             response.raise_for_status()  # Raise an exception for bad status codes (4xx or 5xx)
             result = response.json()
-            return (
-                result.get("data")
-                if isinstance(result, dict) and "data" in result
-                else result
-            )
+            return result.get("data") if isinstance(result, dict) and "data" in result else result
         except httpx.RequestError as e:
             print(f"An error occurred while requesting {e.request.url!r}.")
             return None
@@ -116,9 +110,7 @@ class MemoryManager:
 
     def health(self) -> bool:
         try:
-            r = self.client.get(
-                f"{self.base_url}/api/v1/memory/health", timeout=self._timeout
-            )
+            r = self.client.get(f"{self.base_url}/api/v1/memory/health", timeout=self._timeout)
             return r.status_code == 200
         except Exception:
             return False
@@ -151,11 +143,7 @@ class MemoryManager:
             )
             response.raise_for_status()
             result = response.json()
-            return (
-                result.get("data")
-                if isinstance(result, dict) and "data" in result
-                else result
-            )
+            return result.get("data") if isinstance(result, dict) and "data" in result else result
         except Exception:
             return None
 
@@ -173,9 +161,7 @@ class MemoryManager:
         except Exception:
             return []
 
-    def add_procedural(
-        self, skill_id: str, steps: List[str]
-    ) -> Optional[Dict[str, Any]]:
+    def add_procedural(self, skill_id: str, steps: List[str]) -> Optional[Dict[str, Any]]:
         """Add procedural memory (skill with steps)."""
         try:
             response = self.client.post(
@@ -185,11 +171,7 @@ class MemoryManager:
             )
             response.raise_for_status()
             result = response.json()
-            return (
-                result.get("data")
-                if isinstance(result, dict) and "data" in result
-                else result
-            )
+            return result.get("data") if isinstance(result, dict) and "data" in result else result
         except Exception:
             return None
 
@@ -207,9 +189,7 @@ class MemoryManager:
         except Exception:
             return []
 
-    def add_rag(
-        self, query: str, external_source: str = ""
-    ) -> Optional[Dict[str, Any]]:
+    def add_rag(self, query: str, external_source: str = "") -> Optional[Dict[str, Any]]:
         """Add RAG memory with external source."""
         try:
             response = self.client.post(
@@ -219,11 +199,7 @@ class MemoryManager:
             )
             response.raise_for_status()
             result = response.json()
-            return (
-                result.get("data")
-                if isinstance(result, dict) and "data" in result
-                else result
-            )
+            return result.get("data") if isinstance(result, dict) and "data" in result else result
         except Exception:
             return None
 
@@ -285,11 +261,7 @@ class MemoryManager:
             )
             response.raise_for_status()
             result = response.json()
-            return (
-                result.get("data")
-                if isinstance(result, dict) and "data" in result
-                else result
-            )
+            return result.get("data") if isinstance(result, dict) and "data" in result else result
         except Exception:
             return None
 
@@ -332,11 +304,7 @@ class MemoryManager:
             )
             response.raise_for_status()
             result = response.json()
-            return (
-                result.get("data")
-                if isinstance(result, dict) and "data" in result
-                else result
-            )
+            return result.get("data") if isinstance(result, dict) and "data" in result else result
         except Exception:
             return None
 
@@ -367,17 +335,13 @@ class MemoryManager:
         try:
             response = self.client.get(
                 f"{self.base_url}/api/v1/memory/search",
-                params={
-                    "q": query
-                },  # Only use 'q' parameter as expected by mock server
+                params={"q": query},  # Only use 'q' parameter as expected by mock server
                 timeout=self._timeout,
             )
             response.raise_for_status()
             result = response.json()
             return (
-                result.get("data", {})
-                if isinstance(result, dict) and "data" in result
-                else result
+                result.get("data", {}) if isinstance(result, dict) and "data" in result else result
             )
         except Exception:
             return {}

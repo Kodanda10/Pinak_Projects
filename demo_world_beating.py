@@ -26,13 +26,17 @@ import numpy as np
 from src.pinak.context.broker.broker import ContextBroker
 from src.pinak.context.broker.graph_expansion import GraphBasedExpander
 from src.pinak.context.broker.rl_optimizer import adaptive_engine
+
 # Import the world-beating retrieval system
-from src.pinak.context.broker.world_beating_retrieval import \
-    WorldBeatingRetrievalEngine
-from src.pinak.context.core.models import (ContextItem, ContextLayer,
-                                           ContextPriority, ContextQuery,
-                                           ContextResponse,
-                                           SecurityClassification)
+from src.pinak.context.broker.world_beating_retrieval import WorldBeatingRetrievalEngine
+from src.pinak.context.core.models import (
+    ContextItem,
+    ContextLayer,
+    ContextPriority,
+    ContextQuery,
+    ContextResponse,
+    SecurityClassification,
+)
 
 
 class PerformanceBenchmark:
@@ -46,21 +50,15 @@ class PerformanceBenchmark:
             "world_beating": {"precision": 0.0, "recall": 0.0, "latency": 0.0},
         }
 
-    def measure_performance(
-        self, query: ContextQuery, response: ContextResponse
-    ) -> Dict[str, Any]:
+    def measure_performance(self, query: ContextQuery, response: ContextResponse) -> Dict[str, Any]:
         """Measure comprehensive performance metrics."""
         return {
             "precision_at_10": self._calculate_precision_at_k(response.items[:10]),
             "recall_at_10": len(response.items) / max(10, len(response.items)),
             "latency_ms": response.execution_time_ms,
             "throughput_qps": 1000 / max(1, response.execution_time_ms),
-            "relevance_score_avg": np.mean(
-                [item.relevance_score for item in response.items]
-            ),
-            "confidence_score_avg": np.mean(
-                [item.confidence_score for item in response.items]
-            ),
+            "relevance_score_avg": np.mean([item.relevance_score for item in response.items]),
+            "confidence_score_avg": np.mean([item.confidence_score for item in response.items]),
         }
 
     def _calculate_precision_at_k(self, items: List[ContextItem], k: int = 10) -> float:
@@ -81,18 +79,15 @@ class PerformanceBenchmark:
 
             comparisons[system] = {
                 "precision_improvement": (
-                    (our_metrics["precision_at_10"] - baseline["precision"])
-                    / baseline["precision"]
+                    (our_metrics["precision_at_10"] - baseline["precision"]) / baseline["precision"]
                 )
                 * 100,
                 "recall_improvement": (
-                    (our_metrics["recall_at_10"] - baseline["recall"])
-                    / baseline["recall"]
+                    (our_metrics["recall_at_10"] - baseline["recall"]) / baseline["recall"]
                 )
                 * 100,
                 "latency_improvement": (
-                    (baseline["latency"] - our_metrics["latency_ms"])
-                    / baseline["latency"]
+                    (baseline["latency"] - our_metrics["latency_ms"]) / baseline["latency"]
                 )
                 * 100,
             }
@@ -143,7 +138,7 @@ class WorldBeatingDemo:
 
         print("✅ World-beating system initialized successfully!")
         print(
-            f"📊 Graph expansion nodes: {self.engine.graph_expander.knowledge_graph.get_statistics()['total_nodes']}"
+            f"📊 Graph expansion nodes: {self.engine.graph_expander.knowledge_graph.get_statistics()}"
         )
 
     async def demonstrate_stage_1_intent_analysis(self):
@@ -180,9 +175,7 @@ class WorldBeatingDemo:
             intent_result = await self.engine._execute_intent_analysis(query)
 
             print(f"   📝 Query complexity: {intent_result.complexity:.2f}")
-            print(
-                f"   🎯 Detected intent categories: {intent_result.intent_categories}"
-            )
+            print(f"   🎯 Detected intent categories: {intent_result.intent_categories}")
             print(f"   🔄 Expanded queries: {len(intent_result.expanded_queries)}")
             print(f"   📈 Confidence score: {intent_result.confidence:.2f}")
 
@@ -210,9 +203,7 @@ class WorldBeatingDemo:
         dense_result = await self.engine._execute_dense_retrieval(query)
         execution_time = time.time() - start_time
 
-        print(
-            f"⚡ Retrieved {len(dense_result.vectors)} candidates in {execution_time:.2f}s"
-        )
+        print(f"⚡ Retrieved {len(dense_result.vectors)} candidates in {execution_time:.2f}s")
         print(
             f"🎯 Top similarity scores: {[f'{score:.3f}' for score in dense_result.similarity_scores[:5]]}"
         )
@@ -275,9 +266,7 @@ class WorldBeatingDemo:
         print(
             f"📈 Expanded from {len(initial_items)} to {len(expansion_result.expanded_items)} items"
         )
-        print(
-            f"🔗 Discovered {len(expansion_result.new_relationships)} new relationships"
-        )
+        print(f"🔗 Discovered {len(expansion_result.new_relationships)} new relationships")
         print(f"🎯 Expansion confidence: {expansion_result.expansion_confidence:.3f}")
         print(f"📊 Traversal depth: {expansion_result.traversal_depth}")
 
@@ -400,7 +389,7 @@ class WorldBeatingDemo:
             ContextItem(
                 title="Microservices Authentication Patterns",
                 summary="Secure authentication strategies for distributed systems",
-                content="Implementing JWT tokens with refresh mechanisms in microservices architecture...",
+                content="Implementing JWT tokens with refresh mechanisms in microservices architecture",
                 layer=ContextLayer.SEMANTIC,
                 project_id="demo-project",
                 tenant_id="demo-tenant",

@@ -261,7 +261,7 @@ jobs:
             if [ "$ALERT_LEVEL" = "critical" ]; then
               ISSUE_BODY="## 🚨 Critical CI Alert
 
-**Alert Level:** $ALERT_LEVEL
+              **Alert Level:** $ALERT_LEVEL
 **Message:** $ALERT_MESSAGE
 **Timestamp:** $(date -Iseconds)
 

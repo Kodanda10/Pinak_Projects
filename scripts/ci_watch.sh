@@ -21,4 +21,3 @@ api() {
 
 echo "Latest workflow runs:"
 api actions/runs?per_page=10 | jq '.workflow_runs[] | {name: .name, status: .status, conclusion: .conclusion, url: .html_url}'
-

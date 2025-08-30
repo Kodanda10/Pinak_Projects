@@ -16,9 +16,7 @@ GOV_UPSTREAM = os.getenv("GOV_UPSTREAM", "http://parlant:8800")
 GOV_UPSTREAM_CA = os.getenv("GOV_UPSTREAM_CA")  # optional CA bundle for TLS pinning
 MEMORY_API_URL = os.getenv("MEMORY_API_URL", "http://memory-api:8000")
 MEMORY_API_CA = os.getenv("MEMORY_API_CA")  # optional CA bundle for TLS pinning
-MEMORY_API_CLIENT_CERT = os.getenv(
-    "MEMORY_API_CLIENT_CERT"
-)  # optional client cert (mTLS)
+MEMORY_API_CLIENT_CERT = os.getenv("MEMORY_API_CLIENT_CERT")  # optional client cert (mTLS)
 MEMORY_API_CLIENT_KEY = os.getenv("MEMORY_API_CLIENT_KEY")  # optional client key (mTLS)
 OPA_URL = os.getenv("OPA_URL")  # optional OPA for policy checks
 GOV_AUDIT_DIR = os.getenv("GOV_AUDIT_DIR", "/data/gov")
@@ -51,9 +49,7 @@ def enforce_project_and_pid(request: Request, project_id: Optional[str]) -> dict
             claims = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
             pid = claims.get("pid")
             if pid and pid != project_id:
-                raise HTTPException(
-                    status_code=403, detail="Project header/token mismatch"
-                )
+                raise HTTPException(status_code=403, detail="Project header/token mismatch")
             # Optional RBAC propagation
             role = claims.get("role") or claims.get("roles")
             if isinstance(role, list) and role:
@@ -148,11 +144,7 @@ async def proxy(
             except Exception:
                 pass
             (base / "audit.jsonl").write_text(
-                (
-                    (base / "audit.jsonl").read_text()
-                    if (base / "audit.jsonl").exists()
-                    else ""
-                )
+                ((base / "audit.jsonl").read_text() if (base / "audit.jsonl").exists() else "")
                 + json.dumps(entry)
                 + "\n"
             )

@@ -15,9 +15,7 @@ async def test_changelog_create_and_redact(client_and_memory_service):
     client, service = client_and_memory_service
 
     # add creates a changelog entry (best-effort)
-    r = await client.post(
-        "/api/v1/memory/add", json={"content": "to redact", "tags": []}
-    )
+    r = await client.post("/api/v1/memory/add", json={"content": "to redact", "tags": []})
     assert r.status_code == 201
     mid = r.json()["id"]
     # redact
@@ -30,6 +28,4 @@ async def test_changelog_create_and_redact(client_and_memory_service):
     assert cl.status_code == 200
     body = cl.json()
     assert any(e.get("change_type") == "create" for e in body)
-    assert any(
-        e.get("change_type") == "redact" and e.get("target_id") == mid for e in body
-    )
+    assert any(e.get("change_type") == "redact" and e.get("target_id") == mid for e in body)

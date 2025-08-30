@@ -12,9 +12,7 @@ from httpx import ASGITransport, AsyncClient
 async def test_layers_endpoints_basic():
     pid = "Pnk-L"
     async with LifespanManager(app):
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as ac:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
             r1 = await ac.post(
                 "/api/v1/memory/episodic/add",
                 headers={"X-Pinak-Project": pid},

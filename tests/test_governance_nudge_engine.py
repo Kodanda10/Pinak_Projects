@@ -12,9 +12,14 @@ import pytest
 
 from pinak.context.nudge.delivery import NudgeDelivery
 from pinak.context.nudge.engine import NudgeEngine
-from pinak.context.nudge.models import (BehavioralPattern, GovernancePolicy,
-                                        NudgeChannel, NudgeRequest,
-                                        NudgeResponse, NudgeType)
+from pinak.context.nudge.models import (
+    BehavioralPattern,
+    GovernancePolicy,
+    NudgeChannel,
+    NudgeRequest,
+    NudgeResponse,
+    NudgeType,
+)
 
 
 @pytest.fixture
@@ -126,9 +131,7 @@ class TestNudgeEngine:
         }
 
         # Execute
-        violations = await nudge_engine.evaluate_policy_compliance(
-            governance_policy, context
-        )
+        violations = await nudge_engine.evaluate_policy_compliance(governance_policy, context)
 
         # Assert
         assert isinstance(violations, list)
@@ -206,9 +209,7 @@ class TestNudgeEngine:
         }
 
         # Start monitoring
-        monitor_task = asyncio.create_task(
-            nudge_engine.monitor_behavior_stream(monitoring_config)
-        )
+        monitor_task = asyncio.create_task(nudge_engine.monitor_behavior_stream(monitoring_config))
 
         # Simulate behavioral events
         events = [
@@ -411,9 +412,7 @@ class TestGovernanceIntegration:
         }
 
         # Start compliance monitoring
-        monitoring_task = asyncio.create_task(
-            nudge_engine.monitor_compliance(compliance_config)
-        )
+        monitoring_task = asyncio.create_task(nudge_engine.monitor_compliance(compliance_config))
 
         # Simulate compliance events
         events = [

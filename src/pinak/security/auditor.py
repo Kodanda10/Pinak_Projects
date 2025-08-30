@@ -12,9 +12,7 @@ class SecurityAuditor:
         base_dir = os.path.dirname(os.path.abspath(__file__))
         # If absolute path provided, use it; else resolve relative to package
         if not os.path.isabs(config_path):
-            config_path = os.path.join(
-                base_dir, "..", "..", "..", "config", "security_config.json"
-            )
+            config_path = os.path.join(base_dir, "..", "..", "..", "config", "security_config.json")
         self.config = self._load_config(config_path)
 
     def _load_config(self, path):
@@ -51,9 +49,7 @@ class SecurityAuditor:
             else:
                 command = ["pip-audit", "--format", "json"]
 
-            result = subprocess.run(
-                command, capture_output=True, text=True, check=False
-            )
+            result = subprocess.run(command, capture_output=True, text=True, check=False)
             if result.stdout:
                 data = json.loads(result.stdout)
                 # pip-audit JSON is a list of packages with potential vulns
@@ -85,9 +81,7 @@ class SecurityAuditor:
             os.makedirs(reports_dir)
 
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        report_path = os.path.join(
-            reports_dir, f"report_{report_type}_{timestamp}.json"
-        )
+        report_path = os.path.join(reports_dir, f"report_{report_type}_{timestamp}.json")
 
         with open(report_path, "w") as f:
             json.dump(findings, f, indent=2)

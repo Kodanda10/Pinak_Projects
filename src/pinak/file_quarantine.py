@@ -163,9 +163,7 @@ class FileQuarantineManager:
 
     def _save_records(self):
         """Save quarantine records to disk."""
-        data = {
-            record_id: record.to_dict() for record_id, record in self.records.items()
-        }
+        data = {record_id: record.to_dict() for record_id, record in self.records.items()}
 
         # Write to temporary file first for atomicity
         with tempfile.NamedTemporaryFile(
@@ -191,9 +189,7 @@ class FileQuarantineManager:
         except (OSError, IOError):
             return ""
 
-    def _get_quarantine_path(
-        self, original_path: Path, priority: QuarantinePriority
-    ) -> Path:
+    def _get_quarantine_path(self, original_path: Path, priority: QuarantinePriority) -> Path:
         """Generate quarantine path for a file."""
         # Create a unique name based on original path and timestamp
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -280,18 +276,14 @@ class FileQuarantineManager:
             # Check if we need to cleanup old files
             self._check_auto_cleanup()
 
-            logger.info(
-                f"File quarantined: {file_path} -> {quarantine_path} (ID: {record_id})"
-            )
+            logger.info(f"File quarantined: {file_path} -> {quarantine_path} (ID: {record_id})")
             return record_id
 
         except Exception as e:
             logger.error(f"Failed to quarantine file {file_path}: {e}")
             return None
 
-    def restore_file(
-        self, record_id: str, target_path: Optional[Union[str, Path]] = None
-    ) -> bool:
+    def restore_file(self, record_id: str, target_path: Optional[Union[str, Path]] = None) -> bool:
         """
         Restore a quarantined file.
 
@@ -482,9 +474,7 @@ class FileQuarantineManager:
             )
 
             if result.returncode == 0 and result.stdout.strip():
-                commit_hash, author_name, author_email, date = (
-                    result.stdout.strip().split(",")
-                )
+                commit_hash, author_name, author_email, date = result.stdout.strip().split(",")
                 git_info.update(
                     {
                         "last_commit_hash": commit_hash,

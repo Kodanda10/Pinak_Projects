@@ -10,15 +10,18 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from pinak.context.broker.broker import (ContextBroker, HybridScore,
-                                         RetrievalResult)
+from pinak.context.broker.broker import ContextBroker, HybridScore, RetrievalResult
 from pinak.context.broker.graph_expansion import GraphBasedExpander
-from pinak.context.broker.rl_optimizer import (AdaptiveLearningEngine,
-                                               QLearningOptimizer)
-from pinak.context.core.models import (ContextItem, ContextLayer,
-                                       ContextPriority, ContextQuery,
-                                       ContextResponse, IContextStore,
-                                       SecurityClassification)
+from pinak.context.broker.rl_optimizer import AdaptiveLearningEngine, QLearningOptimizer
+from pinak.context.core.models import (
+    ContextItem,
+    ContextLayer,
+    ContextPriority,
+    ContextQuery,
+    ContextResponse,
+    IContextStore,
+    SecurityClassification,
+)
 
 
 class MockContextStore(IContextStore):

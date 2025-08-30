@@ -3,4 +3,3 @@ Preferred-Languages: en
 Policy: https://your-org.example/security
 Canonical: https://your-org.example/.well-known/security.txt
 Expires: 2026-12-31T23:59:59z
-

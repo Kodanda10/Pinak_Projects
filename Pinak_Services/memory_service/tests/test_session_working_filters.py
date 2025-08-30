@@ -12,9 +12,7 @@ os.environ.setdefault("USE_MOCK_EMBEDDINGS", "true")
 @pytest.mark.asyncio
 async def test_session_add_ttl_and_list_paging():
     async with LifespanManager(app):
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as ac:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
             sid = "s-paging"
             # Insert 3 items
             for i in range(3):
@@ -36,13 +34,9 @@ async def test_session_add_ttl_and_list_paging():
 @pytest.mark.asyncio
 async def test_working_ttl_respected():
     async with LifespanManager(app):
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as ac:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
             # expired record
-            past = (
-                datetime.datetime.utcnow() - datetime.timedelta(seconds=5)
-            ).isoformat()
+            past = (datetime.datetime.utcnow() - datetime.timedelta(seconds=5)).isoformat()
             r1 = await ac.post(
                 "/api/v1/memory/working/add",
                 json={"content": "old", "expires_at": past},

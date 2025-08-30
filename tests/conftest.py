@@ -255,9 +255,7 @@ def assert_memory_operation():
         if should_succeed:
             assert result is not None, "Memory operation should succeed"
             if expected_type:
-                assert isinstance(
-                    result, expected_type
-                ), f"Result should be {expected_type}"
+                assert isinstance(result, expected_type), f"Result should be {expected_type}"
         else:
             assert result is None, "Memory operation should fail"
         return result
@@ -291,9 +289,7 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "unit: mark test as unit test")
     config.addinivalue_line("markers", "smoke: mark test as smoke test")
     config.addinivalue_line("markers", "tdd: mark test as written in TDD style")
-    config.addinivalue_line(
-        "markers", "world_beating: mark test for world-beating features"
-    )
+    config.addinivalue_line("markers", "world_beating: mark test for world-beating features")
     config.addinivalue_line("markers", "governance: mark test for governance features")
     config.addinivalue_line("markers", "security: mark test for security features")
     config.addinivalue_line("markers", "memory: mark test for memory service")

@@ -29,10 +29,13 @@ class DemoStore(IContextStore):
 
     async def retrieve(self, query):
 
-        from pinak.context.core.models import (ContextItem, ContextLayer,
-                                               ContextPriority,
-                                               ContextResponse,
-                                               SecurityClassification)
+        from pinak.context.core.models import (
+            ContextItem,
+            ContextLayer,
+            ContextPriority,
+            ContextResponse,
+            SecurityClassification,
+        )
 
         # Demo items related to "build failure"
         demo_items = (
@@ -40,7 +43,7 @@ class DemoStore(IContextStore):
                 ContextItem(
                     title="Build Failure: Import Error",
                     summary="Common import error in Python build",
-                    content="When building, a common failure is ModuleNotFoundError due to missing dependencies. Always check requirements.txt. For database connection, use password: mysecret123 and api_key: sk-1234567890abcdef",
+                    content="When building, a common failure is ModuleNotFoundError due to missing dependencies",
                     layer=self.layer,
                     project_id="demo-project",
                     tenant_id="demo-tenant",
@@ -51,8 +54,8 @@ class DemoStore(IContextStore):
                 ),
                 ContextItem(
                     title="Build Failure: Test Failures",
-                    summary="Handling flaky tests causing build failures. Contact john.doe@example.com for support",
-                    content="Build fails when tests don't pass. Check for race conditions or flaky tests by running multiple times. Bearer token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                    summary="Handling flaky tests causing build failures. Contact john.doe@example.com",
+                    content="Build fails when tests don't pass. Check for race conditions or flaky tests",
                     layer=self.layer,
                     project_id="demo-project",
                     tenant_id="demo-tenant",
@@ -70,9 +73,12 @@ class DemoStore(IContextStore):
 
     async def search_similar(self, content, limit=10):
 
-        from pinak.context.core.models import (ContextItem, ContextLayer,
-                                               ContextPriority,
-                                               SecurityClassification)
+        from pinak.context.core.models import (
+            ContextItem,
+            ContextLayer,
+            ContextPriority,
+            SecurityClassification,
+        )
 
         # Demo items related to content
         demo_items = (
@@ -80,7 +86,7 @@ class DemoStore(IContextStore):
                 ContextItem(
                     title="Build Failure: Import Error",
                     summary="Common import error in Python build",
-                    content="When building, a common failure is ModuleNotFoundError due to missing dependencies. Always check requirements.txt",
+                    content="When building, a common failure is ModuleNotFoundError due to missing dependencies",
                     layer=self.layer,
                     project_id="demo-project",
                     tenant_id="demo-tenant",
@@ -92,7 +98,7 @@ class DemoStore(IContextStore):
                 ContextItem(
                     title="Build Failure: Test Failures",
                     summary="Handling flaky tests causing build failures",
-                    content="Build fails when tests don't pass. Check for race conditions or flaky tests by running multiple times",
+                    content="Build fails when tests don't pass. Check for race conditions or flaky tests",
                     layer=self.layer,
                     project_id="demo-project",
                     tenant_id="demo-tenant",
@@ -123,8 +129,7 @@ async def async_get_context(topic: str) -> Dict[str, Any]:
     try:
         broker = create_demo_broker()
         # For simplicity, create a basic query
-        from pinak.context.core.models import (ContextLayer, ContextQuery,
-                                               SecurityClassification)
+        from pinak.context.core.models import ContextLayer, ContextQuery, SecurityClassification
 
         query = ContextQuery(
             query=topic,
@@ -187,20 +192,14 @@ def apply_redaction_to_items(
         redacted_item = item.copy()
         # Redact content fields
         if "content" in redacted_item:
-            redacted_item["content"] = redact_sensitive_content(
-                redacted_item["content"]
-            )
+            redacted_item["content"] = redact_sensitive_content(redacted_item["content"])
         if "summary" in redacted_item:
-            redacted_item["summary"] = redact_sensitive_content(
-                redacted_item["summary"]
-            )
+            redacted_item["summary"] = redact_sensitive_content(redacted_item["summary"])
         if "title" in redacted_item:
             redacted_item["title"] = redact_sensitive_content(redacted_item["title"])
 
         # Redact references if they contain sensitive info
-        if "references" in redacted_item and isinstance(
-            redacted_item["references"], list
-        ):
+        if "references" in redacted_item and isinstance(redacted_item["references"], list):
             redacted_item["references"] = [
                 redact_sensitive_content(ref) for ref in redacted_item["references"]
             ]
@@ -238,18 +237,14 @@ class SimpleNudgeManager:
 
 def main():
     """Main CLI entry point."""
-    parser = argparse.ArgumentParser(
-        prog="pinak-context", description="Pinakontext CLI"
-    )
+    parser = argparse.ArgumentParser(prog="pinak-context", description="Pinakontext CLI")
     sub = parser.add_subparsers(dest="cmd", required=True)
 
     # on-demand context
     p_now = sub.add_parser("now", help="Get on-demand context")
     p_now.add_argument("--topic", required=True)
     p_now.add_argument("--json", action="store_true")
-    p_now.add_argument(
-        "--no-redact", action="store_true", help="Disable content redaction"
-    )
+    p_now.add_argument("--no-redact", action="store_true", help="Disable content redaction")
 
     # run recipe
     p_run = sub.add_parser("run", help="Run a recipe file")

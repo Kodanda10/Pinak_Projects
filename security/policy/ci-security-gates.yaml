@@ -57,4 +57,3 @@ gates:
     conditions:
       all_true:
         - target_app.tier == "tier-0" ? asvs.level >= 2 : asvs.level >= 1
-

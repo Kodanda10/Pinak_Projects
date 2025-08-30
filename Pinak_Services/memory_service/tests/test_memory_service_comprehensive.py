@@ -70,9 +70,7 @@ class TestMemoryServiceCore:
 
     def test_add_memory_with_pydantic_model(self, memory_service):
         """Test adding memory using Pydantic model"""
-        memory_data = MemoryCreate(
-            content="Test memory content", tags=["test", "memory"]
-        )
+        memory_data = MemoryCreate(content="Test memory content", tags=["test", "memory"])
 
         result = memory_service.add_memory(memory_data)
 
@@ -87,9 +85,7 @@ class TestMemoryServiceCore:
         # Add test memories with database session
         with memory_service.Session() as db:
             result1 = memory_service.add_memory(
-                MemoryCreate(
-                    content="The sky is blue on clear days", tags=["weather", "sky"]
-                ),
+                MemoryCreate(content="The sky is blue on clear days", tags=["weather", "sky"]),
                 db=db,
             )
             result2 = memory_service.add_memory(
@@ -249,12 +245,8 @@ class TestProceduralMemory:
         project_id = "test_project"
 
         # Add multiple procedural memories
-        svc_add_procedural(
-            memory_service, tenant, project_id, "skill1", ["step1", "step2"]
-        )
-        svc_add_procedural(
-            memory_service, tenant, project_id, "skill2", ["step3", "step4"]
-        )
+        svc_add_procedural(memory_service, tenant, project_id, "skill1", ["step1", "step2"])
+        svc_add_procedural(memory_service, tenant, project_id, "skill2", ["step3", "step4"])
 
         memories = svc_list_procedural(memory_service, tenant, project_id)
 
@@ -331,9 +323,7 @@ class TestSearchV2:
 
         # Add memories to different layers
         svc_add_episodic(memory_service, tenant, project_id, "User performed login", 5)
-        svc_add_procedural(
-            memory_service, tenant, project_id, "login", ["enter credentials"]
-        )
+        svc_add_procedural(memory_service, tenant, project_id, "login", ["enter credentials"])
         svc_add_rag(memory_service, tenant, project_id, "login security", "docs")
 
         # Search across all layers
@@ -363,9 +353,7 @@ class TestSearchV2:
             svc_add_episodic(memory_service, tenant, project_id, f"Memory {i}", 5)
 
         # Search with limit
-        results = svc_search_v2(
-            memory_service, tenant, project_id, "Memory", ["episodic"]
-        )
+        results = svc_search_v2(memory_service, tenant, project_id, "Memory", ["episodic"])
 
         # Apply limit manually (simulating API behavior)
         episodic_results = results["episodic"]
@@ -525,9 +513,7 @@ class TestMemoryServiceRobustness:
         project_id = "test_project"
         content_with_special_chars = "Content with émojis 🎉 and spëcial chärs"
 
-        result = svc_add_episodic(
-            memory_service, tenant, project_id, content_with_special_chars, 5
-        )
+        result = svc_add_episodic(memory_service, tenant, project_id, content_with_special_chars, 5)
         assert result is not None
         assert result["content"] == content_with_special_chars
 

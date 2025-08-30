@@ -78,13 +78,9 @@ class PinakIntegrator:
         """Detect the type of Python project."""
         if (self.project_root / "manage.py").exists():
             return "Django"
-        elif (
-            self.project_root / "app.py"
-        ).exists() and "flask" in self._read_requirements():
+        elif (self.project_root / "app.py").exists() and "flask" in self._read_requirements():
             return "Flask"
-        elif (
-            self.project_root / "main.py"
-        ).exists() and "fastapi" in self._read_requirements():
+        elif (self.project_root / "main.py").exists() and "fastapi" in self._read_requirements():
             return "FastAPI"
         elif (self.project_root / "setup.py").exists():
             return "Python Package"

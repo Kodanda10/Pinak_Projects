@@ -96,9 +96,7 @@ class InMemoryNudgeStore(INudgeStore):
                 logger.error(f"Failed to update nudge {nudge_id} status: {e}")
                 return False
 
-    async def get_nudge_templates(
-        self, active_only: bool = True
-    ) -> List[NudgeTemplate]:
+    async def get_nudge_templates(self, active_only: bool = True) -> List[NudgeTemplate]:
         """Get available nudge templates."""
         async with self._lock:
             templates = list(self._templates.values())
@@ -115,9 +113,7 @@ class InMemoryNudgeStore(INudgeStore):
                 self._delivery_results[result.nudge_id].append(result)
                 return True
             except Exception as e:
-                logger.error(
-                    f"Failed to store delivery result for {result.nudge_id}: {e}"
-                )
+                logger.error(f"Failed to store delivery result for {result.nudge_id}: {e}")
                 return False
 
     async def _cleanup_expired_nudges(self):
@@ -282,9 +278,7 @@ class RedisNudgeStore(INudgeStore):
             logger.error(f"Failed to update nudge {nudge_id} status: {e}")
             return False
 
-    async def get_nudge_templates(
-        self, active_only: bool = True
-    ) -> List[NudgeTemplate]:
+    async def get_nudge_templates(self, active_only: bool = True) -> List[NudgeTemplate]:
         """Get nudge templates from Redis."""
         await self._ensure_connection()
 
@@ -352,8 +346,7 @@ class DatabaseNudgeStore(INudgeStore):
         """Ensure database connection is established."""
         if not self._engine:
             try:
-                from sqlalchemy.ext.asyncio import (AsyncSession,
-                                                    create_async_engine)
+                from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
                 from sqlalchemy.orm import sessionmaker
 
                 self._engine = create_async_engine(self.connection_string)
@@ -427,9 +420,7 @@ class DatabaseNudgeStore(INudgeStore):
                 logger.error(f"Failed to update nudge {nudge_id} status: {e}")
                 return False
 
-    async def get_nudge_templates(
-        self, active_only: bool = True
-    ) -> List[NudgeTemplate]:
+    async def get_nudge_templates(self, active_only: bool = True) -> List[NudgeTemplate]:
         """Get nudge templates from the database."""
         await self._ensure_connection()
 
@@ -452,9 +443,7 @@ class DatabaseNudgeStore(INudgeStore):
                 # This is a placeholder implementation
                 return True
             except Exception as e:
-                logger.error(
-                    f"Failed to store delivery result for {result.nudge_id}: {e}"
-                )
+                logger.error(f"Failed to store delivery result for {result.nudge_id}: {e}")
                 return False
 
     async def close(self):

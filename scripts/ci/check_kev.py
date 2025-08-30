@@ -13,11 +13,7 @@ def load_kev_set():
     except Exception as e:
         print(f"KEV feed unavailable: {e}. Skipping KEV gate.")
         return None
-    cves = {
-        item.get("cveID")
-        for item in data.get("vulnerabilities", [])
-        if item.get("cveID")
-    }
+    cves = {item.get("cveID") for item in data.get("vulnerabilities", []) if item.get("cveID")}
     return cves
 
 

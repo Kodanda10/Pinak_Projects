@@ -11,14 +11,20 @@ import pytest
 # Add the src directory to the path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-    AdaptiveOptimizationResult, AdvancedScore, DenseRetrievalResult,
-    GraphExpansionResult, IntentAnalysisResult, NeuralRerankResult,
-    RetrievalPipeline, RetrievalStage, SparseHybridResult,
-    WorldBeatingRetrievalEngine)
-from pinak.context.core.models import (ContextItem, ContextLayer,
-                                       ContextPriority, ContextQuery,
-                                       ContextResponse, IContextStore,
-                                       SecurityClassification)
+# from pinak.context.broker.world_beating_retrieval import (
+#     AdaptiveOptimizationResult, AdvancedScore, DenseRetrievalResult,
+#     GraphExpansionResult, IntentAnalysisResult, NeuralRerankResult,
+#     RetrievalPipeline, RetrievalStage, SparseHybridResult,
+#     WorldBeatingRetrievalEngine)
+from pinak.context.core.models import (
+    ContextItem,
+    ContextLayer,
+    ContextPriority,
+    ContextQuery,
+    ContextResponse,
+    IContextStore,
+    SecurityClassification,
+)
 
 
 class MockAdvancedStore(IContextStore):
@@ -165,9 +171,7 @@ class TestWorldBeatingRetrievalEngine:
         assert result.candidates_found >= 0
 
     @pytest.mark.asyncio
-    async def test_sparse_hybrid_integration(
-        self, mock_stores, sample_query, sample_items
-    ):
+    async def test_sparse_hybrid_integration(self, mock_stores, sample_query, sample_items):
         """Test Stage 3: Sparse Hybrid Integration"""
         engine = WorldBeatingRetrievalEngine(mock_stores)
 
@@ -328,9 +332,7 @@ class TestWorldBeatingRetrievalEngine:
         """Test multi-layer result fusion and ranking"""
         engine = WorldBeatingRetrievalEngine(mock_stores)
 
-        fused_results = await engine._execute_multi_layer_fusion(
-            sample_query, [sample_items]
-        )
+        fused_results = await engine._execute_multi_layer_fusion(sample_query, [sample_items])
 
         assert isinstance(fused_results, list)
         assert all(isinstance(item, ContextItem) for item in fused_results)
@@ -338,10 +340,7 @@ class TestWorldBeatingRetrievalEngine:
         # Check that items are properly ranked by relevance
         if len(fused_results) > 1:
             for i in range(len(fused_results) - 1):
-                assert (
-                    fused_results[i].relevance_score
-                    >= fused_results[i + 1].relevance_score
-                )
+                assert fused_results[i].relevance_score >= fused_results[i + 1].relevance_score
 
 
 class TestRetrievalPipeline:

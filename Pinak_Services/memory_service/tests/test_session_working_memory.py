@@ -55,9 +55,7 @@ class TestSessionMemory:
 
         ttl = payload.get("ttl_seconds")
         if ttl:
-            rec["expires_at"] = (
-                datetime.utcnow() + timedelta(seconds=int(ttl))
-            ).isoformat()
+            rec["expires_at"] = (datetime.utcnow() + timedelta(seconds=int(ttl))).isoformat()
 
         memory_service._append_jsonl(path, rec)
 
@@ -261,9 +259,7 @@ class TestWorkingMemory:
 
         ttl = payload.get("ttl_seconds")
         if ttl:
-            rec["expires_at"] = (
-                datetime.utcnow() + timedelta(seconds=int(ttl))
-            ).isoformat()
+            rec["expires_at"] = (datetime.utcnow() + timedelta(seconds=int(ttl))).isoformat()
 
         memory_service._append_jsonl(path, rec)
 

@@ -9,9 +9,7 @@ pytestmark = pytest.mark.asyncio
 async def test_audit_verify_events():
     pid = "Pnk-AV"
     async with LifespanManager(app):
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as ac:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
             r = await ac.post(
                 "/api/v1/memory/event",
                 headers={"X-Pinak-Project": pid},

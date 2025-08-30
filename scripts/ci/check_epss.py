@@ -63,9 +63,7 @@ def main():
     if bad:
         print(f"Found vulnerabilities with EPSS score >= {threshold}:")
         for b in bad:
-            print(
-                f"- {b['package']}@{b['version']} -> {b['cve']} (EPSS: {b['epss_score']:.4f})"
-            )
+            print(f"- {b['package']}@{b['version']} -> {b['cve']} (EPSS: {b['epss_score']:.4f})")
         return 1
 
     print(f"No high-risk vulnerabilities detected (EPSS < {threshold}).")

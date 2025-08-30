@@ -6,9 +6,9 @@ from typing import Awaitable, Callable, Optional
 
 import pytest
 import pytest_asyncio
-from app.api.v1.endpoints import \
-    get_memory_service  # Import here for dependency override
+from app.api.v1.endpoints import get_memory_service  # Import here for dependency override
 from app.db.models import Base  # Import Base for metadata
+
 # Adjust these imports to your codebase:
 from app.main import app as fastapi_app
 from app.services.memory_service import MemoryService
@@ -176,9 +176,7 @@ async def fresh_test_client_factory():
 
         fastapi_app.dependency_overrides[get_memory_service] = _override
 
-        client = AsyncClient(
-            transport=ASGITransport(app=fastapi_app), base_url="http://test"
-        )
+        client = AsyncClient(transport=ASGITransport(app=fastapi_app), base_url="http://test")
         return client
 
     yield _factory

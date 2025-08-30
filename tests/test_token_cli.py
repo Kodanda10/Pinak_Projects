@@ -27,9 +27,7 @@ def test_pinak_token_generates_pid_and_role(tmp_path, monkeypatch, capsys):
     # Act: call CLI main to mint a token with role
     from src.pinak.cli import main
 
-    rc = main(
-        ["token", "--sub", "alice", "--role", "editor", "--secret", "unit-secret"]
-    )
+    rc = main(["token", "--sub", "alice", "--role", "editor", "--secret", "unit-secret"])
     assert rc == 0
     token = capsys.readouterr().out.strip().splitlines()[-1]
 

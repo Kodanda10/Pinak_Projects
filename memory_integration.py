@@ -37,9 +37,7 @@ class ProjectMemoryManager:
             query=f"user {user_id}", layer=MemoryLayer.EPISODIC, limit=limit
         )
 
-    def store_session_context(
-        self, session_id: str, context: str, ttl_minutes: int = 60
-    ):
+    def store_session_context(self, session_id: str, context: str, ttl_minutes: int = 60):
         """Store temporary session context."""
         return self.client.add_memory(
             content=context,
@@ -50,9 +48,7 @@ class ProjectMemoryManager:
 
     def get_session_context(self, session_id: str) -> List[Dict]:
         """Retrieve session context."""
-        return self.client.list_memories(
-            layer=MemoryLayer.SESSION, session_id=session_id
-        )
+        return self.client.list_memories(layer=MemoryLayer.SESSION, session_id=session_id)
 
     def add_knowledge(self, topic: str, content: str, source: str = "user"):
         """Add knowledge to RAG system."""
@@ -62,9 +58,7 @@ class ProjectMemoryManager:
 
     def search_knowledge(self, query: str, limit: int = 5) -> List[Dict]:
         """Search knowledge base."""
-        return self.client.search_memories(
-            query=query, layer=MemoryLayer.RAG, limit=limit
-        )
+        return self.client.search_memories(query=query, layer=MemoryLayer.RAG, limit=limit)
 
 
 # Example usage

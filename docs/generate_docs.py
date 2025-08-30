@@ -124,10 +124,7 @@ class DocumentationGenerator:
     def _analyze_module(self, file_path: Path, tree: ast.AST, analysis: Dict[str, Any]):
         """Analyze a single Python module."""
         module_name = (
-            file_path.relative_to(self.src_dir)
-            .with_suffix("")
-            .as_posix()
-            .replace("/", ".")
+            file_path.relative_to(self.src_dir).with_suffix("").as_posix().replace("/", ".")
         )
 
         module_info = {
@@ -143,9 +140,7 @@ class DocumentationGenerator:
                     {
                         "name": node.name,
                         "line": node.lineno,
-                        "methods": [
-                            n.name for n in node.body if isinstance(n, ast.FunctionDef)
-                        ],
+                        "methods": [n.name for n in node.body if isinstance(n, ast.FunctionDef)],
                     }
                 )
             elif isinstance(node, ast.FunctionDef):
@@ -253,30 +248,24 @@ class DocumentationGenerator:
                 mod = __import__(module, fromlist=[""])
                 architecture["components"][name] = {
                     "module": module,
-                    "description": (
-                        mod.__doc__.split(".")[0] if mod.__doc__ else "No description"
-                    ),
+                    "description": (mod.__doc__.split(".")[0] if mod.__doc__ else "No description"),
                     "classes": len(
                         [
                             c
                             for c in dir(mod)
-                            if not c.startswith("_")
-                            and inspect.isclass(getattr(mod, c))
+                            if not c.startswith("_") and inspect.isclass(getattr(mod, c))
                         ]
                     ),
                     "functions": len(
                         [
                             f
                             for f in dir(mod)
-                            if not f.startswith("_")
-                            and inspect.isfunction(getattr(mod, f))
+                            if not f.startswith("_") and inspect.isfunction(getattr(mod, f))
                         ]
                     ),
                 }
             except ImportError:
-                architecture["components"][name] = {
-                    "error": f"Could not import {module}"
-                }
+                architecture["components"][name] = {"error": f"Could not import {module}"}
 
         return architecture
 
@@ -306,9 +295,7 @@ class DocumentationGenerator:
                 markers = []
 
                 for node in ast.walk(tree):
-                    if isinstance(node, ast.FunctionDef) and node.name.startswith(
-                        "test_"
-                    ):
+                    if isinstance(node, ast.FunctionDef) and node.name.startswith("test_"):
                         tests.append(node.name)
 
                         # Check for markers in decorators
@@ -355,9 +342,7 @@ class DocumentationGenerator:
                 # Extract basic coverage info (simplified parsing)
                 coverage_match = re.search(r'line-rate="([0-9.]+)"', content)
                 if coverage_match:
-                    coverage_docs["overall_coverage"] = (
-                        float(coverage_match.group(1)) * 100
-                    )
+                    coverage_docs["overall_coverage"] = float(coverage_match.group(1)) * 100
 
             except Exception as e:
                 print(f"Warning: Could not parse coverage data: {e}")
@@ -521,9 +506,7 @@ class DocumentationGenerator:
 
         # Add architecture components
         if "architecture" in results["components"]:
-            for name, info in results["components"]["architecture"][
-                "components"
-            ].items():
+            for name, info in results["components"]["architecture"]["components"].items():
                 html_content += f"""
                 <div class="module">
                     <h3>{name}</h3>
@@ -574,9 +557,7 @@ Generated on: {results['timestamp']}
 
         # Add architecture components
         if "architecture" in results["components"]:
-            for name, info in results["components"]["architecture"][
-                "components"
-            ].items():
+            for name, info in results["components"]["architecture"]["components"].items():
                 md_content += f"""### {name}
 - **Module:** {info.get('module', 'N/A')}
 - **Description:** {info.get('description', 'No description')}
@@ -618,21 +599,15 @@ def main():
     parser.add_argument(
         "--output-dir", type=Path, help="Output directory for generated documentation"
     )
-    parser.add_argument(
-        "--include-tests", action="store_true", help="Include test documentation"
-    )
-    parser.add_argument(
-        "--include-coverage", action="store_true", help="Include coverage reports"
-    )
+    parser.add_argument("--include-tests", action="store_true", help="Include test documentation")
+    parser.add_argument("--include-coverage", action="store_true", help="Include coverage reports")
     parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
 
     args = parser.parse_args()
 
     # Find project root
     project_root = Path.cwd()
-    while (
-        not (project_root / "setup.py").exists() and project_root != project_root.parent
-    ):
+    while not (project_root / "setup.py").exists() and project_root != project_root.parent:
         project_root = project_root.parent
 
     if not (project_root / "setup.py").exists():

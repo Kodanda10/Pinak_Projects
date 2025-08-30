@@ -95,9 +95,7 @@ class RateLimiter:
             self._add_request(client_queue, current_time)
             return True
 
-    def _clean_old_entries(
-        self, client_queue: Deque[Tuple[float, int]], current_time: float
-    ):
+    def _clean_old_entries(self, client_queue: Deque[Tuple[float, int]], current_time: float):
         """Remove entries older than window size."""
         cutoff_time = current_time - self.window_size_seconds
         while client_queue and client_queue[0][0] < cutoff_time:
@@ -132,9 +130,7 @@ class RateLimiter:
 
         total_requests = sum(count for _, count in client_queue)
         remaining = max(0, self.requests_per_minute - total_requests)
-        remaining_burst = max(
-            0, self.requests_per_minute + self.burst_limit - total_requests
-        )
+        remaining_burst = max(0, self.requests_per_minute + self.burst_limit - total_requests)
 
         return {
             "total_requests": total_requests,
@@ -153,10 +149,7 @@ class RateLimiter:
 
     def get_all_clients_status(self) -> Dict[str, Dict[str, int]]:
         """Get rate limiting status for all clients."""
-        return {
-            client_ip: self.get_client_status(client_ip)
-            for client_ip in self._client_requests
-        }
+        return {client_ip: self.get_client_status(client_ip) for client_ip in self._client_requests}
 
     def cleanup_old_clients(self, max_age_seconds: int = 3600):
         """

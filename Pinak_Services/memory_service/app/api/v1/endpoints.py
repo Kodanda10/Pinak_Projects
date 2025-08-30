@@ -3,8 +3,7 @@ import os
 import secrets
 
 from app.core.schemas import MemoryCreate, MemoryOut, MemorySearchResult
-from app.services.memory_service import \
-    MemoryService  # Import the class, not the instance
+from app.services.memory_service import MemoryService  # Import the class, not the instance
 from app.services.memory_service import add_episodic as svc_add_episodic
 from app.services.memory_service import add_procedural as svc_add_procedural
 from app.services.memory_service import add_rag as svc_add_rag
@@ -49,9 +48,7 @@ except Exception:
 
 
 @router.post("/add", response_model=MemoryOut, status_code=status.HTTP_201_CREATED)
-def add_memory(
-    memory: MemoryCreate, memory_service: MemoryService = Depends(get_memory_service)
-):
+def add_memory(memory: MemoryCreate, memory_service: MemoryService = Depends(get_memory_service)):
     """API endpoint to add a new memory."""
     # Create a database session for the operation
     db = memory_service.Session()
@@ -116,16 +113,10 @@ def add_episodic(
                 algorithms=["HS256"],
             )
             if project_id and claims.get("pid") and claims["pid"] != project_id:
-                raise HTTPException(
-                    status_code=403, detail="Project header/token mismatch"
-                )
+                raise HTTPException(status_code=403, detail="Project header/token mismatch")
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
-    tenant = (
-        resolve_tenant(payload)
-        if request is not None
-        else payload.get("tenant", "default")
-    )
+    tenant = resolve_tenant(payload) if request is not None else payload.get("tenant", "default")
     try:
         from opentelemetry import trace  # type: ignore
 
@@ -153,16 +144,12 @@ def add_episodic(
         )
     try:
         if REQ_COUNTER is not None:
-            REQ_COUNTER.labels(
-                layer="episodic", project_id=project_id or "default"
-            ).inc()
+            REQ_COUNTER.labels(layer="episodic", project_id=project_id or "default").inc()
     except Exception:
         pass
     try:
         if REQ_COUNTER is not None:
-            REQ_COUNTER.labels(
-                layer="procedural", project_id=project_id or "default"
-            ).inc()
+            REQ_COUNTER.labels(layer="procedural", project_id=project_id or "default").inc()
     except Exception:
         pass
     try:
@@ -244,16 +231,10 @@ def add_rag(
                 algorithms=["HS256"],
             )
             if project_id and claims.get("pid") and claims["pid"] != project_id:
-                raise HTTPException(
-                    status_code=403, detail="Project header/token mismatch"
-                )
+                raise HTTPException(status_code=403, detail="Project header/token mismatch")
     except JWTError:
         raise HTTPException(status_code=401, detail="Invalid token")
-    tenant = (
-        resolve_tenant(payload)
-        if request is not None
-        else payload.get("tenant", "default")
-    )
+    tenant = resolve_tenant(payload) if request is not None else payload.get("tenant", "default")
     # optional tracing
     try:
         from opentelemetry import trace  # type: ignore
@@ -321,9 +302,7 @@ def redact(
     memory_service: MemoryService = Depends(get_memory_service),
 ) -> Dict[str, Any]:
     tenant = resolve_tenant({}) if request is not None else "default"
-    result = memory_service.redact_memory(
-        memory_id, tenant, project_id or "default", reason
-    )
+    result = memory_service.redact_memory(memory_id, tenant, project_id or "default", reason)
 
     # Create changelog entry for redact
     base = memory_service._store_dir(tenant, project_id)
@@ -364,11 +343,7 @@ def add_event(
     project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project"),
     memory_service: MemoryService = Depends(get_memory_service),
 ) -> Dict[str, Any]:
-    tenant = (
-        resolve_tenant(payload)
-        if request is not None
-        else payload.get("tenant", "default")
-    )
+    tenant = resolve_tenant(payload) if request is not None else payload.get("tenant", "default")
     base = memory_service._store_dir(tenant, project_id)
     import datetime
     import json
@@ -508,11 +483,7 @@ def session_add(
     import json
     import os
 
-    tenant = (
-        resolve_tenant(payload)
-        if request is not None
-        else payload.get("tenant", "default")
-    )
+    tenant = resolve_tenant(payload) if request is not None else payload.get("tenant", "default")
     base = memory_service._store_dir(tenant, project_id)
     sid = payload.get("session_id") or "default"
     # new partition path under session/
@@ -547,16 +518,12 @@ def session_add(
         memory_service._append_jsonl(path, rec)
     try:
         if REQ_COUNTER is not None:
-            REQ_COUNTER.labels(
-                layer="working", project_id=project_id or "default"
-            ).inc()
+            REQ_COUNTER.labels(layer="working", project_id=project_id or "default").inc()
     except Exception:
         pass
     try:
         if REQ_COUNTER is not None:
-            REQ_COUNTER.labels(
-                layer="session", project_id=project_id or "default"
-            ).inc()
+            REQ_COUNTER.labels(layer="session", project_id=project_id or "default").inc()
     except Exception:
         pass
     return {"status": "ok"}
@@ -604,10 +571,7 @@ def session_list(
                     exp = obj.get("expires_at")
                     if exp:
                         try:
-                            if (
-                                datetime.datetime.fromisoformat(exp)
-                                < datetime.datetime.utcnow()
-                            ):
+                            if datetime.datetime.fromisoformat(exp) < datetime.datetime.utcnow():
                                 continue
                         except Exception:
                             pass
@@ -634,11 +598,7 @@ def working_add(
     import json
     import os
 
-    tenant = (
-        resolve_tenant(payload)
-        if request is not None
-        else payload.get("tenant", "default")
-    )
+    tenant = resolve_tenant(payload) if request is not None else payload.get("tenant", "default")
     base = memory_service._store_dir(tenant, project_id)
     path = memory_service._working_file(base)
     rec = {
@@ -705,10 +665,7 @@ def working_list(
                     exp = obj.get("expires_at")
                     if exp:
                         try:
-                            if (
-                                datetime.datetime.fromisoformat(exp)
-                                < datetime.datetime.utcnow()
-                            ):
+                            if datetime.datetime.fromisoformat(exp) < datetime.datetime.utcnow():
                                 continue
                         except Exception:
                             pass

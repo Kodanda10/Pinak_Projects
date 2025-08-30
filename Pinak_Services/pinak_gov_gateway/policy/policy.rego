@@ -8,4 +8,3 @@ allow {
   lower(input.headers["x-pinak-project"]) == lower(input.claims.pid)
   input.request.path == "/api/v1/memory/episodic/add"
 }
-

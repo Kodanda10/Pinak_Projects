@@ -128,7 +128,7 @@ async def test_redis_caching(client_and_memory_service):
 
         # Test Cache Miss and Set
         mock_redis_client.get.return_value = None
-        
+
         memories_to_add = [
             {"content": "Cached memory 1.", "tags": ["cache"]},
             {"content": "Cached memory 2.", "tags": ["cache"]},

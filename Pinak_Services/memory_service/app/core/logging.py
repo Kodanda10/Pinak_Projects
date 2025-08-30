@@ -100,15 +100,11 @@ class EnterpriseLogger:
         log_dir.mkdir(exist_ok=True)
 
         # File handler for all logs
-        file_handler = logging.FileHandler(
-            log_dir / "pinak_memory.log", encoding="utf-8"
-        )
+        file_handler = logging.FileHandler(log_dir / "pinak_memory.log", encoding="utf-8")
         file_handler.setFormatter(self._get_json_formatter())
 
         # Error handler for errors only
-        error_handler = logging.FileHandler(
-            log_dir / "pinak_memory_error.log", encoding="utf-8"
-        )
+        error_handler = logging.FileHandler(log_dir / "pinak_memory_error.log", encoding="utf-8")
         error_handler.setLevel(logging.ERROR)
         error_handler.setFormatter(self._get_json_formatter())
 
@@ -116,9 +112,7 @@ class EnterpriseLogger:
         console_handler = logging.StreamHandler(sys.stdout)
         if settings.DEBUG:
             console_handler.setFormatter(
-                logging.Formatter(
-                    "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-                )
+                logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
             )
         else:
             console_handler.setFormatter(self._get_json_formatter())

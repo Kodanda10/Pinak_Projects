@@ -349,9 +349,7 @@ class TestSessionMemory:
             }
             mock_post.return_value = mock_response
 
-            result = memory_manager.add_session(
-                data["session_id"], data["content"], data["ttl"]
-            )
+            result = memory_manager.add_session(data["session_id"], data["content"], data["ttl"])
 
             assert result is not None
             assert result["key"] == data["session_id"]
@@ -488,9 +486,7 @@ class TestCrossLayerSearch:
                             "relevance": 0.9,
                         }
                     ],
-                    "procedural": [
-                        {"id": "proc_1", "skill_id": "python_debug", "relevance": 0.7}
-                    ],
+                    "procedural": [{"id": "proc_1", "skill_id": "python_debug", "relevance": 0.7}],
                     "rag": [
                         {
                             "id": "rag_1",
@@ -522,9 +518,7 @@ class TestCrossLayerSearch:
             mock_response.raise_for_status.return_value = None
             mock_response.json.return_value = {
                 "data": {
-                    "episodic": [
-                        {"id": "epi_debug", "content": "Debugging experience"}
-                    ],
+                    "episodic": [{"id": "epi_debug", "content": "Debugging experience"}],
                     "procedural": [{"id": "proc_debug", "skill_id": "debug_workflow"}],
                 }
             }
@@ -635,8 +629,7 @@ class TestMemoryServiceLoad:
         """Test bulk memory operations."""
         # Create bulk episodic memories
         bulk_data = [
-            {"content": f"Bulk memory {i}", "salience": 0.5 + (i % 5) * 0.1}
-            for i in range(50)
+            {"content": f"Bulk memory {i}", "salience": 0.5 + (i % 5) * 0.1} for i in range(50)
         ]
 
         # Mock successful responses
@@ -679,9 +672,7 @@ class TestMemoryServiceLoad:
                 mock_response = Mock()
                 mock_response.status_code = 200
                 mock_response.raise_for_status.return_value = None
-                mock_response.json.return_value = {
-                    "data": {"id": f"concurrent_{task_id}"}
-                }
+                mock_response.json.return_value = {"data": {"id": f"concurrent_{task_id}"}}
                 mock_post.return_value = mock_response
 
                 return memory_manager.add_episodic(f"Concurrent task {task_id}", 0.5)

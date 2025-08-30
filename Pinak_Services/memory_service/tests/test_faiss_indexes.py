@@ -72,9 +72,7 @@ async def test_faiss_add_and_search_basic(setup_teardown_db):
         ):
             found_relevant = True
             break
-    assert (
-        found_relevant
-    ), f"No relevant animal memory found for query 'animals on a farm'"
+    assert found_relevant, f"No relevant animal memory found for query 'animals on a farm'"
 
 
 async def test_api_search_endpoint(client_and_memory_service):
@@ -96,9 +94,7 @@ async def test_api_search_endpoint(client_and_memory_service):
         assert response.status_code == 201
 
     search_query = "animals on a farm"
-    search_response = await client.get(
-        f"/api/v1/memory/search?query={search_query}&k=2"
-    )
+    search_response = await client.get(f"/api/v1/memory/search?query={search_query}&k=2")
     assert search_response.status_code == 200
     results = search_response.json()
     assert isinstance(results, list)
@@ -116,24 +112,17 @@ async def test_api_search_endpoint(client_and_memory_service):
     assert found_relevant, f"No relevant animal memory found for query '{search_query}'"
 
     search_query_tech = "future of technology"
-    search_response_tech = await client.get(
-        f"/api/v1/memory/search?query={search_query_tech}&k=2"
-    )
+    search_response_tech = await client.get(f"/api/v1/memory/search?query={search_query_tech}&k=2")
     assert search_response_tech.status_code == 200
     results_tech = search_response_tech.json()
     assert isinstance(results_tech, list)
     assert len(results_tech) > 0
     found_relevant_tech = False
     for result in results_tech:
-        if (
-            "intelligence" in result["content"].lower()
-            or "quantum" in result["content"].lower()
-        ):
+        if "intelligence" in result["content"].lower() or "quantum" in result["content"].lower():
             found_relevant_tech = True
             break
-    assert (
-        found_relevant_tech
-    ), f"No relevant tech memory found for query '{search_query_tech}''"
+    assert found_relevant_tech, f"No relevant tech memory found for query '{search_query_tech}''"
 
 
 async def test_redis_caching(client_and_memory_service):
@@ -179,9 +168,7 @@ async def test_redis_caching(client_and_memory_service):
     mock_redis_client.get.return_value = json.dumps(results)
     mock_redis_client.setex.reset_mock()  # Reset setex mock for this part
 
-    search_response_cached = await ac.get(
-        f"/api/v1/memory/search?query={search_query}&k=2"
-    )
+    search_response_cached = await ac.get(f"/api/v1/memory/search?query={search_query}&k=2")
     assert search_response_cached.status_code == 200
     results_cached = search_response_cached.json()
     assert results_cached == results
