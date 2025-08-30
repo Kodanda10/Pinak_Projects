@@ -1,0 +1,482 @@
+name: CI Monitoring & Alerting
+
+on:
+  workflow_run:
+    workflows: ["CI Comprehensive", "CI Tests", "CI Security Gates"]
+    types: [completed]
+  schedule:
+    # Run daily monitoring at 6 AM UTC
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+    inputs:
+      alert_level:
+        description: 'Alert level to test'
+        required: false
+        default: 'info'
+        type: choice
+        options:
+          - info
+          - warning
+          - error
+          - critical
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+jobs:
+  # ===== CI HEALTH MONITORING =====
+  ci-health-monitor:
+    name: CI Health Monitor
+    runs-on: ubuntu-latest
+    outputs:
+      health_status: ${{ steps.health.outputs.status }}
+      failure_rate: ${{ steps.health.outputs.failure_rate }}
+      avg_duration: ${{ steps.health.outputs.avg_duration }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Analyze CI health
+        id: health
+        run: |
+          # Get recent workflow runs (last 30 days)
+          WORKFLOWS=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/runs?per_page=100" | jq '.workflow_runs')
+
+          # Calculate metrics
+          TOTAL_RUNS=$(echo "$WORKFLOWS" | jq 'length')
+          SUCCESSFUL_RUNS=$(echo "$WORKFLOWS" | jq '[.[] | select(.conclusion == "success")] | length')
+          FAILED_RUNS=$(echo "$WORKFLOWS" | jq '[.[] | select(.conclusion == "failure")] | length')
+
+          if [ "$TOTAL_RUNS" -gt 0 ]; then
+            FAILURE_RATE=$((FAILED_RUNS * 100 / TOTAL_RUNS))
+            SUCCESS_RATE=$((SUCCESSFUL_RUNS * 100 / TOTAL_RUNS))
+          else
+            FAILURE_RATE=0
+            SUCCESS_RATE=100
+          fi
+
+          # Calculate average duration
+          TOTAL_DURATION=$(echo "$WORKFLOWS" | jq '[.[] | select(.conclusion == "success") | .updated_at | strptime("%Y-%m-%dT%H:%M:%SZ") | mktime] | add // 0')
+          COUNT_SUCCESS=$(echo "$WORKFLOWS" | jq '[.[] | select(.conclusion == "success")] | length')
+
+          if [ "$COUNT_SUCCESS" -gt 0 ]; then
+            AVG_DURATION=$((TOTAL_DURATION / COUNT_SUCCESS))
+          else
+            AVG_DURATION=0
+          fi
+
+          # Determine health status
+          if [ "$FAILURE_RATE" -gt 20 ]; then
+            STATUS="unhealthy"
+          elif [ "$FAILURE_RATE" -gt 10 ]; then
+            STATUS="warning"
+          else
+            STATUS="healthy"
+          fi
+
+          echo "Total runs: $TOTAL_RUNS"
+          echo "Successful: $SUCCESSFUL_RUNS"
+          echo "Failed: $FAILED_RUNS"
+          echo "Failure rate: ${FAILURE_RATE}%"
+          echo "Success rate: ${SUCCESS_RATE}%"
+          echo "Average duration: ${AVG_DURATION}s"
+          echo "Health status: $STATUS"
+
+          echo "status=$STATUS" >> $GITHUB_OUTPUT
+          echo "failure_rate=$FAILURE_RATE" >> $GITHUB_OUTPUT
+          echo "avg_duration=$AVG_DURATION" >> $GITHUB_OUTPUT
+
+          # Store metrics for trend analysis
+          mkdir -p .monitoring
+          cat > .monitoring/ci_health.json << EOF
+          {
+            "timestamp": "$(date -Iseconds)",
+            "total_runs": $TOTAL_RUNS,
+            "successful_runs": $SUCCESSFUL_RUNS,
+            "failed_runs": $FAILED_RUNS,
+            "failure_rate": $FAILURE_RATE,
+            "success_rate": $SUCCESS_RATE,
+            "avg_duration": $AVG_DURATION,
+            "health_status": "$STATUS"
+          }
+          EOF
+
+      - name: Upload health metrics
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-health-metrics
+          path: .monitoring/
+          retention-days: 90
+
+  # ===== FAILURE ANALYSIS =====
+  failure-analysis:
+    name: Failure Analysis
+    runs-on: ubuntu-latest
+    needs: ci-health-monitor
+    if: needs.ci-health-monitor.outputs.health_status != 'healthy'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Analyze recent failures
+        run: |
+          # Get failed workflow runs
+          FAILED_RUNS=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/runs?per_page=20" | \
+            jq '.workflow_runs[] | select(.conclusion == "failure")')
+
+          echo "Recent failures:"
+          echo "$FAILED_RUNS" | jq -r '"\(.name): \(.html_url) (\(.updated_at))"'
+
+          # Analyze failure patterns
+          FAILURE_PATTERNS=$(echo "$FAILED_RUNS" | jq -r '.name' | sort | uniq -c | sort -nr)
+
+          echo "Failure patterns:"
+          echo "$FAILURE_PATTERNS"
+
+          # Store failure analysis
+          mkdir -p .monitoring
+          cat > .monitoring/failure_analysis.json << EOF
+          {
+            "timestamp": "$(date -Iseconds)",
+            "failure_patterns": $(echo "$FAILURE_PATTERNS" | jq -R -s 'split("\n") | map(select(. != ""))'),
+            "recent_failures": $(echo "$FAILED_RUNS" | jq -s '.')
+          }
+          EOF
+
+      - name: Upload failure analysis
+        uses: actions/upload-artifact@v4
+        with:
+          name: failure-analysis
+          path: .monitoring/
+          retention-days: 30
+
+  # ===== PERFORMANCE MONITORING =====
+  performance-monitor:
+    name: Performance Monitor
+    runs-on: ubuntu-latest
+    needs: ci-health-monitor
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Analyze performance trends
+        run: |
+          # Get workflow run times
+          WORKFLOW_RUNS=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/runs?per_page=50")
+
+          echo "Performance analysis:"
+
+          # Calculate average run times by workflow
+          echo "$WORKFLOW_RUNS" | jq -r '.workflow_runs[] | "\(.name):\(.run_started_at):\(.updated_at)"' | \
+          while IFS=: read -r name start end; do
+            if [ -n "$start" ] && [ -n "$end" ] && [ "$start" != "null" ] && [ "$end" != "null" ]; then
+              start_ts=$(date -d "$start" +%s 2>/dev/null || echo "0")
+              end_ts=$(date -d "$end" +%s 2>/dev/null || echo "0")
+              if [ "$start_ts" != "0" ] && [ "$end_ts" != "0" ]; then
+                duration=$((end_ts - start_ts))
+                echo "$name: ${duration}s"
+              fi
+            fi
+          done | sort | uniq -c | sort -nr
+
+      - name: Monitor test performance
+        run: |
+          # Download recent test results
+          if [ -d "test-results" ]; then
+            echo "Analyzing test performance..."
+
+            # Analyze test durations
+            find test-results -name "*.xml" -exec grep -H "time=" {} \; | \
+            sed 's/.*time="\([0-9.]*\)".*/\1/' | \
+            awk '{sum+=$1; count++} END {if(count>0) print "Average test time:", sum/count "s"}'
+
+            # Count slow tests
+            find test-results -name "*.xml" -exec grep -l "time=[5-9]" {} \; | wc -l | \
+            xargs echo "Tests taking 5+ seconds:"
+          fi
+
+  # ===== ALERTING SYSTEM =====
+  alerting:
+    name: Alerting System
+    runs-on: ubuntu-latest
+    needs: [ci-health-monitor, failure-analysis, performance-monitor]
+    if: always()
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Generate alerts
+        run: |
+          FAILURE_RATE=${{ needs.ci-health-monitor.outputs.failure_rate }}
+          HEALTH_STATUS=${{ needs.ci-health-monitor.outputs.health_status }}
+
+          echo "Generating alerts..."
+          echo "Failure rate: ${FAILURE_RATE}%"
+          echo "Health status: $HEALTH_STATUS"
+
+          # Determine alert level
+          if [ "$HEALTH_STATUS" = "unhealthy" ] || [ "${FAILURE_RATE:-0}" -gt 20 ]; then
+            ALERT_LEVEL="critical"
+            ALERT_MESSAGE="🚨 CRITICAL: CI pipeline is unhealthy! Failure rate: ${FAILURE_RATE}%"
+          elif [ "$HEALTH_STATUS" = "warning" ] || [ "${FAILURE_RATE:-0}" -gt 10 ]; then
+            ALERT_LEVEL="warning"
+            ALERT_MESSAGE="⚠️ WARNING: CI pipeline showing signs of instability. Failure rate: ${FAILURE_RATE}%"
+          elif [ "${FAILURE_RATE:-0}" -gt 5 ]; then
+            ALERT_LEVEL="info"
+            ALERT_MESSAGE="ℹ️ INFO: CI pipeline has some failures. Failure rate: ${FAILURE_RATE}%"
+          else
+            ALERT_LEVEL="success"
+            ALERT_MESSAGE="✅ SUCCESS: CI pipeline is healthy. Failure rate: ${FAILURE_RATE}%"
+          fi
+
+          # Create alert
+          mkdir -p .monitoring
+          cat > .monitoring/alert.json << EOF
+          {
+            "timestamp": "$(date -Iseconds)",
+            "level": "$ALERT_LEVEL",
+            "message": "$ALERT_MESSAGE",
+            "failure_rate": ${FAILURE_RATE:-0},
+            "health_status": "$HEALTH_STATUS",
+            "avg_duration": ${{ needs.ci-health-monitor.outputs.avg_duration }}
+          }
+          EOF
+
+          echo "Alert generated: $ALERT_MESSAGE"
+
+      - name: Send alerts
+        run: |
+          ALERT_LEVEL=$(jq -r '.level' .monitoring/alert.json)
+          ALERT_MESSAGE=$(jq -r '.message' .monitoring/alert.json)
+
+          if [ "$ALERT_LEVEL" = "critical" ] || [ "$ALERT_LEVEL" = "warning" ]; then
+            echo "Sending alert notification..."
+
+            # Create GitHub issue for critical alerts
+            if [ "$ALERT_LEVEL" = "critical" ]; then
+              ISSUE_BODY="## 🚨 Critical CI Alert
+
+**Alert Level:** $ALERT_LEVEL
+**Message:** $ALERT_MESSAGE
+**Timestamp:** $(date -Iseconds)
+
+### Details
+- Failure Rate: ${FAILURE_RATE:-0}%
+- Health Status: $HEALTH_STATUS
+- Average Duration: ${{ needs.ci-health-monitor.outputs.avg_duration }}s
+
+### Recent Failures
+$(cat .monitoring/failure_analysis.json 2>/dev/null | jq -r '.recent_failures[0:5][] | "- [\(.name)](\(.html_url)) - \(.updated_at)"' 2>/dev/null || echo "No recent failures found")
+
+### Actions Required
+1. Review failed CI runs
+2. Check for infrastructure issues
+3. Review recent code changes
+4. Consider rolling back problematic changes
+
+/cc @${{ github.repository_owner }}"
+
+              # Note: In a real implementation, you'd create the issue via GitHub API
+              echo "Would create GitHub issue with body:"
+              echo "$ISSUE_BODY"
+            fi
+          fi
+
+      - name: Update monitoring dashboard
+        run: |
+          # Update dashboard data
+          mkdir -p docs/monitoring
+          cp .monitoring/*.json docs/monitoring/
+
+          # Generate dashboard HTML
+          cat > docs/monitoring/dashboard.html << 'EOF'
+          <!DOCTYPE html>
+          <html>
+          <head>
+              <title>Pinak CI Monitoring Dashboard</title>
+              <style>
+                  body { font-family: Arial, sans-serif; margin: 20px; }
+                  .metric { background: #f5f5f5; padding: 10px; margin: 10px 0; border-radius: 5px; }
+                  .healthy { border-left: 5px solid #28a745; }
+                  .warning { border-left: 5px solid #ffc107; }
+                  .unhealthy { border-left: 5px solid #dc3545; }
+                  .alert { background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; margin: 10px 0; }
+              </style>
+          </head>
+          <body>
+              <h1>🔍 Pinak CI Monitoring Dashboard</h1>
+              <p>Last updated: $(date)</p>
+
+              <div class="metric $(jq -r '.health_status' .monitoring/ci_health.json)">
+                  <h3>CI Health Status</h3>
+                  <p><strong>Status:</strong> $(jq -r '.health_status' .monitoring/ci_health.json)</p>
+                  <p><strong>Failure Rate:</strong> $(jq -r '.failure_rate' .monitoring/ci_health.json)%</p>
+                  <p><strong>Total Runs:</strong> $(jq -r '.total_runs' .monitoring/ci_health.json)</p>
+                  <p><strong>Average Duration:</strong> $(jq -r '.avg_duration' .monitoring/ci_health.json)s</p>
+              </div>
+
+              $(if [ -f .monitoring/alert.json ]; then
+                  ALERT_LEVEL=$(jq -r '.level' .monitoring/alert.json)
+                  ALERT_MESSAGE=$(jq -r '.message' .monitoring/alert.json)
+                  echo "<div class=\"alert\"><h3>🔔 Latest Alert</h3><p><strong>$ALERT_LEVEL:</strong> $ALERT_MESSAGE</p></div>"
+              fi)
+
+              <h2>📊 Recent Activity</h2>
+              <pre>$(jq '.' .monitoring/ci_health.json)</pre>
+          </body>
+          </html>
+          EOF
+
+      - name: Upload monitoring data
+        uses: actions/upload-artifact@v4
+        with:
+          name: monitoring-dashboard
+          path: |
+            .monitoring/
+            docs/monitoring/
+          retention-days: 90
+
+  # ===== TREND ANALYSIS =====
+  trend-analysis:
+    name: Trend Analysis
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'  # Only run on scheduled runs
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Analyze CI trends
+        run: |
+          # Get historical data (if available)
+          if [ -d "docs/monitoring/history" ]; then
+            echo "Analyzing trends from historical data..."
+
+            # Calculate trends
+            ls docs/monitoring/history/*.json | sort | tail -30 | \
+            xargs jq -r '"\(.timestamp): \(.failure_rate): \(.health_status)"' | \
+            awk -F: '{
+                ts=$1; rate=$2; status=$3;
+                rates[NR]=rate;
+                statuses[NR]=status;
+                sum += rate
+            }
+            END {
+                if (NR > 0) {
+                    avg = sum / NR;
+                    print "Average failure rate over last 30 runs:", avg "%";
+
+                    # Trend analysis
+                    if (NR >= 7) {
+                        recent_avg = 0;
+                        for (i = NR-6; i <= NR; i++) recent_avg += rates[i];
+                        recent_avg /= 7;
+
+                        if (recent_avg > avg * 1.2) print "⚠️  FAILURE RATE INCREASING";
+                        else if (recent_avg < avg * 0.8) print "✅ FAILURE RATE DECREASING";
+                        else print "➡️  FAILURE RATE STABLE";
+                    }
+                }
+            }'
+          else
+            echo "No historical data available for trend analysis"
+          fi
+
+  # ===== NOTIFICATION SYSTEM =====
+  notifications:
+    name: Send Notifications
+    runs-on: ubuntu-latest
+    needs: alerting
+    if: always()
+    steps:
+      - name: Send Slack notification
+        if: env.SLACK_WEBHOOK_URL != ''
+        run: |
+          # This would send to Slack if webhook URL is configured
+          echo "Would send Slack notification if webhook configured"
+
+      - name: Send email notification
+        if: env.EMAIL_RECIPIENTS != ''
+        run: |
+          # This would send email if recipients are configured
+          echo "Would send email notification if recipients configured"
+
+      - name: Create GitHub issue for critical alerts
+        if: needs.alerting.result == 'success'
+        run: |
+          ALERT_LEVEL=$(jq -r '.level' .monitoring/alert.json 2>/dev/null || echo "unknown")
+          if [ "$ALERT_LEVEL" = "critical" ]; then
+            echo "Creating GitHub issue for critical alert..."
+
+            # In a real scenario, use GitHub CLI or API to create issue
+            echo "Critical alert detected - issue would be created here"
+          fi
+
+      - name: Comment on related PRs
+        if: github.event_name == 'workflow_run' && needs.alerting.result == 'failure'
+        run: |
+          # Comment on PRs that might be affected by CI issues
+          echo "Would comment on affected PRs about CI status"
+
+  # ===== MONITORING SUMMARY =====
+  monitoring-summary:
+    name: Monitoring Summary
+    runs-on: ubuntu-latest
+    needs: [ci-health-monitor, alerting, trend-analysis]
+    if: always()
+    steps:
+      - name: Generate monitoring summary
+        run: |
+          echo "# 📊 CI Monitoring Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Timestamp:** $(date -Iseconds)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ -f ".monitoring/ci_health.json" ]; then
+            HEALTH_STATUS=$(jq -r '.health_status' .monitoring/ci_health.json)
+            FAILURE_RATE=$(jq -r '.failure_rate' .monitoring/ci_health.json)
+            SUCCESS_RATE=$(jq -r '.success_rate' .monitoring/ci_health.json)
+
+            echo "## 🔍 CI Health Status: $HEALTH_STATUS" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "- **Failure Rate:** $FAILURE_RATE%" >> $GITHUB_STEP_SUMMARY
+            echo "- **Success Rate:** $SUCCESS_RATE%" >> $GITHUB_STEP_SUMMARY
+            echo "- **Total Runs:** $(jq -r '.total_runs' .monitoring/ci_health.json)" >> $GITHUB_STEP_SUMMARY
+            echo "- **Average Duration:** $(jq -r '.avg_duration' .monitoring/ci_health.json)s" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ -f ".monitoring/alert.json" ]; then
+            ALERT_LEVEL=$(jq -r '.level' .monitoring/alert.json)
+            ALERT_MESSAGE=$(jq -r '.message' .monitoring/alert.json)
+
+            echo "## 🔔 Latest Alert: $ALERT_LEVEL" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "$ALERT_MESSAGE" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "## 📈 Actions Taken" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ needs.alerting.result }}" = "success" ]; then
+            echo "- ✅ Alerting system processed successfully" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ❌ Alerting system encountered issues" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "${{ needs.trend-analysis.result }}" = "success" ]; then
+            echo "- ✅ Trend analysis completed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ❌ Trend analysis failed" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "---" >> $GITHUB_STEP_SUMMARY
+          echo "*This report was generated automatically by the CI Monitoring workflow.*" >> $GITHUB_STEP_SUMMARY

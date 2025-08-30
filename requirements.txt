@@ -3,4 +3,3 @@ httpx
 pydantic>=2
 keyring
 cryptography
-pinak-memory-client>=1.0.0

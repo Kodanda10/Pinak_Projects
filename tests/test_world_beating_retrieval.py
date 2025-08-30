@@ -406,7 +406,16 @@ async def test_end_to_end_retrieval_pipeline(mock_stores, sample_query):
     for item in result.items:
         assert item.relevance_score >= sample_query.min_relevance
         assert item.confidence_score >= sample_query.min_confidence
-        assert item.classification.value <= sample_query.user_clearance.value
+        # Check security clearance hierarchy: user clearance should be >= item classification
+        clearance_levels = {
+            SecurityClassification.PUBLIC: 1,
+            SecurityClassification.INTERNAL: 2,
+            SecurityClassification.CONFIDENTIAL: 3,
+            SecurityClassification.RESTRICTED: 4
+        }
+        user_level = clearance_levels.get(sample_query.user_clearance, 0)
+        item_level = clearance_levels.get(item.classification, 0)
+        assert user_level >= item_level, f"User clearance {sample_query.user_clearance} should allow access to {item.classification}"
 
     # Verify cross-layer search
     layers_represented = set(item.layer for item in result.items)

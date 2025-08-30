@@ -151,6 +151,10 @@ class WorldBeatingRetrievalEngine:
             'error_count': 0,
         }
 
+        # Set embedding dimensions for test compatibility
+        self.embedding_dimensions = 768
+        self.similarity_threshold = 0.7  # Default similarity threshold
+
         logger.info("🚀 WORLD-BEATING Retrieval Engine initialized - Surpassing Claude/ChatGPT/Grok")
 
     def _configure_retrieval_pipeline(self) -> List[RetrievalStage]:
@@ -1299,9 +1303,6 @@ class WorldBeatingRetrievalEngine:
         total_cache_requests = self._metrics['cache_hits'] + self._metrics['semantic_cache_hits'] + self._metrics['total_queries']
         cache_hit_rate = (self._metrics['cache_hits'] + self._metrics['semantic_cache_hits']) / max(1, total_cache_requests)
 
-        # Set embedding dimensions as instance attribute for tests
-        self.embedding_dimensions = 768
-
         return {
             **self._metrics,
             'semantic_cache_size': len(self._semantic_cache),
@@ -1313,40 +1314,201 @@ class WorldBeatingRetrievalEngine:
             'query_expansion_enabled': self.enable_query_expansion,
             'memory_augmentation_enabled': self.enable_memory_augmentation,
             'cache_hit_rate': cache_hit_rate,
-            'embedding_dimensions': 768,  # Standard embedding dimension
+            'embedding_dimensions': self.embedding_dimensions,
             'total_cache_requests': total_cache_requests,
+            'error_rate': self._metrics['error_count'] / max(1, self._metrics['total_queries']),
         }
 
-    async def health_check(self) -> Dict[str, Any]:
-        """Perform comprehensive health check."""
-        health = {
-            'status': 'healthy',
-            'engine_type': 'world_beating_retrieval',
-            'capabilities': {
-                'neural_reranking': self.enable_neural_reranking,
-                'query_expansion': self.enable_query_expansion,
-                'memory_augmentation': self.enable_memory_augmentation,
-                'self_improvement': self.enable_self_improvement,
-            },
-            'pipeline_stages': len(self.retrieval_stages),
-            'metrics': self.get_advanced_metrics(),
-        }
+    async def _execute_dense_retrieval(self, query: ContextQuery) -> DenseRetrievalResult:
+        """Stage 2: Dense Retrieval Pipeline."""
+        # Simple mock implementation
+        candidates = []
+        for layer in query.layers:
+            if layer in self.stores:
+                result = await self.stores[layer].search_similar(query.query, limit=20)
+                candidates.extend(result)
 
-        # Check each store
-        health['stores'] = {}
-        for layer, store in self.stores.items():
-            try:
-                health['stores'][layer.value] = {'status': 'healthy'}
-            except Exception as e:
-                health['stores'][layer.value] = {'status': 'unhealthy', 'error': str(e)}
-                health['status'] = 'degraded'
+        return DenseRetrievalResult(
+            vectors=[],  # Mock embeddings
+            embedding_dimensions=768,
+            similarity_threshold=0.7,
+            candidates_found=len(candidates),
+            top_candidates=candidates
+        )
 
-        # Check advanced features
-        if self.enable_neural_reranking and self._metrics['neural_reranks'] == 0:
-            health['warnings'] = health.get('warnings', [])
-            health['warnings'].append('Neural reranking enabled but not used')
+    async def _execute_sparse_hybrid(self, query: ContextQuery, candidates: List[ContextItem]) -> SparseHybridResult:
+        """Stage 3: Sparse Hybrid Integration."""
+        # Simple scoring
+        scored_items = []
+        for item in candidates:
+            bm25 = self._calculate_keyword_score(item, query.query)
+            scored_items.append((item, bm25))
 
-        return health
+        # Sort by score
+        scored_items.sort(key=lambda x: x[1], reverse=True)
+        reranked = [item for item, _ in scored_items]
+
+        return SparseHybridResult(
+            bm25_score=sum(score for _, score in scored_items) / len(scored_items) if scored_items else 0,
+            semantic_weight=0.6,
+            lexical_weight=0.4,
+            combined_score=0.8,
+            reranked_items=reranked
+        )
+
+    async def _execute_graph_expansion(self, query: ContextQuery, items: List[ContextItem]) -> GraphExpansionResult:
+        """Stage 4: Graph-Based Knowledge Expansion."""
+        # Simple expansion by finding related items
+        expanded = items.copy()
+        for item in items:
+            # Mock expansion - in real implementation, use graph traversal
+            if len(expanded) < 50:  # Limit expansion
+                related = await self.stores[item.layer].search_similar(item.title, limit=3)
+                expanded.extend(related)
+
+        # Remove duplicates
+        seen = set()
+        unique_items = []
+        for item in expanded:
+            if item.id not in seen:
+                unique_items.append(item)
+                seen.add(item.id)
+
+        return GraphExpansionResult(
+            expanded_items=unique_items,
+            traversal_depth=2,
+            relevance_threshold=0.5,
+            graph_nodes_traversed=len(unique_items)
+        )
+
+    async def _execute_neural_rerank(self, query: ContextQuery, items: List[ContextItem]) -> NeuralRerankResult:
+        """Stage 5: Neural Reranking & Personalization."""
+        # Mock neural reranking
+        reranked = sorted(items, key=lambda x: x.relevance_score, reverse=True)
+
+        return NeuralRerankResult(
+            reranked_items=reranked,
+            neural_score=0.9,
+            user_personalization_score=0.7,
+            uncertainty_score=0.1
+        )
+
+    async def _execute_adaptive_learning(self, query: ContextQuery, items: List[ContextItem]) -> AdaptiveOptimizationResult:
+        """Stage 6: Adaptive Learning & Optimization."""
+        return AdaptiveOptimizationResult(
+            success_rate=0.85,
+            feedback_loop_active=True,
+            optimization_suggestions=["Increase semantic weight", "Add more temporal features"],
+            learning_iterations=5
+        )
+
+    def _calculate_advanced_scores(self, items: List[ContextItem], query: ContextQuery) -> List[AdvancedScore]:
+        """Calculate advanced multi-dimensional scores."""
+        scores = []
+        for item in items:
+            semantic_score = self._calculate_semantic_score(item, query.query)
+            keyword_score = self._calculate_keyword_score(item, query.query)
+            temporal_score = self._calculate_advanced_temporal_score(item)
+            contextual_score = self._calculate_contextual_score(item, query.query)
+
+            ensemble_score = (
+                self.retrieval_stages[0].config.get("semantic_weight", 0.6) * semantic_score +
+                self.retrieval_stages[0].config.get("keyword_weight", 0.3) * keyword_score +
+                self.retrieval_stages[0].config.get("temporal_weight", 0.1) * temporal_score +
+                0.1 * contextual_score
+            )
+
+            advanced_score = AdvancedScore(
+                item=item,
+                semantic_score=semantic_score,
+                keyword_score=keyword_score,
+                temporal_score=temporal_score,
+                contextual_score=contextual_score,
+                ensemble_score=ensemble_score,
+                final_score=ensemble_score,
+                ranking_factors={
+                    "semantic": semantic_score,
+                    "keyword": keyword_score,
+                    "temporal": temporal_score,
+                    "contextual": contextual_score
+                }
+            )
+            scores.append(advanced_score)
+
+        return scores
+
+    async def _execute_multi_layer_fusion(
+        self, query: ContextQuery, layer_results: List[List[ContextItem]]
+    ) -> List[ContextItem]:
+        """Execute multi-layer fusion and ranking."""
+        all_items = []
+        for result_list in layer_results:
+            all_items.extend(result_list)
+
+        # Calculate advanced scores
+        scored_items = self._calculate_advanced_scores(all_items, query)
+
+        # Sort by final score
+        scored_items.sort(key=lambda x: x.final_score, reverse=True)
+
+        # Return items in ranked order
+        return [score.item for score in scored_items]
+
+    async def execute_pipeline(self, query: ContextQuery) -> ContextResponse:
+        """
+        Execute the complete 6-stage retrieval pipeline.
+        """
+        start_time = time.time()
+        self._metrics['total_queries'] += 1
+
+        try:
+            # Stage 1: Intent Analysis
+            intent_result = await self._execute_intent_analysis(query)
+
+            # Stage 2: Dense Retrieval
+            dense_result = await self._execute_dense_retrieval(query)
+
+            # Stage 3: Sparse Hybrid Integration
+            hybrid_result = await self._execute_sparse_hybrid(query, dense_result.top_candidates)
+
+            # Stage 4: Graph Expansion
+            graph_result = await self._execute_graph_expansion(query, hybrid_result.reranked_items)
+
+            # Stage 5: Neural Reranking
+            neural_result = await self._execute_neural_rerank(query, graph_result.expanded_items)
+
+            # Stage 6: Adaptive Learning
+            adaptive_result = await self._execute_adaptive_learning(query, neural_result.reranked_items)
+
+            # Build final response
+            response = ContextResponse()
+            response.query_id = query.query_id
+            response.items = neural_result.reranked_items[:query.limit]
+            response.returned_results = len(response.items)
+            response.total_results = len(neural_result.reranked_items)
+            response.execution_time_ms = int((time.time() - start_time) * 1000)
+
+            return response
+
+        except Exception as e:
+            self._metrics['error_count'] += 1
+            logger.error(f"Pipeline execution failed: {e}")
+
+        # Return empty response on error
+        return ContextResponse()
+
+    async def _execute_intent_analysis(self, query: ContextQuery) -> IntentAnalysisResult:
+        """Stage 1: Intent Analysis & Query Expansion."""
+        # Analyze query
+        analysis = await self._analyze_query_advanced(query)
+
+        return IntentAnalysisResult(
+            expanded_queries=analysis.expanded_queries,
+            intent_categories=analysis.domain_context,
+            confidence=1.0 - analysis.ambiguity_score,
+            temporal_context=analysis.temporal_context,
+            domain_context=analysis.domain_context
+        )
 
 
 @dataclass
@@ -1424,321 +1586,4 @@ class RetrievalPipeline:
             ]
 
 
-# Additional methods for WorldBeatingRetrievalEngine
-
-async def execute_pipeline(self, query: ContextQuery) -> ContextResponse:
-    """
-    Execute the complete 6-stage retrieval pipeline.
-    """
-    start_time = time.time()
-    self._metrics['total_queries'] += 1
-
-    try:
-        # Stage 1: Intent Analysis
-        intent_result = await self._execute_intent_analysis(query)
-
-        # Stage 2: Dense Retrieval
-        dense_result = await self._execute_dense_retrieval(query)
-
-        # Stage 3: Sparse Hybrid Integration
-        hybrid_result = await self._execute_sparse_hybrid(query, dense_result.top_candidates)
-
-        # Stage 4: Graph Expansion
-        graph_result = await self._execute_graph_expansion(query, hybrid_result.reranked_items)
-
-        # Stage 5: Neural Reranking
-        neural_result = await self._execute_neural_rerank(query, graph_result.expanded_items)
-
-        # Stage 6: Adaptive Learning
-        adaptive_result = await self._execute_adaptive_learning(query, neural_result.reranked_items)
-
-        # Build final response
-        response = ContextResponse()
-        response.query_id = query.query_id
-        response.items = neural_result.reranked_items[:query.limit]
-        response.returned_results = len(response.items)
-        response.total_results = len(neural_result.reranked_items)
-        response.execution_time_ms = int((time.time() - start_time) * 1000)
-
-        return response
-
-    except Exception as e:
-        self._metrics['error_count'] += 1
-
-    # Return empty response on error
-    return ContextResponse()
-
-async def _execute_graph_expansion(self, query: ContextQuery, items: List[ContextItem]) -> GraphExpansionResult:
-    """
-    Execute Stage 4: Graph-based knowledge expansion.
-    """
-    if not hasattr(self, 'graph_expander'):
-        return GraphExpansionResult(
-            original_items=items,
-            expanded_items=[],
-            new_relationships=[],
-            traversal_depth=0,
-            relevance_threshold=0.0,
-            expansion_confidence=0.0,
-            execution_time_ms=0
-        )
-
-    return await self.graph_expander.expand_context(
-        query=query,
-        initial_items=items,
-        expansion_depth=3,
-        relevance_threshold=0.15
-    )
-
-async def _execute_adaptive_learning(self, query: ContextQuery, items: List[ContextItem]) -> Dict[str, Any]:
-    """
-    Execute Stage 6: Adaptive learning and RL optimization.
-    """
-    # Create mock response for optimization
-    mock_response = ContextResponse()
-    mock_response.query_id = query.query_id
-    mock_response.items = items[:query.limit]
-    mock_response.returned_results = len(mock_response.items)
-    mock_response.total_results = len(items)
-    mock_response.execution_time_ms = 100  # Mock execution time
-
-    # Apply RL optimization
-    if hasattr(self, 'adaptive_optimizer'):
-        optimization_result = await self.adaptive_optimizer.optimize_from_feedback(query, mock_response)
-
-        # Apply optimized parameters for next query
-        optimized_params = self.adaptive_optimizer.get_optimized_parameters()
-        self._apply_optimized_parameters(optimized_params)
-
-        return {
-            'optimization_applied': True,
-            'parameter_adjusted': optimization_result.action_taken.parameter,
-            'improvement': optimization_result.improvement,
-            'new_parameters': optimized_params
-        }
-
-    return {'optimization_applied': False}
-
-def _apply_optimized_parameters(self, params: Dict[str, Any]) -> None:
-    """
-    Apply optimized parameters to the retrieval engine.
-    """
-    for param, value in params.items():
-        if hasattr(self, param):
-            setattr(self, param, value)
-        elif param in ['semantic_weight', 'keyword_weight', 'temporal_weight']:
-            setattr(self, param, value)
-        # Update pipeline stage configurations
-        for stage in self.pipeline.stages:
-            if param in stage.config:
-                stage.config[param] = value
-        logger.error(f"Pipeline execution failed: {e}")
-        # Return empty response on error
-        return ContextResponse()
-
-
-async def _execute_intent_analysis(self, query: ContextQuery) -> IntentAnalysisResult:
-    """Stage 1: Intent Analysis & Query Expansion."""
-    # Analyze query
-    analysis = await self._analyze_query_advanced(query)
-
-    return IntentAnalysisResult(
-        expanded_queries=analysis.expanded_queries,
-        intent_categories=analysis.domain_context,
-        confidence=1.0 - analysis.ambiguity_score,
-        temporal_context=analysis.temporal_context,
-        domain_context=analysis.domain_context
-    )
-
-
-async def _execute_dense_retrieval(self, query: ContextQuery) -> DenseRetrievalResult:
-    """Stage 2: Dense Retrieval Pipeline."""
-    # Simple mock implementation
-    candidates = []
-    for layer in query.layers:
-        if layer in self.stores:
-            result = await self.stores[layer].search_similar(query.query, limit=20)
-            candidates.extend(result)
-
-    return DenseRetrievalResult(
-        vectors=[],  # Mock embeddings
-        embedding_dimensions=768,
-        similarity_threshold=0.7,
-        candidates_found=len(candidates),
-        top_candidates=candidates[:20]
-    )
-
-
-async def _execute_sparse_hybrid(self, query: ContextQuery, candidates: List[ContextItem]) -> SparseHybridResult:
-    """Stage 3: Sparse Hybrid Integration."""
-    # Simple scoring
-    scored_items = []
-    for item in candidates:
-        bm25 = self._calculate_keyword_score(item, query.query)
-        scored_items.append((item, bm25))
-
-    # Sort by score
-    scored_items.sort(key=lambda x: x[1], reverse=True)
-    reranked = [item for item, _ in scored_items]
-
-    return SparseHybridResult(
-        bm25_score=sum(score for _, score in scored_items) / len(scored_items) if scored_items else 0,
-        semantic_weight=0.6,
-        lexical_weight=0.4,
-        combined_score=0.8,
-        reranked_items=reranked
-    )
-
-
-async def _execute_graph_expansion(self, query: ContextQuery, items: List[ContextItem]) -> GraphExpansionResult:
-    """Stage 4: Graph-Based Knowledge Expansion."""
-    # Simple expansion by finding related items
-    expanded = items.copy()
-    for item in items:
-        # Mock expansion - in real implementation, use graph traversal
-        if len(expanded) < 50:  # Limit expansion
-            related = await self.stores[item.layer].search_similar(item.title, limit=3)
-            expanded.extend(related)
-
-    # Remove duplicates
-    seen = set()
-    unique_items = []
-    for item in expanded:
-        if item.id not in seen:
-            unique_items.append(item)
-            seen.add(item.id)
-
-    return GraphExpansionResult(
-        expanded_items=unique_items,
-        traversal_depth=2,
-        relevance_threshold=0.5,
-        graph_nodes_traversed=len(unique_items)
-    )
-
-
-async def _execute_neural_rerank(self, query: ContextQuery, items: List[ContextItem]) -> NeuralRerankResult:
-    """Stage 5: Neural Reranking & Personalization."""
-    # Mock neural reranking
-    reranked = sorted(items, key=lambda x: x.relevance_score, reverse=True)
-
-    return NeuralRerankResult(
-        reranked_items=reranked,
-        neural_score=0.9,
-        user_personalization_score=0.7,
-        uncertainty_score=0.1
-    )
-
-
-async def _execute_adaptive_learning(self, query: ContextQuery, items: List[ContextItem]) -> AdaptiveOptimizationResult:
-    """Stage 6: Adaptive Learning & Optimization."""
-    return AdaptiveOptimizationResult(
-        success_rate=0.85,
-        feedback_loop_active=True,
-        optimization_suggestions=["Increase semantic weight", "Add more temporal features"],
-        learning_iterations=5
-    )
-
-
-def _calculate_advanced_scores(self, items: List[ContextItem], query: ContextQuery) -> List[AdvancedScore]:
-    """Calculate advanced multi-dimensional scores."""
-    scores = []
-    for item in items:
-        semantic_score = self._calculate_semantic_score(item, query.query)
-        keyword_score = self._calculate_keyword_score(item, query.query)
-        temporal_score = self._calculate_advanced_temporal_score(item)
-        contextual_score = self._calculate_contextual_score(item, query.query)
-
-        ensemble_score = (
-            self.retrieval_stages[0].config.get("semantic_weight", 0.6) * semantic_score +
-            self.retrieval_stages[0].config.get("keyword_weight", 0.3) * keyword_score +
-            self.retrieval_stages[0].config.get("temporal_weight", 0.1) * temporal_score +
-            0.1 * contextual_score
-        )
-
-        advanced_score = AdvancedScore(
-            item=item,
-            semantic_score=semantic_score,
-            keyword_score=keyword_score,
-            temporal_score=temporal_score,
-            contextual_score=contextual_score,
-            ensemble_score=ensemble_score,
-            final_score=ensemble_score,
-            ranking_factors={
-                "semantic": semantic_score,
-                "keyword": keyword_score,
-                "temporal": temporal_score,
-                "contextual": contextual_score
-            }
-        )
-        scores.append(advanced_score)
-
-    return scores
-
-
-def get_performance_metrics(self) -> Dict[str, Any]:
-    """Get detailed performance metrics."""
-    return {
-        **self._metrics,
-        'pipeline_efficiency': self._calculate_pipeline_efficiency(),
-        'cache_performance': self._calculate_cache_performance(),
-        'error_rate': self._metrics['error_count'] / max(1, self._metrics['total_queries']),
-        'avg_stage_time_ms': self._metrics.get('avg_execution_time_ms', 0),
-    }
-
-
-def _calculate_pipeline_efficiency(self) -> float:
-    """Calculate pipeline efficiency score."""
-    if self._metrics['total_queries'] == 0:
-        return 0.0
-
-    # Efficiency based on average execution time and cache hits
-    time_factor = max(0, 1 - (self._metrics['avg_execution_time_ms'] / 1000))  # Better if < 1s
-    cache_factor = self._metrics['cache_hits'] / max(1, self._metrics['total_queries'])
-
-    return (time_factor + cache_factor) / 2
-
-
-def _calculate_cache_performance(self) -> Dict[str, float]:
-    """Calculate cache performance metrics."""
-    total_requests = self._metrics['total_queries']
-    if total_requests == 0:
-        return {'hit_rate': 0.0, 'miss_rate': 0.0}
-
-    return {
-        'hit_rate': self._metrics['cache_hits'] / total_requests,
-        'miss_rate': (total_requests - self._metrics['cache_hits']) / total_requests,
-        'semantic_hit_rate': self._metrics['semantic_cache_hits'] / total_requests,
-    }
-
-
-async def _execute_multi_layer_fusion(
-    self, query: ContextQuery, layer_results: List[List[ContextItem]]
-) -> List[ContextItem]:
-    """Execute multi-layer fusion and ranking."""
-    all_items = []
-    for result_list in layer_results:
-        all_items.extend(result_list)
-
-    # Calculate advanced scores
-    scored_items = self._calculate_advanced_scores(all_items, query)
-
-    # Sort by final score
-    scored_items.sort(key=lambda x: x.final_score, reverse=True)
-
-    # Return items in ranked order
-    return [score.item for score in scored_items]
-
-
-# Add method to WorldBeatingRetrievalEngine class
-WorldBeatingRetrievalEngine.execute_pipeline = execute_pipeline
-WorldBeatingRetrievalEngine._execute_intent_analysis = _execute_intent_analysis
-WorldBeatingRetrievalEngine._execute_dense_retrieval = _execute_dense_retrieval
-WorldBeatingRetrievalEngine._execute_sparse_hybrid = _execute_sparse_hybrid
-WorldBeatingRetrievalEngine._execute_graph_expansion = _execute_graph_expansion
-WorldBeatingRetrievalEngine._execute_neural_rerank = _execute_neural_rerank
-WorldBeatingRetrievalEngine._execute_adaptive_learning = _execute_adaptive_learning
-WorldBeatingRetrievalEngine._calculate_advanced_scores = _calculate_advanced_scores
-WorldBeatingRetrievalEngine.get_performance_metrics = get_performance_metrics
-WorldBeatingRetrievalEngine._calculate_pipeline_efficiency = _calculate_pipeline_efficiency
-WorldBeatingRetrievalEngine._calculate_cache_performance = _calculate_cache_performance
-WorldBeatingRetrievalEngine._execute_multi_layer_fusion = _execute_multi_layer_fusion
+# Methods are already defined within the WorldBeatingRetrievalEngine class above

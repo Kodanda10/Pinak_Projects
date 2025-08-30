@@ -36,6 +36,8 @@ setup(
             'pinak-memory=pinak.memory.cli:main',
             'pinak-menubar=pinak.menubar.app:main',
             'pinak-context=pinak.context.cli:main',
+            'pinak-quarantine=pinak.quarantine_cli:main',
+            'pinak-docs=docs.generate_docs:main',
         ]
     },
 

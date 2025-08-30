@@ -339,6 +339,11 @@ def cmd_token(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_quarantine(args: argparse.Namespace) -> int:
+    from .quarantine_cli import main as quarantine_main
+    return quarantine_main(args.rest)
+
+
 def main(argv: Optional[list[str]] = None) -> int:
     p = argparse.ArgumentParser(prog="pinak", description="Pinak CLI — one-click local-first setup")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -350,6 +355,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     g.add_argument("rest", nargs=argparse.REMAINDER)
     g.set_defaults(func=cmd_governance)
     t = sub.add_parser("token"); t.add_argument("--sub", default="analyst"); t.add_argument("--role", default=None); t.add_argument("--exp", type=int, default=None, help="Expiry in minutes (optional)"); t.add_argument("--secret", default=os.getenv("SECRET_KEY","change-me-in-prod")); t.add_argument("--set", action="store_true"); t.set_defaults(func=cmd_token)
+    quarantine = sub.add_parser("quarantine", help="File quarantine system for safe file management")
+    quarantine.add_argument("rest", nargs=argparse.REMAINDER); quarantine.set_defaults(func=cmd_quarantine)
 
     # one-click orchestration
     up = sub.add_parser("up", help="Start Memory + Gov + Parlant (compose)"); up.set_defaults(func=cmd_up)

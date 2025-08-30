@@ -1,0 +1,2856 @@
+{
+  "timestamp": "2025-08-31T00:09:46.065056",
+  "components": {
+    "codebase_analysis": {
+      "total_files": 20,
+      "total_lines": 8215,
+      "languages": {
+        ".py": 37191,
+        "": 6276,
+        ".ini": 16,
+        ".txt": 1588,
+        ".md": 75,
+        ".yaml": 17,
+        ".yml": 11,
+        ".sh": 8,
+        ".png": 39,
+        ".json": 24,
+        ".spec": 1,
+        ".icns": 4,
+        ".tag": 4,
+        ".py_archived_20250828_test_refactoring": 1,
+        ".pyc": 3622,
+        ".example": 1,
+        ".log": 4,
+        ".faiss": 3,
+        ".cfg": 12,
+        ".db": 2,
+        ".jsonl": 169,
+        ".idx": 2,
+        ".rev": 1,
+        ".pack": 2,
+        ".1": 9,
+        ".0": 4,
+        ".html": 8,
+        ".toc": 6,
+        ".zip": 6,
+        ".pyz": 1,
+        ".pkg": 1,
+        ".ps1": 3,
+        ".13": 6,
+        ".fish": 3,
+        ".test": 3,
+        ".csh": 3,
+        ".pth": 7,
+        ".so": 1209,
+        ".typed": 252,
+        ".pyi": 1078,
+        ".c": 79,
+        ".h": 28842,
+        ".rst": 52,
+        ".pxd": 228,
+        ".pyx": 283,
+        ".build": 75,
+        ".apache2": 4,
+        ".mit": 4,
+        ".pem": 10,
+        ".zsh": 3,
+        ".bash": 3,
+        ".i": 3,
+        ".exe": 46,
+        ".tmpl": 6,
+        ".dylib": 103,
+        ".npz": 66,
+        ".npy": 93,
+        ".dat": 83,
+        ".mat": 329,
+        ".sav": 141,
+        ".wav": 64,
+        ".nc": 9,
+        ".ani": 3,
+        ".arff": 48,
+        ".bridgesupport": 3,
+        ".egg": 2,
+        ".xml": 3,
+        ".apache": 19,
+        ".bsd": 19,
+        ".js": 8,
+        ".bzl": 3,
+        ".bazel": 3,
+        ".cpp": 138,
+        ".cu": 24,
+        ".in": 3,
+        ".pxi": 12,
+        ".cuh": 171,
+        ".xz": 15,
+        ".gz": 294,
+        ".pkl": 33,
+        ".gzip": 15,
+        ".bz2": 27,
+        ".lzma": 15,
+        ".z": 9,
+        ".tp": 72,
+        ".css": 8,
+        ".jpg": 6,
+        ".csv": 106,
+        ".a": 6,
+        ".template": 3,
+        ".f90": 175,
+        ".f": 69,
+        ".pyf": 19,
+        ".f95": 3,
+        ".inc": 3,
+        ".pc": 3,
+        ".fits": 3,
+        ".ld": 3,
+        ".cmake": 93,
+        ".mjs": 6,
+        ".hpp": 153,
+        ".thrift": 3,
+        ".g4": 6,
+        ".al": 48,
+        ".lark": 6,
+        ".xsl": 9,
+        ".b99": 6,
+        ".a99": 6,
+        ".9": 3,
+        ".conf": 2,
+        ".m": 1,
+        ".rego": 1,
+        ".plist": 3
+      },
+      "modules": {
+        "pinak.cli": {
+          "path": "/Users/abhijita/Pinak_Package/src/pinak/cli.py",
+          "classes": [],
+          "functions": [
+            {
+              "name": "have",
+              "line": 14,
+              "args": 1
+            },
+            {
+              "name": "run",
+              "line": 18,
+              "args": 3
+            },
+            {
+              "name": "ensure_docker",
+              "line": 22,
+              "args": 1
+            },
+            {
+              "name": "try_up_services",
+              "line": 62,
+              "args": 0
+            },
+            {
+              "name": "cmd_up",
+              "line": 111,
+              "args": 1
+            },
+            {
+              "name": "cmd_down",
+              "line": 155,
+              "args": 1
+            },
+            {
+              "name": "cmd_services_status",
+              "line": 179,
+              "args": 1
+            },
+            {
+              "name": "cmd_quickstart",
+              "line": 190,
+              "args": 1
+            },
+            {
+              "name": "cmd_doctor",
+              "line": 227,
+              "args": 1
+            },
+            {
+              "name": "cmd_bridge",
+              "line": 249,
+              "args": 1
+            },
+            {
+              "name": "cmd_memory",
+              "line": 254,
+              "args": 1
+            },
+            {
+              "name": "cmd_governance",
+              "line": 258,
+              "args": 1
+            },
+            {
+              "name": "cmd_token",
+              "line": 294,
+              "args": 1
+            },
+            {
+              "name": "cmd_quarantine",
+              "line": 342,
+              "args": 1
+            },
+            {
+              "name": "main",
+              "line": 347,
+              "args": 1
+            },
+            {
+              "name": "port_in_use",
+              "line": 125,
+              "args": 1
+            }
+          ],
+          "imports": [
+            "__future__",
+            "argparse",
+            "os",
+            "shutil",
+            "subprocess",
+            "sys",
+            "time",
+            "pathlib",
+            "typing",
+            "socket",
+            "tempfile",
+            "bridge.cli",
+            "memory.cli",
+            "httpx",
+            "json",
+            "time",
+            "datetime",
+            "quarantine_cli",
+            "memory.cli",
+            "memory.cli",
+            "memory.cli",
+            "bridge.context",
+            "jose",
+            "bridge.context",
+            "bridge.cli",
+            "bridge.context"
+          ]
+        },
+        "pinak.quarantine_cli": {
+          "path": "/Users/abhijita/Pinak_Package/src/pinak/quarantine_cli.py",
+          "classes": [],
+          "functions": [
+            {
+              "name": "cmd_quarantine",
+              "line": 20,
+              "args": 1
+            },
+            {
+              "name": "cmd_restore",
+              "line": 44,
+              "args": 1
+            },
+            {
+              "name": "cmd_list",
+              "line": 58,
+              "args": 1
+            },
+            {
+              "name": "cmd_stats",
+              "line": 97,
+              "args": 1
+            },
+            {
+              "name": "cmd_cleanup",
+              "line": 128,
+              "args": 1
+            },
+            {
+              "name": "cmd_safe_delete",
+              "line": 149,
+              "args": 1
+            },
+            {
+              "name": "cmd_safe_move",
+              "line": 161,
+              "args": 1
+            },
+            {
+              "name": "main",
+              "line": 173,
+              "args": 1
+            }
+          ],
+          "imports": [
+            "argparse",
+            "json",
+            "sys",
+            "pathlib",
+            "typing",
+            "file_quarantine"
+          ]
+        },
+        "pinak.file_quarantine": {
+          "path": "/Users/abhijita/Pinak_Package/src/pinak/file_quarantine.py",
+          "classes": [
+            {
+              "name": "QuarantineAction",
+              "line": 30,
+              "methods": []
+            },
+            {
+              "name": "QuarantinePriority",
+              "line": 39,
+              "methods": []
+            },
+            {
+              "name": "QuarantineRecord",
+              "line": 48,
+              "methods": [
+                "to_dict",
+                "from_dict"
+              ]
+            },
+            {
+              "name": "FileQuarantineManager",
+              "line": 79,
+              "methods": [
+                "__init__",
+                "_find_project_root",
+                "_setup_quarantine_structure",
+                "_load_records",
+                "_save_records",
+                "_calculate_file_hash",
+                "_get_quarantine_path",
+                "quarantine_file",
+                "restore_file",
+                "list_quarantined_files",
+                "cleanup_old_files",
+                "_check_auto_cleanup",
+                "_get_git_info",
+                "get_quarantine_stats"
+              ]
+            }
+          ],
+          "functions": [
+            {
+              "name": "get_quarantine_manager",
+              "line": 540,
+              "args": 0
+            },
+            {
+              "name": "quarantine_file",
+              "line": 548,
+              "args": 0
+            },
+            {
+              "name": "safe_delete",
+              "line": 553,
+              "args": 3
+            },
+            {
+              "name": "safe_move",
+              "line": 568,
+              "args": 4
+            },
+            {
+              "name": "patch_file_operations",
+              "line": 595,
+              "args": 0
+            },
+            {
+              "name": "to_dict",
+              "line": 62,
+              "args": 1
+            },
+            {
+              "name": "from_dict",
+              "line": 71,
+              "args": 2
+            },
+            {
+              "name": "__init__",
+              "line": 87,
+              "args": 4
+            },
+            {
+              "name": "_find_project_root",
+              "line": 119,
+              "args": 1
+            },
+            {
+              "name": "_setup_quarantine_structure",
+              "line": 132,
+              "args": 1
+            },
+            {
+              "name": "_load_records",
+              "line": 149,
+              "args": 1
+            },
+            {
+              "name": "_save_records",
+              "line": 165,
+              "args": 1
+            },
+            {
+              "name": "_calculate_file_hash",
+              "line": 185,
+              "args": 2
+            },
+            {
+              "name": "_get_quarantine_path",
+              "line": 199,
+              "args": 3
+            },
+            {
+              "name": "quarantine_file",
+              "line": 213,
+              "args": 8
+            },
+            {
+              "name": "restore_file",
+              "line": 293,
+              "args": 3
+            },
+            {
+              "name": "list_quarantined_files",
+              "line": 345,
+              "args": 5
+            },
+            {
+              "name": "cleanup_old_files",
+              "line": 378,
+              "args": 4
+            },
+            {
+              "name": "_check_auto_cleanup",
+              "line": 444,
+              "args": 1
+            },
+            {
+              "name": "_get_git_info",
+              "line": 459,
+              "args": 2
+            },
+            {
+              "name": "get_quarantine_stats",
+              "line": 488,
+              "args": 1
+            },
+            {
+              "name": "safe_os_remove",
+              "line": 604,
+              "args": 1
+            },
+            {
+              "name": "safe_os_unlink",
+              "line": 611,
+              "args": 1
+            },
+            {
+              "name": "safe_os_rmdir",
+              "line": 618,
+              "args": 1
+            }
+          ],
+          "imports": [
+            "os",
+            "shutil",
+            "json",
+            "hashlib",
+            "datetime",
+            "tempfile",
+            "pathlib",
+            "typing",
+            "dataclasses",
+            "enum",
+            "logging",
+            "builtins",
+            "subprocess"
+          ]
+        },
+        "pinak.context.cli": {
+          "path": "/Users/abhijita/Pinak_Package/src/pinak/context/cli.py",
+          "classes": [
+            {
+              "name": "DemoStore",
+              "line": 29,
+              "methods": [
+                "__init__"
+              ]
+            },
+            {
+              "name": "SimpleNudgeManager",
+              "line": 204,
+              "methods": [
+                "__init__",
+                "enable",
+                "disable",
+                "status"
+              ]
+            }
+          ],
+          "functions": [
+            {
+              "name": "create_demo_broker",
+              "line": 20,
+              "args": 0
+            },
+            {
+              "name": "redact_sensitive_content",
+              "line": 148,
+              "args": 1
+            },
+            {
+              "name": "apply_redaction_to_items",
+              "line": 171,
+              "args": 2
+            },
+            {
+              "name": "main",
+              "line": 224,
+              "args": 0
+            },
+            {
+              "name": "__init__",
+              "line": 32,
+              "args": 2
+            },
+            {
+              "name": "__init__",
+              "line": 207,
+              "args": 1
+            },
+            {
+              "name": "enable",
+              "line": 210,
+              "args": 2
+            },
+            {
+              "name": "disable",
+              "line": 215,
+              "args": 2
+            },
+            {
+              "name": "status",
+              "line": 220,
+              "args": 1
+            }
+          ],
+          "imports": [
+            "asyncio",
+            "argparse",
+            "json",
+            "sys",
+            "os",
+            "typing",
+            "pinak.context.broker.broker",
+            "pinak.context.nudge.engine",
+            "pinak.context.core.models",
+            "re",
+            "pinak.context.core.models",
+            "datetime",
+            "pinak.context.core.models",
+            "pinak.context.core.models",
+            "datetime",
+            "pinak.context.core.models",
+            "pinak.context.core.models"
+          ]
+        },
+        "pinak.memory.cli": {
+          "path": "/Users/abhijita/Pinak_Package/src/pinak/memory/cli.py",
+          "classes": [],
+          "functions": [
+            {
+              "name": "main",
+              "line": 16,
+              "args": 1
+            }
+          ],
+          "imports": [
+            "__future__",
+            "argparse",
+            "json",
+            "os",
+            "sys",
+            "typing",
+            "manager",
+            "bridge.context"
+          ]
+        },
+        "pinak.memory.manager": {
+          "path": "/Users/abhijita/Pinak_Package/src/pinak/memory/manager.py",
+          "classes": [
+            {
+              "name": "MemoryManager",
+              "line": 11,
+              "methods": [
+                "__init__",
+                "add_memory",
+                "search_memory",
+                "health",
+                "add_event",
+                "add_episodic",
+                "list_episodic",
+                "add_procedural",
+                "list_procedural",
+                "add_rag",
+                "list_rag",
+                "list_events",
+                "add_session",
+                "list_session",
+                "add_working",
+                "list_working",
+                "search_all_layers"
+              ]
+            }
+          ],
+          "functions": [
+            {
+              "name": "__init__",
+              "line": 14,
+              "args": 7
+            },
+            {
+              "name": "add_memory",
+              "line": 52,
+              "args": 3
+            },
+            {
+              "name": "search_memory",
+              "line": 70,
+              "args": 3
+            },
+            {
+              "name": "health",
+              "line": 97,
+              "args": 1
+            },
+            {
+              "name": "add_event",
+              "line": 104,
+              "args": 2
+            },
+            {
+              "name": "add_episodic",
+              "line": 118,
+              "args": 3
+            },
+            {
+              "name": "list_episodic",
+              "line": 132,
+              "args": 2
+            },
+            {
+              "name": "add_procedural",
+              "line": 142,
+              "args": 3
+            },
+            {
+              "name": "list_procedural",
+              "line": 156,
+              "args": 2
+            },
+            {
+              "name": "add_rag",
+              "line": 166,
+              "args": 3
+            },
+            {
+              "name": "list_rag",
+              "line": 180,
+              "args": 2
+            },
+            {
+              "name": "list_events",
+              "line": 190,
+              "args": 5
+            },
+            {
+              "name": "add_session",
+              "line": 206,
+              "args": 4
+            },
+            {
+              "name": "list_session",
+              "line": 219,
+              "args": 3
+            },
+            {
+              "name": "add_working",
+              "line": 234,
+              "args": 3
+            },
+            {
+              "name": "list_working",
+              "line": 247,
+              "args": 2
+            },
+            {
+              "name": "search_all_layers",
+              "line": 260,
+              "args": 4
+            }
+          ],
+          "imports": [
+            "os",
+            "httpx",
+            "sys",
+            "time",
+            "typing",
+            "bridge.context"
+          ]
+        },
+        "pinak.menubar.app": {
+          "path": "/Users/abhijita/Pinak_Package/src/pinak/menubar/app.py",
+          "classes": [
+            {
+              "name": "PinakStatusApp",
+              "line": 92,
+              "methods": [
+                "__init__",
+                "_initial_probe",
+                "_set_title",
+                "notify",
+                "on_quit",
+                "on_status",
+                "on_heal",
+                "on_rotate",
+                "on_stop",
+                "_tick",
+                "update_status",
+                "_render_status"
+              ]
+            }
+          ],
+          "functions": [
+            {
+              "name": "check_health",
+              "line": 23,
+              "args": 0
+            },
+            {
+              "name": "try_self_heal",
+              "line": 56,
+              "args": 1
+            },
+            {
+              "name": "main",
+              "line": 176,
+              "args": 0
+            },
+            {
+              "name": "log",
+              "line": 57,
+              "args": 1
+            },
+            {
+              "name": "__init__",
+              "line": 93,
+              "args": 1
+            },
+            {
+              "name": "_initial_probe",
+              "line": 107,
+              "args": 1
+            },
+            {
+              "name": "_set_title",
+              "line": 111,
+              "args": 2
+            },
+            {
+              "name": "notify",
+              "line": 114,
+              "args": 3
+            },
+            {
+              "name": "on_quit",
+              "line": 120,
+              "args": 2
+            },
+            {
+              "name": "on_status",
+              "line": 123,
+              "args": 2
+            },
+            {
+              "name": "on_heal",
+              "line": 127,
+              "args": 2
+            },
+            {
+              "name": "on_rotate",
+              "line": 133,
+              "args": 2
+            },
+            {
+              "name": "on_stop",
+              "line": 145,
+              "args": 2
+            },
+            {
+              "name": "_tick",
+              "line": 156,
+              "args": 2
+            },
+            {
+              "name": "update_status",
+              "line": 159,
+              "args": 1
+            },
+            {
+              "name": "_render_status",
+              "line": 163,
+              "args": 2
+            }
+          ],
+          "imports": [
+            "__future__",
+            "os",
+            "subprocess",
+            "sys",
+            "threading",
+            "time",
+            "typing",
+            "rumps",
+            "pinak.memory.manager",
+            "jose",
+            "pinak.bridge.context",
+            "pinak.bridge.context",
+            "pinak.cli",
+            "pinak.bridge.context",
+            "pinak.cli"
+          ]
+        },
+        "pinak.security.auditor": {
+          "path": "/Users/abhijita/Pinak_Package/src/pinak/security/auditor.py",
+          "classes": [
+            {
+              "name": "SecurityAuditor",
+              "line": 7,
+              "methods": [
+                "__init__",
+                "_load_config",
+                "scan_file_for_secrets",
+                "check_dependencies",
+                "generate_report"
+              ]
+            }
+          ],
+          "functions": [
+            {
+              "name": "__init__",
+              "line": 10,
+              "args": 2
+            },
+            {
+              "name": "_load_config",
+              "line": 17,
+              "args": 2
+            },
+            {
+              "name": "scan_file_for_secrets",
+              "line": 21,
+              "args": 2
+            },
+            {
+              "name": "check_dependencies",
+              "line": 40,
+              "args": 2
+            },
+            {
+              "name": "generate_report",
+              "line": 72,
+              "args": 3
+            }
+          ],
+          "imports": [
+            "json",
+            "os",
+            "re",
+            "datetime",
+            "subprocess"
+          ]
+        },
+        "pinak.bridge.context": {
+          "path": "/Users/abhijita/Pinak_Package/src/pinak/bridge/context.py",
+          "classes": [
+            {
+              "name": "ProjectContext",
+              "line": 48,
+              "methods": [
+                "find",
+                "init_new",
+                "_kr",
+                "set_token",
+                "get_token",
+                "rotate_token"
+              ]
+            }
+          ],
+          "functions": [
+            {
+              "name": "_now_iso",
+              "line": 20,
+              "args": 0
+            },
+            {
+              "name": "_uuid7",
+              "line": 24,
+              "args": 0
+            },
+            {
+              "name": "_walk_up_for",
+              "line": 34,
+              "args": 2
+            },
+            {
+              "name": "find",
+              "line": 59,
+              "args": 1
+            },
+            {
+              "name": "init_new",
+              "line": 85,
+              "args": 4
+            },
+            {
+              "name": "_kr",
+              "line": 103,
+              "args": 1
+            },
+            {
+              "name": "set_token",
+              "line": 106,
+              "args": 3
+            },
+            {
+              "name": "get_token",
+              "line": 122,
+              "args": 1
+            },
+            {
+              "name": "rotate_token",
+              "line": 138,
+              "args": 5
+            }
+          ],
+          "imports": [
+            "__future__",
+            "json",
+            "os",
+            "uuid",
+            "hashlib",
+            "random",
+            "stat",
+            "dataclasses",
+            "datetime",
+            "pathlib",
+            "typing",
+            "datetime",
+            "keyring",
+            "keyring",
+            "jose"
+          ]
+        },
+        "pinak.bridge.cli": {
+          "path": "/Users/abhijita/Pinak_Package/src/pinak/bridge/cli.py",
+          "classes": [],
+          "functions": [
+            {
+              "name": "_git_is_tracked_pinak",
+              "line": 13,
+              "args": 1
+            },
+            {
+              "name": "_git_ignores_pinak",
+              "line": 20,
+              "args": 1
+            },
+            {
+              "name": "cmd_init",
+              "line": 31,
+              "args": 1
+            },
+            {
+              "name": "cmd_status",
+              "line": 53,
+              "args": 1
+            },
+            {
+              "name": "cmd_verify",
+              "line": 71,
+              "args": 1
+            },
+            {
+              "name": "cmd_token_set",
+              "line": 107,
+              "args": 1
+            },
+            {
+              "name": "cmd_token_print",
+              "line": 117,
+              "args": 1
+            },
+            {
+              "name": "cmd_token_revoke",
+              "line": 130,
+              "args": 1
+            },
+            {
+              "name": "cmd_token_rotate",
+              "line": 155,
+              "args": 1
+            },
+            {
+              "name": "main",
+              "line": 169,
+              "args": 1
+            }
+          ],
+          "imports": [
+            "__future__",
+            "argparse",
+            "json",
+            "subprocess",
+            "pathlib",
+            "typing",
+            "os",
+            "context",
+            "keyring",
+            "time",
+            "jose"
+          ]
+        },
+        "pinak.context.broker.neural_reranker": {
+          "path": "/Users/abhijita/Pinak_Package/src/pinak/context/broker/neural_reranker.py",
+          "classes": [],
+          "functions": [],
+          "imports": []
+        },
+        "pinak.context.broker.world_beating_retrieval": {
+          "path": "/Users/abhijita/Pinak_Package/src/pinak/context/broker/world_beating_retrieval.py",
+          "classes": [
+            {
+              "name": "RetrievalResult",
+              "line": 33,
+              "methods": []
+            },
+            {
+              "name": "AdvancedScore",
+              "line": 44,
+              "methods": [
+                "__lt__"
+              ]
+            },
+            {
+              "name": "QueryAnalysis",
+              "line": 61,
+              "methods": []
+            },
+            {
+              "name": "RetrievalStage",
+              "line": 75,
+              "methods": []
+            },
+            {
+              "name": "WorldBeatingRetrievalEngine",
+              "line": 84,
+              "methods": [
+                "__init__",
+                "_configure_retrieval_pipeline",
+                "_classify_query_intent",
+                "_decompose_complex_query",
+                "_get_query_synonyms",
+                "_get_related_terms",
+                "_get_contextual_expansions",
+                "_extract_domain_context",
+                "_extract_temporal_context",
+                "_calculate_query_complexity",
+                "_calculate_query_ambiguity",
+                "_calculate_advanced_semantic_score",
+                "_calculate_advanced_keyword_score",
+                "_calculate_contextual_score",
+                "_calculate_advanced_temporal_score",
+                "_extract_phrases",
+                "_calculate_keyword_score",
+                "_calculate_semantic_score",
+                "_calculate_advanced_layer_confidence",
+                "_calculate_adaptive_weights",
+                "_calculate_uncertainty",
+                "_calculate_pipeline_efficiency",
+                "_generate_semantic_cache_key",
+                "_get_semantic_cached_response",
+                "_cache_semantic_response",
+                "_passes_security_filter",
+                "_update_advanced_metrics",
+                "get_performance_metrics",
+                "_calculate_advanced_scores"
+              ]
+            },
+            {
+              "name": "IntentAnalysisResult",
+              "line": 1515,
+              "methods": []
+            },
+            {
+              "name": "DenseRetrievalResult",
+              "line": 1525,
+              "methods": []
+            },
+            {
+              "name": "SparseHybridResult",
+              "line": 1535,
+              "methods": []
+            },
+            {
+              "name": "GraphExpansionResult",
+              "line": 1545,
+              "methods": []
+            },
+            {
+              "name": "NeuralRerankResult",
+              "line": 1554,
+              "methods": []
+            },
+            {
+              "name": "AdaptiveOptimizationResult",
+              "line": 1563,
+              "methods": []
+            },
+            {
+              "name": "RetrievalPipeline",
+              "line": 1572,
+              "methods": [
+                "__post_init__"
+              ]
+            }
+          ],
+          "functions": [
+            {
+              "name": "__lt__",
+              "line": 56,
+              "args": 2
+            },
+            {
+              "name": "__init__",
+              "line": 99,
+              "args": 8
+            },
+            {
+              "name": "_configure_retrieval_pipeline",
+              "line": 160,
+              "args": 1
+            },
+            {
+              "name": "_classify_query_intent",
+              "line": 312,
+              "args": 2
+            },
+            {
+              "name": "_decompose_complex_query",
+              "line": 338,
+              "args": 2
+            },
+            {
+              "name": "_get_query_synonyms",
+              "line": 375,
+              "args": 2
+            },
+            {
+              "name": "_get_related_terms",
+              "line": 397,
+              "args": 2
+            },
+            {
+              "name": "_get_contextual_expansions",
+              "line": 419,
+              "args": 3
+            },
+            {
+              "name": "_extract_domain_context",
+              "line": 438,
+              "args": 2
+            },
+            {
+              "name": "_extract_temporal_context",
+              "line": 457,
+              "args": 2
+            },
+            {
+              "name": "_calculate_query_complexity",
+              "line": 476,
+              "args": 2
+            },
+            {
+              "name": "_calculate_query_ambiguity",
+              "line": 499,
+              "args": 2
+            },
+            {
+              "name": "_calculate_advanced_semantic_score",
+              "line": 783,
+              "args": 3
+            },
+            {
+              "name": "_calculate_advanced_keyword_score",
+              "line": 812,
+              "args": 3
+            },
+            {
+              "name": "_calculate_contextual_score",
+              "line": 847,
+              "args": 3
+            },
+            {
+              "name": "_calculate_advanced_temporal_score",
+              "line": 877,
+              "args": 2
+            },
+            {
+              "name": "_extract_phrases",
+              "line": 899,
+              "args": 2
+            },
+            {
+              "name": "_calculate_keyword_score",
+              "line": 912,
+              "args": 3
+            },
+            {
+              "name": "_calculate_semantic_score",
+              "line": 920,
+              "args": 3
+            },
+            {
+              "name": "_calculate_advanced_layer_confidence",
+              "line": 931,
+              "args": 5
+            },
+            {
+              "name": "_calculate_adaptive_weights",
+              "line": 1061,
+              "args": 4
+            },
+            {
+              "name": "_calculate_uncertainty",
+              "line": 1114,
+              "args": 2
+            },
+            {
+              "name": "_calculate_pipeline_efficiency",
+              "line": 1184,
+              "args": 1
+            },
+            {
+              "name": "_generate_semantic_cache_key",
+              "line": 1195,
+              "args": 3
+            },
+            {
+              "name": "_get_semantic_cached_response",
+              "line": 1210,
+              "args": 3
+            },
+            {
+              "name": "_cache_semantic_response",
+              "line": 1227,
+              "args": 4
+            },
+            {
+              "name": "_passes_security_filter",
+              "line": 1273,
+              "args": 3
+            },
+            {
+              "name": "_update_advanced_metrics",
+              "line": 1289,
+              "args": 3
+            },
+            {
+              "name": "get_performance_metrics",
+              "line": 1301,
+              "args": 1
+            },
+            {
+              "name": "_calculate_advanced_scores",
+              "line": 1405,
+              "args": 3
+            },
+            {
+              "name": "__post_init__",
+              "line": 1577,
+              "args": 1
+            }
+          ],
+          "imports": [
+            "__future__",
+            "typing",
+            "dataclasses",
+            "datetime",
+            "asyncio",
+            "logging",
+            "time",
+            "concurrent.futures",
+            "heapq",
+            "math",
+            "re",
+            "collections",
+            "hashlib",
+            "json",
+            "core.models",
+            "graph_expansion",
+            "rl_optimizer"
+          ]
+        },
+        "pinak.context.broker.rl_optimizer": {
+          "path": "/Users/abhijita/Pinak_Package/src/pinak/context/broker/rl_optimizer.py",
+          "classes": [
+            {
+              "name": "OptimizationAction",
+              "line": 28,
+              "methods": []
+            },
+            {
+              "name": "OptimizationState",
+              "line": 37,
+              "methods": []
+            },
+            {
+              "name": "PerformanceReward",
+              "line": 50,
+              "methods": []
+            },
+            {
+              "name": "OptimizationResult",
+              "line": 60,
+              "methods": []
+            },
+            {
+              "name": "QLearningOptimizer",
+              "line": 70,
+              "methods": [
+                "__init__",
+                "get_state_key",
+                "choose_action",
+                "_random_action",
+                "_parse_action_string",
+                "update_q_value",
+                "decay_exploration",
+                "apply_action",
+                "_normalize_weights",
+                "get_best_parameters"
+              ]
+            },
+            {
+              "name": "AdaptiveLearningEngine",
+              "line": 262,
+              "methods": [
+                "__init__",
+                "_calculate_reward",
+                "_calculate_precision_at_k",
+                "_calculate_recall_at_k",
+                "_should_adapt",
+                "_predict_improvement",
+                "get_optimized_parameters",
+                "get_metrics",
+                "reset_learning",
+                "_adjust_learning_strategy",
+                "_implement_error_recovery"
+              ]
+            }
+          ],
+          "functions": [
+            {
+              "name": "__init__",
+              "line": 78,
+              "args": 7
+            },
+            {
+              "name": "get_state_key",
+              "line": 116,
+              "args": 2
+            },
+            {
+              "name": "choose_action",
+              "line": 120,
+              "args": 2
+            },
+            {
+              "name": "_random_action",
+              "line": 140,
+              "args": 1
+            },
+            {
+              "name": "_parse_action_string",
+              "line": 162,
+              "args": 2
+            },
+            {
+              "name": "update_q_value",
+              "line": 176,
+              "args": 5
+            },
+            {
+              "name": "decay_exploration",
+              "line": 201,
+              "args": 1
+            },
+            {
+              "name": "apply_action",
+              "line": 208,
+              "args": 3
+            },
+            {
+              "name": "_normalize_weights",
+              "line": 221,
+              "args": 2
+            },
+            {
+              "name": "get_best_parameters",
+              "line": 235,
+              "args": 1
+            },
+            {
+              "name": "__init__",
+              "line": 268,
+              "args": 5
+            },
+            {
+              "name": "_calculate_reward",
+              "line": 385,
+              "args": 4
+            },
+            {
+              "name": "_calculate_precision_at_k",
+              "line": 414,
+              "args": 3
+            },
+            {
+              "name": "_calculate_recall_at_k",
+              "line": 428,
+              "args": 3
+            },
+            {
+              "name": "_should_adapt",
+              "line": 433,
+              "args": 1
+            },
+            {
+              "name": "_predict_improvement",
+              "line": 455,
+              "args": 3
+            },
+            {
+              "name": "get_optimized_parameters",
+              "line": 466,
+              "args": 1
+            },
+            {
+              "name": "get_metrics",
+              "line": 485,
+              "args": 1
+            },
+            {
+              "name": "reset_learning",
+              "line": 504,
+              "args": 1
+            },
+            {
+              "name": "_adjust_learning_strategy",
+              "line": 535,
+              "args": 1
+            },
+            {
+              "name": "_implement_error_recovery",
+              "line": 545,
+              "args": 1
+            }
+          ],
+          "imports": [
+            "__future__",
+            "typing",
+            "dataclasses",
+            "datetime",
+            "asyncio",
+            "logging",
+            "random",
+            "numpy",
+            "collections",
+            "core.models"
+          ]
+        },
+        "pinak.context.broker.broker": {
+          "path": "/Users/abhijita/Pinak_Package/src/pinak/context/broker/broker.py",
+          "classes": [
+            {
+              "name": "RetrievalResult",
+              "line": 30,
+              "methods": []
+            },
+            {
+              "name": "HybridScore",
+              "line": 39,
+              "methods": [
+                "__lt__"
+              ]
+            },
+            {
+              "name": "ContextBroker",
+              "line": 51,
+              "methods": [
+                "__init__",
+                "_hybrid_rerank",
+                "_calculate_semantic_score",
+                "_calculate_keyword_score",
+                "_calculate_temporal_score",
+                "_get_layer_boost",
+                "_apply_filters",
+                "_passes_security_filter",
+                "_generate_cache_key",
+                "_get_cached_response",
+                "_cache_response",
+                "_calculate_layer_confidence",
+                "_update_execution_metrics",
+                "get_metrics"
+              ]
+            }
+          ],
+          "functions": [
+            {
+              "name": "__lt__",
+              "line": 47,
+              "args": 2
+            },
+            {
+              "name": "__init__",
+              "line": 63,
+              "args": 8
+            },
+            {
+              "name": "_hybrid_rerank",
+              "line": 257,
+              "args": 3
+            },
+            {
+              "name": "_calculate_semantic_score",
+              "line": 295,
+              "args": 3
+            },
+            {
+              "name": "_calculate_keyword_score",
+              "line": 307,
+              "args": 3
+            },
+            {
+              "name": "_calculate_temporal_score",
+              "line": 315,
+              "args": 2
+            },
+            {
+              "name": "_get_layer_boost",
+              "line": 322,
+              "args": 2
+            },
+            {
+              "name": "_apply_filters",
+              "line": 336,
+              "args": 3
+            },
+            {
+              "name": "_passes_security_filter",
+              "line": 372,
+              "args": 3
+            },
+            {
+              "name": "_generate_cache_key",
+              "line": 376,
+              "args": 2
+            },
+            {
+              "name": "_get_cached_response",
+              "line": 390,
+              "args": 2
+            },
+            {
+              "name": "_cache_response",
+              "line": 401,
+              "args": 3
+            },
+            {
+              "name": "_calculate_layer_confidence",
+              "line": 410,
+              "args": 4
+            },
+            {
+              "name": "_update_execution_metrics",
+              "line": 473,
+              "args": 2
+            },
+            {
+              "name": "get_metrics",
+              "line": 483,
+              "args": 1
+            }
+          ],
+          "imports": [
+            "__future__",
+            "typing",
+            "dataclasses",
+            "datetime",
+            "asyncio",
+            "logging",
+            "time",
+            "concurrent.futures",
+            "heapq",
+            "core.models",
+            "graph_expansion",
+            "rl_optimizer",
+            "hashlib",
+            "json"
+          ]
+        },
+        "pinak.context.broker.graph_expansion": {
+          "path": "/Users/abhijita/Pinak_Package/src/pinak/context/broker/graph_expansion.py",
+          "classes": [
+            {
+              "name": "KnowledgeNode",
+              "line": 27,
+              "methods": [
+                "__post_init__"
+              ]
+            },
+            {
+              "name": "KnowledgeEdge",
+              "line": 44,
+              "methods": []
+            },
+            {
+              "name": "GraphExpansionResult",
+              "line": 56,
+              "methods": []
+            },
+            {
+              "name": "KnowledgeGraph",
+              "line": 67,
+              "methods": [
+                "__init__",
+                "add_node",
+                "add_edge",
+                "build_from_context_items",
+                "_extract_relationships",
+                "_calculate_semantic_relationship",
+                "_extract_temporal_relationships",
+                "traverse_from_nodes",
+                "_evict_oldest_nodes",
+                "get_statistics",
+                "_count_node_types",
+                "_count_edge_types"
+              ]
+            },
+            {
+              "name": "GraphBasedExpander",
+              "line": 310,
+              "methods": [
+                "__init__",
+                "_extract_new_relationships",
+                "_filter_and_rank_expanded_items",
+                "_calculate_expansion_confidence",
+                "_update_metrics",
+                "get_metrics",
+                "optimize_graph"
+              ]
+            }
+          ],
+          "functions": [
+            {
+              "name": "__post_init__",
+              "line": 38,
+              "args": 1
+            },
+            {
+              "name": "__init__",
+              "line": 70,
+              "args": 3
+            },
+            {
+              "name": "add_node",
+              "line": 77,
+              "args": 2
+            },
+            {
+              "name": "add_edge",
+              "line": 85,
+              "args": 2
+            },
+            {
+              "name": "build_from_context_items",
+              "line": 106,
+              "args": 2
+            },
+            {
+              "name": "_extract_relationships",
+              "line": 128,
+              "args": 2
+            },
+            {
+              "name": "_calculate_semantic_relationship",
+              "line": 149,
+              "args": 3
+            },
+            {
+              "name": "_extract_temporal_relationships",
+              "line": 184,
+              "args": 2
+            },
+            {
+              "name": "traverse_from_nodes",
+              "line": 207,
+              "args": 5
+            },
+            {
+              "name": "_evict_oldest_nodes",
+              "line": 261,
+              "args": 1
+            },
+            {
+              "name": "get_statistics",
+              "line": 283,
+              "args": 1
+            },
+            {
+              "name": "_count_node_types",
+              "line": 294,
+              "args": 1
+            },
+            {
+              "name": "_count_edge_types",
+              "line": 301,
+              "args": 1
+            },
+            {
+              "name": "__init__",
+              "line": 321,
+              "args": 5
+            },
+            {
+              "name": "_extract_new_relationships",
+              "line": 438,
+              "args": 2
+            },
+            {
+              "name": "_filter_and_rank_expanded_items",
+              "line": 493,
+              "args": 4
+            },
+            {
+              "name": "_calculate_expansion_confidence",
+              "line": 517,
+              "args": 3
+            },
+            {
+              "name": "_update_metrics",
+              "line": 536,
+              "args": 2
+            },
+            {
+              "name": "get_metrics",
+              "line": 547,
+              "args": 1
+            },
+            {
+              "name": "optimize_graph",
+              "line": 555,
+              "args": 1
+            }
+          ],
+          "imports": [
+            "__future__",
+            "typing",
+            "dataclasses",
+            "datetime",
+            "asyncio",
+            "logging",
+            "networkx",
+            "collections",
+            "heapq",
+            "core.models"
+          ]
+        },
+        "pinak.context.core.models": {
+          "path": "/Users/abhijita/Pinak_Package/src/pinak/context/core/models.py",
+          "classes": [
+            {
+              "name": "ContextLayer",
+              "line": 17,
+              "methods": []
+            },
+            {
+              "name": "ContextPriority",
+              "line": 29,
+              "methods": []
+            },
+            {
+              "name": "SecurityClassification",
+              "line": 37,
+              "methods": []
+            },
+            {
+              "name": "ContextItem",
+              "line": 45,
+              "methods": [
+                "generate_checksum",
+                "is_expired",
+                "is_fresh",
+                "to_secure_dict",
+                "calculate_freshness_score"
+              ]
+            },
+            {
+              "name": "ContextQuery",
+              "line": 154,
+              "methods": []
+            },
+            {
+              "name": "ContextResponse",
+              "line": 195,
+              "methods": [
+                "add_item",
+                "to_audit_log"
+              ]
+            },
+            {
+              "name": "ContextEvent",
+              "line": 246,
+              "methods": [
+                "to_log_entry"
+              ]
+            },
+            {
+              "name": "IContextStore",
+              "line": 280,
+              "methods": []
+            },
+            {
+              "name": "Config",
+              "line": 88,
+              "methods": []
+            }
+          ],
+          "functions": [
+            {
+              "name": "generate_checksum",
+              "line": 96,
+              "args": 3
+            },
+            {
+              "name": "is_expired",
+              "line": 114,
+              "args": 1
+            },
+            {
+              "name": "is_fresh",
+              "line": 120,
+              "args": 2
+            },
+            {
+              "name": "to_secure_dict",
+              "line": 125,
+              "args": 2
+            },
+            {
+              "name": "calculate_freshness_score",
+              "line": 139,
+              "args": 1
+            },
+            {
+              "name": "add_item",
+              "line": 223,
+              "args": 3
+            },
+            {
+              "name": "to_audit_log",
+              "line": 231,
+              "args": 1
+            },
+            {
+              "name": "to_log_entry",
+              "line": 265,
+              "args": 1
+            }
+          ],
+          "imports": [
+            "__future__",
+            "typing",
+            "pydantic",
+            "datetime",
+            "enum",
+            "hashlib",
+            "json",
+            "uuid"
+          ]
+        },
+        "pinak.context.nudge.delivery": {
+          "path": "/Users/abhijita/Pinak_Package/src/pinak/context/nudge/delivery.py",
+          "classes": [
+            {
+              "name": "CLINudgeDelivery",
+              "line": 20,
+              "methods": [
+                "__init__",
+                "_format_nudge_for_cli",
+                "_display_nudge",
+                "_get_priority_icon",
+                "_apply_security_filter",
+                "get_delivery_channel",
+                "is_available"
+              ]
+            },
+            {
+              "name": "APINudgeDelivery",
+              "line": 164,
+              "methods": [
+                "__init__",
+                "_prepare_api_payload",
+                "get_delivery_channel",
+                "is_available"
+              ]
+            },
+            {
+              "name": "NotificationNudgeDelivery",
+              "line": 260,
+              "methods": [
+                "__init__",
+                "get_delivery_channel",
+                "is_available"
+              ]
+            },
+            {
+              "name": "CompositeNudgeDelivery",
+              "line": 440,
+              "methods": [
+                "__init__",
+                "_select_channel",
+                "get_delivery_channel",
+                "is_available"
+              ]
+            }
+          ],
+          "functions": [
+            {
+              "name": "__init__",
+              "line": 30,
+              "args": 3
+            },
+            {
+              "name": "_format_nudge_for_cli",
+              "line": 68,
+              "args": 2
+            },
+            {
+              "name": "_display_nudge",
+              "line": 101,
+              "args": 2
+            },
+            {
+              "name": "_get_priority_icon",
+              "line": 130,
+              "args": 2
+            },
+            {
+              "name": "_apply_security_filter",
+              "line": 142,
+              "args": 3
+            },
+            {
+              "name": "get_delivery_channel",
+              "line": 150,
+              "args": 1
+            },
+            {
+              "name": "is_available",
+              "line": 154,
+              "args": 1
+            },
+            {
+              "name": "__init__",
+              "line": 174,
+              "args": 3
+            },
+            {
+              "name": "_prepare_api_payload",
+              "line": 226,
+              "args": 2
+            },
+            {
+              "name": "get_delivery_channel",
+              "line": 250,
+              "args": 1
+            },
+            {
+              "name": "is_available",
+              "line": 254,
+              "args": 1
+            },
+            {
+              "name": "__init__",
+              "line": 270,
+              "args": 2
+            },
+            {
+              "name": "get_delivery_channel",
+              "line": 415,
+              "args": 1
+            },
+            {
+              "name": "is_available",
+              "line": 419,
+              "args": 1
+            },
+            {
+              "name": "__init__",
+              "line": 450,
+              "args": 3
+            },
+            {
+              "name": "_select_channel",
+              "line": 493,
+              "args": 2
+            },
+            {
+              "name": "get_delivery_channel",
+              "line": 549,
+              "args": 1
+            },
+            {
+              "name": "is_available",
+              "line": 553,
+              "args": 1
+            }
+          ],
+          "imports": [
+            "__future__",
+            "typing",
+            "datetime",
+            "asyncio",
+            "logging",
+            "json",
+            "models",
+            "core.models",
+            "subprocess",
+            "shlex",
+            "subprocess",
+            "shlex",
+            "subprocess",
+            "shlex",
+            "subprocess",
+            "shlex",
+            "platform",
+            "sys",
+            "httpx",
+            "platform",
+            "win10toast",
+            "win10toast"
+          ]
+        },
+        "pinak.context.nudge.store": {
+          "path": "/Users/abhijita/Pinak_Package/src/pinak/context/nudge/store.py",
+          "classes": [
+            {
+              "name": "InMemoryNudgeStore",
+              "line": 22,
+              "methods": [
+                "__init__",
+                "get_stats"
+              ]
+            },
+            {
+              "name": "RedisNudgeStore",
+              "line": 145,
+              "methods": [
+                "__init__"
+              ]
+            },
+            {
+              "name": "DatabaseNudgeStore",
+              "line": 320,
+              "methods": [
+                "__init__"
+              ]
+            }
+          ],
+          "functions": [
+            {
+              "name": "__init__",
+              "line": 32,
+              "args": 2
+            },
+            {
+              "name": "get_stats",
+              "line": 134,
+              "args": 1
+            },
+            {
+              "name": "__init__",
+              "line": 156,
+              "args": 3
+            },
+            {
+              "name": "__init__",
+              "line": 331,
+              "args": 3
+            }
+          ],
+          "imports": [
+            "__future__",
+            "typing",
+            "datetime",
+            "asyncio",
+            "logging",
+            "collections",
+            "models",
+            "redis.asyncio",
+            "json",
+            "json",
+            "sqlalchemy.ext.asyncio",
+            "sqlalchemy.orm",
+            "json"
+          ]
+        },
+        "pinak.context.nudge.models": {
+          "path": "/Users/abhijita/Pinak_Package/src/pinak/context/nudge/models.py",
+          "classes": [
+            {
+              "name": "NudgeType",
+              "line": 20,
+              "methods": []
+            },
+            {
+              "name": "NudgePriority",
+              "line": 30,
+              "methods": []
+            },
+            {
+              "name": "NudgeTrigger",
+              "line": 38,
+              "methods": []
+            },
+            {
+              "name": "NudgeCondition",
+              "line": 48,
+              "methods": []
+            },
+            {
+              "name": "NudgeTemplate",
+              "line": 70,
+              "methods": []
+            },
+            {
+              "name": "Nudge",
+              "line": 102,
+              "methods": [
+                "is_expired",
+                "is_delivered",
+                "is_acknowledged",
+                "calculate_effectiveness_score"
+              ]
+            },
+            {
+              "name": "NudgeDeliveryResult",
+              "line": 178,
+              "methods": []
+            },
+            {
+              "name": "INudgeStore",
+              "line": 199,
+              "methods": []
+            },
+            {
+              "name": "INudgeDelivery",
+              "line": 227,
+              "methods": [
+                "get_delivery_channel",
+                "is_available"
+              ]
+            }
+          ],
+          "functions": [
+            {
+              "name": "is_expired",
+              "line": 145,
+              "args": 1
+            },
+            {
+              "name": "is_delivered",
+              "line": 151,
+              "args": 1
+            },
+            {
+              "name": "is_acknowledged",
+              "line": 155,
+              "args": 1
+            },
+            {
+              "name": "calculate_effectiveness_score",
+              "line": 159,
+              "args": 1
+            },
+            {
+              "name": "get_delivery_channel",
+              "line": 234,
+              "args": 1
+            },
+            {
+              "name": "is_available",
+              "line": 238,
+              "args": 1
+            }
+          ],
+          "imports": [
+            "__future__",
+            "typing",
+            "pydantic",
+            "datetime",
+            "enum",
+            "asyncio",
+            "logging",
+            "core.models"
+          ]
+        },
+        "pinak.context.nudge.engine": {
+          "path": "/Users/abhijita/Pinak_Package/src/pinak/context/nudge/engine.py",
+          "classes": [
+            {
+              "name": "NudgeEngine",
+              "line": 26,
+              "methods": [
+                "__init__",
+                "_analyze_context_patterns",
+                "_analyze_timing_patterns",
+                "_analyze_trigger_events",
+                "_analyze_security_context",
+                "_find_best_template",
+                "_template_matches_opportunity",
+                "_calculate_template_score",
+                "_render_template",
+                "_group_nudges_by_priority",
+                "_select_best_delivery_channel",
+                "_update_generation_metrics",
+                "get_metrics"
+              ]
+            }
+          ],
+          "functions": [
+            {
+              "name": "__init__",
+              "line": 38,
+              "args": 6
+            },
+            {
+              "name": "_analyze_context_patterns",
+              "line": 246,
+              "args": 2
+            },
+            {
+              "name": "_analyze_timing_patterns",
+              "line": 305,
+              "args": 2
+            },
+            {
+              "name": "_analyze_trigger_events",
+              "line": 331,
+              "args": 3
+            },
+            {
+              "name": "_analyze_security_context",
+              "line": 365,
+              "args": 2
+            },
+            {
+              "name": "_find_best_template",
+              "line": 397,
+              "args": 3
+            },
+            {
+              "name": "_template_matches_opportunity",
+              "line": 420,
+              "args": 3
+            },
+            {
+              "name": "_calculate_template_score",
+              "line": 435,
+              "args": 3
+            },
+            {
+              "name": "_render_template",
+              "line": 540,
+              "args": 3
+            },
+            {
+              "name": "_group_nudges_by_priority",
+              "line": 555,
+              "args": 2
+            },
+            {
+              "name": "_select_best_delivery_channel",
+              "line": 630,
+              "args": 2
+            },
+            {
+              "name": "_update_generation_metrics",
+              "line": 693,
+              "args": 3
+            },
+            {
+              "name": "get_metrics",
+              "line": 709,
+              "args": 1
+            }
+          ],
+          "imports": [
+            "__future__",
+            "typing",
+            "datetime",
+            "asyncio",
+            "logging",
+            "re",
+            "collections",
+            "models",
+            "core.models",
+            "broker.broker"
+          ]
+        }
+      },
+      "complexity": {}
+    },
+    "api_docs": {
+      "modules": {
+        "pinak.cli": {
+          "docstring": "",
+          "classes": {},
+          "functions": {
+            "cmd_bridge": {
+              "docstring": "",
+              "signature": "(args: 'argparse.Namespace') -> 'int'",
+              "parameters": [
+                "args"
+              ],
+              "return_type": "int"
+            },
+            "cmd_doctor": {
+              "docstring": "",
+              "signature": "(args: 'argparse.Namespace') -> 'int'",
+              "parameters": [
+                "args"
+              ],
+              "return_type": "int"
+            },
+            "cmd_down": {
+              "docstring": "",
+              "signature": "(args: 'argparse.Namespace') -> 'int'",
+              "parameters": [
+                "args"
+              ],
+              "return_type": "int"
+            },
+            "cmd_governance": {
+              "docstring": "",
+              "signature": "(args: 'argparse.Namespace') -> 'int'",
+              "parameters": [
+                "args"
+              ],
+              "return_type": "int"
+            },
+            "cmd_memory": {
+              "docstring": "",
+              "signature": "(args: 'argparse.Namespace') -> 'int'",
+              "parameters": [
+                "args"
+              ],
+              "return_type": "int"
+            },
+            "cmd_quarantine": {
+              "docstring": "",
+              "signature": "(args: 'argparse.Namespace') -> 'int'",
+              "parameters": [
+                "args"
+              ],
+              "return_type": "int"
+            },
+            "cmd_quickstart": {
+              "docstring": "",
+              "signature": "(args: 'argparse.Namespace') -> 'int'",
+              "parameters": [
+                "args"
+              ],
+              "return_type": "int"
+            },
+            "cmd_services_status": {
+              "docstring": "",
+              "signature": "(args: 'argparse.Namespace') -> 'int'",
+              "parameters": [
+                "args"
+              ],
+              "return_type": "int"
+            },
+            "cmd_token": {
+              "docstring": "",
+              "signature": "(args: 'argparse.Namespace') -> 'int'",
+              "parameters": [
+                "args"
+              ],
+              "return_type": "int"
+            },
+            "cmd_up": {
+              "docstring": "",
+              "signature": "(args: 'argparse.Namespace') -> 'int'",
+              "parameters": [
+                "args"
+              ],
+              "return_type": "int"
+            },
+            "ensure_docker": {
+              "docstring": "",
+              "signature": "(timeout: 'int' = 120) -> 'bool'",
+              "parameters": [
+                "timeout"
+              ],
+              "return_type": "bool"
+            },
+            "have": {
+              "docstring": "",
+              "signature": "(cmd: 'str') -> 'bool'",
+              "parameters": [
+                "cmd"
+              ],
+              "return_type": "bool"
+            },
+            "main": {
+              "docstring": "",
+              "signature": "(argv: 'Optional[list[str]]' = None) -> 'int'",
+              "parameters": [
+                "argv"
+              ],
+              "return_type": "int"
+            },
+            "run": {
+              "docstring": "",
+              "signature": "(cmd: 'list[str]', cwd: 'Optional[Path]' = None, check: 'bool' = True) -> 'subprocess.CompletedProcess'",
+              "parameters": [
+                "cmd",
+                "cwd",
+                "check"
+              ],
+              "return_type": "subprocess.CompletedProcess"
+            },
+            "try_up_services": {
+              "docstring": "",
+              "signature": "() -> 'bool'",
+              "parameters": [],
+              "return_type": "bool"
+            }
+          }
+        },
+        "pinak.security.auditor": {
+          "docstring": "",
+          "classes": {
+            "SecurityAuditor": {
+              "docstring": "A local security auditing tool, using pip-audit for dependency scanning.",
+              "methods": {
+                "check_dependencies": {
+                  "docstring": "Checks dependencies using pip-audit. If a requirements path is provided and exists, scan that file; otherwise scan current environment.",
+                  "signature": "(self, requirements_path=None)",
+                  "parameters": [
+                    "self",
+                    "requirements_path"
+                  ],
+                  "return_type": null
+                },
+                "generate_report": {
+                  "docstring": "Generates a timestamped JSON report of findings.",
+                  "signature": "(self, findings, report_type='full_scan')",
+                  "parameters": [
+                    "self",
+                    "findings",
+                    "report_type"
+                  ],
+                  "return_type": null
+                },
+                "scan_file_for_secrets": {
+                  "docstring": "Scans a single file for hardcoded secrets based on regex patterns.",
+                  "signature": "(self, file_path)",
+                  "parameters": [
+                    "self",
+                    "file_path"
+                  ],
+                  "return_type": null
+                }
+              }
+            }
+          },
+          "functions": {}
+        },
+        "pinak.file_quarantine": {
+          "docstring": "\nFile Deletion Quarantine System for Pinak.\n\nFollowing the strict no-file-deletion policy, this system archives files instead of deleting them.\nAll file operations that would normally delete files are redirected to quarantine/archive.\n\nKey Features:\n- Archive files with metadata (timestamp, reason, user)\n- Maintain complete audit trail\n- Automatic cleanup policies\n- Restore functionality\n- Integration with Git for tracking\n",
+          "classes": {
+            "FileQuarantineManager": {
+              "docstring": "\nManages file quarantine operations.\n\nThis class provides a safe way to \"delete\" files by moving them to a quarantine\ndirectory with full audit trail and restoration capabilities.\n",
+              "methods": {
+                "cleanup_old_files": {
+                  "docstring": "\nClean up old quarantined files.\n\nArgs:\n    max_age_days: Maximum age in days (defaults to auto_cleanup_days)\n    priority_filter: Only cleanup specific priority\n    dry_run: If True, only report what would be cleaned\n\nReturns:\n    Cleanup statistics\n",
+                  "signature": "(self, max_age_days: Optional[int] = None, priority_filter: Optional[pinak.file_quarantine.QuarantinePriority] = None, dry_run: bool = False) -> Dict[str, Any]",
+                  "parameters": [
+                    "self",
+                    "max_age_days",
+                    "priority_filter",
+                    "dry_run"
+                  ],
+                  "return_type": "typing.Dict[str, typing.Any]"
+                },
+                "get_quarantine_stats": {
+                  "docstring": "Get comprehensive quarantine statistics.",
+                  "signature": "(self) -> Dict[str, Any]",
+                  "parameters": [
+                    "self"
+                  ],
+                  "return_type": "typing.Dict[str, typing.Any]"
+                },
+                "list_quarantined_files": {
+                  "docstring": "\nList quarantined files with optional filtering.\n\nReturns:\n    List of quarantine records as dictionaries\n",
+                  "signature": "(self, action_filter: Optional[pinak.file_quarantine.QuarantineAction] = None, priority_filter: Optional[pinak.file_quarantine.QuarantinePriority] = None, user_filter: Optional[str] = None, limit: int = 100) -> List[Dict[str, Any]]",
+                  "parameters": [
+                    "self",
+                    "action_filter",
+                    "priority_filter",
+                    "user_filter",
+                    "limit"
+                  ],
+                  "return_type": "typing.List[typing.Dict[str, typing.Any]]"
+                },
+                "quarantine_file": {
+                  "docstring": "\nQuarantine a file instead of deleting it.\n\nArgs:\n    file_path: Path to the file to quarantine\n    action: Type of action being quarantined\n    reason: Reason for quarantine\n    user: User performing the action\n    priority: Priority level for the quarantine\n    metadata: Additional metadata\n    preserve_git_history: Whether to preserve git history info\n\nReturns:\n    Quarantine record ID if successful, None if failed\n",
+                  "signature": "(self, file_path: Union[str, pathlib._local.Path], action: pinak.file_quarantine.QuarantineAction, reason: str, user: str = 'system', priority: pinak.file_quarantine.QuarantinePriority = <QuarantinePriority.MEDIUM: 'medium'>, metadata: Optional[Dict[str, Any]] = None, preserve_git_history: bool = True) -> Optional[str]",
+                  "parameters": [
+                    "self",
+                    "file_path",
+                    "action",
+                    "reason",
+                    "user",
+                    "priority",
+                    "metadata",
+                    "preserve_git_history"
+                  ],
+                  "return_type": "typing.Optional[str]"
+                },
+                "restore_file": {
+                  "docstring": "\nRestore a quarantined file.\n\nArgs:\n    record_id: ID of the quarantine record\n    target_path: Path to restore to (defaults to original path)\n\nReturns:\n    True if successful, False otherwise\n",
+                  "signature": "(self, record_id: str, target_path: Union[str, pathlib._local.Path, NoneType] = None) -> bool",
+                  "parameters": [
+                    "self",
+                    "record_id",
+                    "target_path"
+                  ],
+                  "return_type": "<class 'bool'>"
+                }
+              }
+            },
+            "QuarantineAction": {
+              "docstring": "Types of quarantine actions.",
+              "methods": {}
+            },
+            "QuarantinePriority": {
+              "docstring": "Priority levels for quarantine operations.",
+              "methods": {}
+            },
+            "QuarantineRecord": {
+              "docstring": "Record of a quarantined file operation.",
+              "methods": {
+                "to_dict": {
+                  "docstring": "Convert record to dictionary for JSON serialization.",
+                  "signature": "(self) -> Dict[str, Any]",
+                  "parameters": [
+                    "self"
+                  ],
+                  "return_type": "typing.Dict[str, typing.Any]"
+                }
+              }
+            }
+          },
+          "functions": {
+            "get_quarantine_manager": {
+              "docstring": "Get the global quarantine manager instance.",
+              "signature": "() -> pinak.file_quarantine.FileQuarantineManager",
+              "parameters": [],
+              "return_type": "<class 'pinak.file_quarantine.FileQuarantineManager'>"
+            },
+            "patch_file_operations": {
+              "docstring": "Patch common file operations to use quarantine system.",
+              "signature": "()",
+              "parameters": [],
+              "return_type": null
+            },
+            "quarantine_file": {
+              "docstring": "Convenience function to quarantine a file.",
+              "signature": "(*args, **kwargs) -> Optional[str]",
+              "parameters": [
+                "args",
+                "kwargs"
+              ],
+              "return_type": "typing.Optional[str]"
+            },
+            "safe_delete": {
+              "docstring": "\nSafe delete function that quarantines instead of deleting.\n\nThis function should be used instead of os.remove() or Path.unlink().\n",
+              "signature": "(file_path: Union[str, pathlib._local.Path], reason: str, user: str = 'system') -> bool",
+              "parameters": [
+                "file_path",
+                "reason",
+                "user"
+              ],
+              "return_type": "<class 'bool'>"
+            },
+            "safe_move": {
+              "docstring": "\nSafe move function that quarantines the source file.\n\nThis should be used when a file would be overwritten or removed during a move.\n",
+              "signature": "(src: Union[str, pathlib._local.Path], dst: Union[str, pathlib._local.Path], reason: str, user: str = 'system') -> bool",
+              "parameters": [
+                "src",
+                "dst",
+                "reason",
+                "user"
+              ],
+              "return_type": "<class 'bool'>"
+            }
+          }
+        }
+      },
+      "classes": {},
+      "functions": {}
+    },
+    "architecture": {
+      "components": {
+        "CLI": {
+          "module": "pinak.cli",
+          "description": "No description",
+          "classes": 1,
+          "functions": 15
+        },
+        "Memory Service": {
+          "error": "Could not import pinak.memory.manager"
+        },
+        "Context Broker": {
+          "error": "Could not import pinak.context.broker.broker"
+        },
+        "Security Auditor": {
+          "module": "pinak.security.auditor",
+          "description": "No description",
+          "classes": 1,
+          "functions": 0
+        },
+        "File Quarantine": {
+          "module": "pinak.file_quarantine",
+          "description": "\nFile Deletion Quarantine System for Pinak",
+          "classes": 7,
+          "functions": 7
+        }
+      },
+      "data_flow": {},
+      "dependencies": {},
+      "design_patterns": []
+    },
+    "test_docs": {
+      "test_files": [
+        {
+          "file": "tests/test_memory_service_comprehensive.py",
+          "tests": [
+            "test_memory_data",
+            "test_service_initialization",
+            "test_cli_health_command",
+            "test_memory_cli_help",
+            "test_memory_cli_invalid_command"
+          ],
+          "markers": [
+            "fixture"
+          ],
+          "test_count": 5
+        },
+        {
+          "file": "tests/test_world_beating_retrieval.py",
+          "tests": [
+            "test_advanced_scoring",
+            "test_pipeline_stage_coordination",
+            "test_pipeline_configuration",
+            "test_pipeline_initialization",
+            "test_stage_execution_order"
+          ],
+          "markers": [],
+          "test_count": 5
+        },
+        {
+          "file": "tests/test_user_integration.py",
+          "tests": [
+            "test_user_journey_breeze_integration",
+            "test_user_scenarios_seamless_integration",
+            "test_one_click_memory_integration",
+            "test_breeze_like_setup_experience",
+            "test_existing_project_compatibility",
+            "test_zero_config_memory_operations"
+          ],
+          "markers": [
+            "integration"
+          ],
+          "test_count": 6
+        },
+        {
+          "file": "tests/test_token_rotation.py",
+          "tests": [
+            "test_token_rotation_sets_exp_and_stores"
+          ],
+          "markers": [],
+          "test_count": 1
+        },
+        {
+          "file": "tests/test_world_beating_retrieval_comprehensive.py",
+          "tests": [
+            "test_hybrid_score_creation",
+            "test_hybrid_score_comparison",
+            "test_calculate_semantic_score",
+            "test_calculate_keyword_score",
+            "test_calculate_temporal_score",
+            "test_metrics_collection"
+          ],
+          "markers": [],
+          "test_count": 6
+        },
+        {
+          "file": "tests/test_governance_nudge_engine.py",
+          "tests": [],
+          "markers": [],
+          "test_count": 0
+        },
+        {
+          "file": "tests/test_token_cli.py",
+          "tests": [
+            "test_pinak_token_generates_pid_and_role"
+          ],
+          "markers": [],
+          "test_count": 1
+        },
+        {
+          "file": "tests/test_memory_layers.py",
+          "tests": [
+            "test_health",
+            "test_add_and_list_episodic",
+            "test_add_and_list_procedural",
+            "test_add_and_list_rag",
+            "test_events_trail",
+            "test_session_memory",
+            "test_working_memory",
+            "test_cross_layer_search",
+            "test_backward_compatibility"
+          ],
+          "markers": [],
+          "test_count": 9
+        }
+      ],
+      "test_coverage": {},
+      "test_types": {
+        "unit": 0,
+        "integration": 1,
+        "tdd": 0,
+        "world_beating": 0,
+        "governance": 0
+      }
+    },
+    "coverage": {
+      "overall_coverage": 0,
+      "file_coverage": {},
+      "missing_lines": {},
+      "recommendations": []
+    },
+    "dependencies": {
+      "python_packages": {
+        "httpx": "httpx",
+        "pydantic>=2": "pydantic>=2",
+        "keyring": "keyring",
+        "cryptography": "cryptography"
+      },
+      "system_dependencies": [],
+      "optional_dependencies": {}
+    },
+    "cicd": {
+      "workflows": {
+        "release-images": {
+          "file": ".github/workflows/release-images.yml",
+          "triggers": [],
+          "jobs": [
+            "build-and-push"
+          ]
+        },
+        "ci-tests": {
+          "file": ".github/workflows/ci-tests.yml",
+          "triggers": [],
+          "jobs": [
+            "vendor-tests",
+            "package-tests",
+            "gateway-tests",
+            "cli-smoke"
+          ]
+        },
+        "ci-security": {
+          "file": ".github/workflows/ci-security.yml",
+          "triggers": [],
+          "jobs": [
+            "security"
+          ]
+        },
+        "ci-comprehensive": {
+          "file": ".github/workflows/ci-comprehensive.yml",
+          "triggers": [],
+          "jobs": [
+            "quality-gates",
+            "unit-tests",
+            "world-beating-tests",
+            "governance-tests",
+            "integration-tests",
+            "performance-tests",
+            "coverage-report",
+            "ci-status"
+          ]
+        },
+        "ci-monitoring": {
+          "file": ".github/workflows/ci-monitoring.yml",
+          "triggers": [],
+          "jobs": [
+            "ci-health-monitor",
+            "failure-analysis",
+            "performance-monitor",
+            "alerting",
+            "trend-analysis",
+            "notifications",
+            "monitoring-summary"
+          ]
+        },
+        "build-parlant": {
+          "file": ".github/workflows/build-parlant.yml",
+          "triggers": [],
+          "jobs": [
+            "build-and-push"
+          ]
+        },
+        "docs-automation": {
+          "file": ".github/workflows/docs-automation.yml",
+          "triggers": [],
+          "jobs": [
+            "generate-docs",
+            "validate-docs",
+            "deploy-docs",
+            "notify-docs-changes",
+            "cleanup-old-docs"
+          ]
+        }
+      },
+      "jobs": {},
+      "triggers": [],
+      "status": "unknown"
+    }
+  }
+}

@@ -1,0 +1,538 @@
+name: CI Comprehensive
+
+on:
+  push:
+    branches: [ main, feature/**, develop ]
+    paths-ignore:
+      - 'docs/**'
+      - '*.md'
+      - '.gitignore'
+  pull_request:
+    branches: [ main, feature/**, develop ]
+    paths-ignore:
+      - 'docs/**'
+      - '*.md'
+      - '.gitignore'
+  workflow_dispatch:
+    inputs:
+      test_suite:
+        description: 'Test suite to run'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - unit
+          - integration
+          - world_beating
+          - governance
+          - memory
+          - context
+      skip_slow:
+        description: 'Skip slow tests'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  PYTHON_VERSION: '3.11'
+  NODE_VERSION: '18'
+  PINAK_TESTING: 'true'
+  USE_MOCK_EMBEDDINGS: 'true'
+  SECRET_KEY: 'test-secret-key-change-in-prod'
+
+jobs:
+  # ===== QUALITY GATES =====
+  quality-gates:
+    name: Quality Gates
+    runs-on: ubuntu-latest
+    outputs:
+      quality_passed: ${{ steps.quality.outputs.passed }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          pip install -r requirements.txt
+          pip install -e .
+          pip install pre-commit black isort flake8 mypy bandit safety
+
+      - name: Run pre-commit hooks
+        run: |
+          pre-commit install
+          pre-commit run --all-files
+
+      - name: Code quality checks
+        id: quality
+        run: |
+          set -e
+
+          echo "Running code quality checks..."
+
+          # Black formatting check
+          black --check --diff .
+
+          # isort import sorting check
+          isort --check-only --diff .
+
+          # flake8 linting
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+          # mypy type checking
+          mypy src/pinak --ignore-missing-imports
+
+          # bandit security linting
+          bandit -r src/ -f json -o bandit-report.json
+
+          # safety dependency vulnerability check
+          safety check
+
+          echo "passed=true" >> $GITHUB_OUTPUT
+
+      - name: Upload quality reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-reports
+          path: |
+            bandit-report.json
+            .mypy_cache/
+          retention-days: 30
+
+  # ===== UNIT TESTS =====
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    needs: quality-gates
+    if: needs.quality-gates.outputs.quality_passed == 'true'
+    strategy:
+      matrix:
+        python-version: ['3.9', '3.10', '3.11']
+        test-type: ['unit', 'memory', 'context']
+    services:
+      redis:
+        image: redis:alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          pip install -r requirements.txt
+          pip install -e .
+          pip install pytest pytest-asyncio pytest-cov pytest-xdist pytest-mock
+          pip install httpx fastapi uvicorn python-jose redis
+
+      - name: Start mock server
+        run: |
+          nohup python -m uvicorn mock_server:app --host 127.0.0.1 --port 8000 &
+          for i in {1..30}; do
+            curl -fsS http://127.0.0.1:8000/api/v1/memory/health && break || sleep 1;
+          done
+
+      - name: Run unit tests
+        env:
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+        run: |
+          if [ "${{ matrix.test-type }}" = "unit" ]; then
+            pytest tests/ -k "not (integration or slow or world_beating or governance)" \
+              --cov=pinak --cov-report=xml --cov-report=term-missing \
+              --junitxml=test-results-unit.xml -v
+          elif [ "${{ matrix.test-type }}" = "memory" ]; then
+            pytest tests/test_memory_service_comprehensive.py \
+              --cov=pinak.memory --cov-report=xml --cov-report=term-missing \
+              --junitxml=test-results-memory.xml -v
+          elif [ "${{ matrix.test-type }}" = "context" ]; then
+            pytest tests/test_context_broker.py \
+              --cov=pinak.context --cov-report=xml --cov-report=term-missing \
+              --junitxml=test-results-context.xml -v
+          fi
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.python-version }}-${{ matrix.test-type }}
+          path: |
+            test-results-*.xml
+            coverage.xml
+          retention-days: 30
+
+  # ===== WORLD-BEATING RETRIEVAL TESTS =====
+  world-beating-tests:
+    name: World-Beating Retrieval Tests
+    runs-on: ubuntu-latest
+    needs: [quality-gates, unit-tests]
+    if: needs.quality-gates.outputs.quality_passed == 'true'
+    services:
+      redis:
+        image: redis:alpine
+        ports:
+          - 6379:6379
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          pip install -r requirements.txt
+          pip install -e .
+          pip install pytest pytest-asyncio pytest-cov pytest-xdist
+          pip install httpx fastapi uvicorn python-jose redis numpy scikit-learn
+
+      - name: Start mock server
+        run: |
+          nohup python -m uvicorn mock_server:app --host 127.0.0.1 --port 8000 &
+          for i in {1..30}; do
+            curl -fsS http://127.0.0.1:8000/api/v1/memory/health && break || sleep 1;
+          done
+
+      - name: Run world-beating retrieval tests
+        env:
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+        run: |
+          pytest tests/test_world_beating_retrieval_comprehensive.py \
+            --cov=pinak.context.broker --cov-report=xml --cov-report=term-missing \
+            --junitxml=test-results-world-beating.xml -v --durations=10
+
+      - name: Upload world-beating test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-world-beating
+          path: |
+            test-results-world-beating.xml
+            coverage.xml
+          retention-days: 30
+
+  # ===== GOVERNANCE INTEGRATION TESTS =====
+  governance-tests:
+    name: Governance Integration Tests
+    runs-on: ubuntu-latest
+    needs: [quality-gates, unit-tests]
+    if: needs.quality-gates.outputs.quality_passed == 'true'
+    services:
+      redis:
+        image: redis:alpine
+        ports:
+          - 6379:6379
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          pip install -r requirements.txt
+          pip install -e .
+          pip install pytest pytest-asyncio pytest-cov pytest-xdist
+          pip install httpx fastapi uvicorn python-jose redis
+
+      - name: Start mock server
+        run: |
+          nohup python -m uvicorn mock_server:app --host 127.0.0.1 --port 8000 &
+          for i in {1..30}; do
+            curl -fsS http://127.0.0.1:8000/api/v1/memory/health && break || sleep 1;
+          done
+
+      - name: Run governance tests
+        env:
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+        run: |
+          pytest tests/test_governance_nudge_engine.py \
+            --cov=pinak.context.nudge --cov-report=xml --cov-report=term-missing \
+            --junitxml=test-results-governance.xml -v --durations=10
+
+      - name: Upload governance test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-governance
+          path: |
+            test-results-governance.xml
+            coverage.xml
+          retention-days: 30
+
+  # ===== INTEGRATION TESTS =====
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: [quality-gates, unit-tests]
+    if: needs.quality-gates.outputs.quality_passed == 'true'
+    services:
+      redis:
+        image: redis:alpine
+        ports:
+          - 6379:6379
+      postgres:
+        image: postgres:13
+        env:
+          POSTGRES_PASSWORD: testpassword
+          POSTGRES_DB: testdb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          pip install -r requirements.txt
+          pip install -e .
+          pip install pytest pytest-asyncio pytest-cov pytest-xdist
+          pip install httpx fastapi uvicorn python-jose redis psycopg2-binary
+
+      - name: Start full service stack
+        run: |
+          # Start memory service
+          nohup python -m uvicorn mock_server:app --host 127.0.0.1 --port 8000 &
+          for i in {1..30}; do
+            curl -fsS http://127.0.0.1:8000/api/v1/memory/health && break || sleep 1;
+          done
+
+          # Start governance gateway
+          nohup python -m uvicorn Pinak_Services/pinak_gov_gateway/app.main:app --host 127.0.0.1 --port 8880 &
+          for i in {1..30}; do
+            curl -fsS http://127.0.0.1:8880/health && break || sleep 1;
+          done
+
+      - name: Run integration tests
+        env:
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: 5432
+          POSTGRES_PASSWORD: testpassword
+          POSTGRES_DB: testdb
+        run: |
+          pytest tests/ -k "integration" \
+            --cov=pinak --cov-report=xml --cov-report=term-missing \
+            --junitxml=test-results-integration.xml -v --durations=10
+
+      - name: Upload integration test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-integration
+          path: |
+            test-results-integration.xml
+            coverage.xml
+          retention-days: 30
+
+  # ===== PERFORMANCE TESTS =====
+  performance-tests:
+    name: Performance Tests
+    runs-on: ubuntu-latest
+    needs: [quality-gates, unit-tests]
+    if: needs.quality-gates.outputs.quality_passed == 'true'
+    services:
+      redis:
+        image: redis:alpine
+        ports:
+          - 6379:6379
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          pip install -r requirements.txt
+          pip install -e .
+          pip install pytest pytest-asyncio pytest-cov pytest-benchmark
+          pip install httpx fastapi uvicorn python-jose redis
+
+      - name: Start mock server
+        run: |
+          nohup python -m uvicorn mock_server:app --host 127.0.0.1 --port 8000 &
+          for i in {1..30}; do
+            curl -fsS http://127.0.0.1:8000/api/v1/memory/health && break || sleep 1;
+          done
+
+      - name: Run performance tests
+        env:
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+        run: |
+          pytest tests/ -k "slow or performance" \
+            --benchmark-only \
+            --benchmark-json=benchmark-results.json \
+            --junitxml=test-results-performance.xml -v
+
+      - name: Upload performance results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-results
+          path: |
+            benchmark-results.json
+            test-results-performance.xml
+          retention-days: 30
+
+  # ===== COVERAGE REPORT =====
+  coverage-report:
+    name: Coverage Report
+    runs-on: ubuntu-latest
+    needs: [unit-tests, world-beating-tests, governance-tests, integration-tests]
+    if: always()
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download coverage reports
+        uses: actions/download-artifact@v4
+        with:
+          name: test-results-3.11-unit
+          path: coverage-reports/
+
+      - name: Generate combined coverage report
+        run: |
+          pip install coverage
+          coverage combine coverage-reports/
+          coverage report --show-missing
+          coverage html --directory htmlcov
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: |
+            htmlcov/
+            coverage.xml
+          retention-days: 30
+
+      - name: Coverage comment on PR
+        if: github.event_name == 'pull_request'
+        uses: dorny/test-reporter@v1
+        with:
+          name: Coverage Report
+          path: 'coverage.xml'
+          reporter: cobertura
+          fail-on-error: false
+
+  # ===== FINAL STATUS =====
+  ci-status:
+    name: CI Status
+    runs-on: ubuntu-latest
+    needs: [quality-gates, unit-tests, world-beating-tests, governance-tests, integration-tests, coverage-report]
+    if: always()
+    steps:
+      - name: Determine CI status
+        run: |
+          if [ "${{ needs.quality-gates.result }}" = "success" ] && \
+             [ "${{ needs.unit-tests.result }}" = "success" ] && \
+             [ "${{ needs.world-beating-tests.result }}" = "success" ] && \
+             [ "${{ needs.governance-tests.result }}" = "success" ] && \
+             [ "${{ needs.integration-tests.result }}" = "success" ]; then
+            echo "🎉 All CI checks passed!"
+            echo "✅ Quality Gates: PASSED"
+            echo "✅ Unit Tests: PASSED"
+            echo "✅ World-Beating Tests: PASSED"
+            echo "✅ Governance Tests: PASSED"
+            echo "✅ Integration Tests: PASSED"
+            echo "ci_status=success" >> $GITHUB_ENV
+          else
+            echo "❌ Some CI checks failed"
+            echo "Quality Gates: ${{ needs.quality-gates.result }}"
+            echo "Unit Tests: ${{ needs.unit-tests.result }}"
+            echo "World-Beating Tests: ${{ needs.world-beating-tests.result }}"
+            echo "Governance Tests: ${{ needs.governance-tests.result }}"
+            echo "Integration Tests: ${{ needs.integration-tests.result }}"
+            echo "ci_status=failure" >> $GITHUB_ENV
+            exit 1
+          fi
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request' && env.ci_status == 'failure'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const body = `❌ **CI Comprehensive Failed**
+
+            **Failed Jobs:**
+            - Quality Gates: ${{ needs.quality-gates.result }}
+            - Unit Tests: ${{ needs.unit-tests.result }}
+            - World-Beating Tests: ${{ needs.world-beating-tests.result }}
+            - Governance Tests: ${{ needs.governance-tests.result }}
+            - Integration Tests: ${{ needs.integration-tests.result }}
+
+            Please review the failed jobs and fix any issues before merging.`;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.pull_request.number,
+              body
+            });
+
+      - name: Create status check
+        if: always()
+        run: |
+          if [ "$ci_status" = "success" ]; then
+            echo "✅ CI Comprehensive: All tests passed"
+          else
+            echo "❌ CI Comprehensive: Some tests failed"
+            exit 1
+          fi
+
