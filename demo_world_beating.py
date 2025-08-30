@@ -1,5 +1,3 @@
-<file_path>
-Pinak_Package/demo_world_beating.py</file_path>
 
 """
 🌟 WORLD-BEATING RETRIEVAL DEMO - Surpassing Claude, ChatGPT, Grok
@@ -436,4 +434,4 @@ async def main():
 if __name__ == "__main__":
     # Run the comprehensive demo
     asyncio.run(main())
-```
+
