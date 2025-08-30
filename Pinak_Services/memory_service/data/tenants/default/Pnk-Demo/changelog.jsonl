@@ -1,2 +1,0 @@
-{"change_type": "governance", "ts": "2025-08-27T16:38:58.309559", "project_id": "Pnk-Demo", "path": "/demo", "method": "POST", "status": 200, "role": "editor"}
-{"change_type": "redact", "target_id": "4e433e1b-ccf5-41df-acfb-efee1897e875", "ts": "2025-08-27T16:38:58.310524", "reason": "cleanup"}

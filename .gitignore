@@ -11,6 +11,10 @@ memory-baseline/data/
 security-baseline/data/
 security-baseline/reports/
 
+# Memory service data files
+Pinak_Services/memory_service/data/
+**/data/
+
 # OS-specific files
 .DS_Store
 
