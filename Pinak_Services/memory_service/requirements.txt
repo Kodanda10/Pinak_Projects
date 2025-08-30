@@ -12,3 +12,10 @@ PyJWT>=2.8.0
 # TDD Dependencies
 pytest
 httpx
+
+# Enterprise Dependencies
+structlog
+pydantic
+pydantic-settings
+prometheus-client
+psutil

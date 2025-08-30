@@ -16,13 +16,13 @@ setup(
     version="1.1.1",
     author="Abhijita/Gemini",
     description="A unified local-first package for AI memory and security auditing.",
-    
+
     # Define the single source root
     package_dir={"": "src"},
-    
+
     # Find all packages under the single 'src' directory
     packages=find_namespace_packages(where="src"),
-    
+
     # Install all dependencies
     install_requires=install_requires,
 
@@ -35,6 +35,7 @@ setup(
             'pinak-bridge=pinak.bridge.cli:main',
             'pinak-memory=pinak.memory.cli:main',
             'pinak-menubar=pinak.menubar.app:main',
+            'pinak-context=pinak.context.cli:main',
         ]
     },
 
