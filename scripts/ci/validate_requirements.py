@@ -3,19 +3,20 @@
 Usage: validate_requirements.py <requirements-file>
 Exits with code 1 if any invalid version strings are found.
 """
-import sys
-from packaging.version import Version, InvalidVersion
 import re
+import sys
+
+from packaging.version import InvalidVersion, Version
 
 
 def extract_version(req_line: str):
     # Very small parser: handles 'pkg==1.2.3', 'pkg>=1.0', 'pkg[extra]==1.2.3', 'pkg==1.2.3; python_version...'
-    line = req_line.split('#', 1)[0].strip()
-    if not line or line.startswith(('-e', 'git+', 'http', '--')):
+    line = req_line.split("#", 1)[0].strip()
+    if not line or line.startswith(("-e", "git+", "http", "--")):
         return None
     # remove environment markers
-    if ';' in line:
-        line = line.split(';', 1)[0].strip()
+    if ";" in line:
+        line = line.split(";", 1)[0].strip()
     # match package spec with operator
     m = re.search(r"(?:==|~=|!=|<=|>=|<|>)([^\s,;]+)", line)
     if m:
@@ -30,7 +31,7 @@ def main():
     path = sys.argv[1]
     invalid = []
     try:
-        with open(path, 'r', encoding='utf-8') as fh:
+        with open(path, "r", encoding="utf-8") as fh:
             for i, line in enumerate(fh, start=1):
                 ver = extract_version(line)
                 if ver:
@@ -45,12 +46,14 @@ def main():
     if invalid:
         print(f"Found {len(invalid)} invalid requirement version(s) in {path}:")
         for ln, raw, ver in invalid:
-            print(f"  line {ln}: '{raw}' -> version token '{ver}' is not PEP 440 compliant")
+            print(
+                f"  line {ln}: '{raw}' -> version token '{ver}' is not PEP 440 compliant"
+            )
         return 1
 
     print(f"All requirement versions in {path} appear PEP 440-compliant.")
     return 0
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     raise SystemExit(main())

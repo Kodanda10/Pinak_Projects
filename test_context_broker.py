@@ -3,23 +3,19 @@
 Test script for ContextBroker functionality
 """
 import asyncio
-import sys
 import os
+import sys
 
 # Add the src directory to the path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
 from typing import Dict, cast
-from pinak.context.core.models import (
-    ContextQuery,
-    ContextResponse,
-    ContextLayer,
-    SecurityClassification,
-    ContextItem,
-    ContextPriority,
-    IContextStore
-)
+
 from pinak.context.broker.broker import ContextBroker
+from pinak.context.core.models import (ContextItem, ContextLayer,
+                                       ContextPriority, ContextQuery,
+                                       ContextResponse, IContextStore,
+                                       SecurityClassification)
 
 
 class MockContextStore:
@@ -30,23 +26,25 @@ class MockContextStore:
 
     async def retrieve(self, query):
         """Mock retrieve method"""
-        return ContextResponse(items=[
-            ContextItem(
-                id=f"test-{self.layer.value}-1",
-                title=f"Test {self.layer.value} Item",
-                summary=f"This is a test item from {self.layer.value} layer",
-                content=f"This is a test item from {self.layer.value} layer",
-                layer=self.layer,
-                project_id="test-project",
-                tenant_id="test-tenant",
-                created_by="test-user",
-                classification=SecurityClassification.PUBLIC,
-                priority=ContextPriority.MEDIUM,
-                tags=["test"],
-                relevance_score=0.8,
-                confidence_score=0.9
-            )
-        ])
+        return ContextResponse(
+            items=[
+                ContextItem(
+                    id=f"test-{self.layer.value}-1",
+                    title=f"Test {self.layer.value} Item",
+                    summary=f"This is a test item from {self.layer.value} layer",
+                    content=f"This is a test item from {self.layer.value} layer",
+                    layer=self.layer,
+                    project_id="test-project",
+                    tenant_id="test-tenant",
+                    created_by="test-user",
+                    classification=SecurityClassification.PUBLIC,
+                    priority=ContextPriority.MEDIUM,
+                    tags=["test"],
+                    relevance_score=0.8,
+                    confidence_score=0.9,
+                )
+            ]
+        )
 
     async def store(self, item):
         """Mock store method"""
@@ -76,7 +74,7 @@ class MockContextStore:
                 priority=ContextPriority.MEDIUM,
                 tags=["semantic"],
                 relevance_score=0.9,
-                confidence_score=0.95
+                confidence_score=0.95,
             )
         ]
 
@@ -103,7 +101,7 @@ async def test_context_broker():
         layers=[ContextLayer.SEMANTIC, ContextLayer.EPISODIC],
         limit=5,
         user_clearance=SecurityClassification.PUBLIC,
-        semantic_search=True
+        semantic_search=True,
     )
 
     # Execute query
@@ -120,8 +118,10 @@ async def test_context_broker():
     print(f"Metrics: {metrics}")
 
     # Verify metrics are correct types
-    assert isinstance(metrics['avg_execution_time_ms'], float), "avg_execution_time_ms should be float"
-    assert isinstance(metrics['total_queries'], int), "total_queries should be int"
+    assert isinstance(
+        metrics["avg_execution_time_ms"], float
+    ), "avg_execution_time_ms should be float"
+    assert isinstance(metrics["total_queries"], int), "total_queries should be int"
 
     print("✅ All tests passed!")
 

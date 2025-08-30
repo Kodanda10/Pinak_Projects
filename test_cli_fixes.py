@@ -2,9 +2,11 @@
 """
 Quick test script to verify CLI fixes without heavy dependencies
 """
-import sys
 import os
-sys.path.insert(0, 'src')
+import sys
+
+sys.path.insert(0, "src")
+
 
 def test_cli_structure():
     """Test that CLI has proper subcommand structure"""
@@ -14,28 +16,28 @@ def test_cli_structure():
 
         # Test main help
         try:
-            main(['--help'])
+            main(["--help"])
             print("✅ Main help works")
         except SystemExit:
             print("✅ Main help works")
 
         # Test subcommand help
         try:
-            main(['health', '--help'])
+            main(["health", "--help"])
             print("✅ Health subcommand help works")
         except SystemExit:
             print("✅ Health subcommand help works")
 
         # Test search subcommand help
         try:
-            main(['search', '--help'])
+            main(["search", "--help"])
             print("✅ Search subcommand help works")
         except SystemExit:
             print("✅ Search subcommand help works")
 
         # Test episodic subcommand help
         try:
-            main(['episodic', '--help'])
+            main(["episodic", "--help"])
             print("✅ Episodic subcommand help works")
         except SystemExit:
             print("✅ Episodic subcommand help works")
@@ -45,11 +47,13 @@ def test_cli_structure():
         print(f"❌ CLI structure test failed: {e}")
         return False
 
+
 def test_memory_manager_import():
     """Test that MemoryManager can be imported (basic structure)"""
     print("Testing MemoryManager import...")
     try:
         from pinak.memory.manager import MemoryManager
+
         print("✅ MemoryManager import successful")
 
         # Test basic instantiation (without httpx calls)
@@ -60,6 +64,7 @@ def test_memory_manager_import():
     except Exception as e:
         print(f"❌ MemoryManager test failed: {e}")
         return False
+
 
 def main():
     print("=== CLI Fix Verification Test ===")
@@ -90,6 +95,7 @@ def main():
     else:
         print("❌ Some tests failed - need further fixes")
         return 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

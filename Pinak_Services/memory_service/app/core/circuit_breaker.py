@@ -12,17 +12,19 @@ SOTA Circuit Breaker Implementation:
 
 import asyncio
 import time
-from enum import Enum
-from typing import Dict, List, Optional, Callable, Any
 from contextlib import asynccontextmanager
+from enum import Enum
+from typing import Any, Callable, Dict, List, Optional
+
 from .config import settings
 from .logging import logger
 
 
 class CircuitState(Enum):
     """Circuit breaker states."""
+
     CLOSED = "closed"  # Normal operation
-    OPEN = "open"      # Failing, requests blocked
+    OPEN = "open"  # Failing, requests blocked
     HALF_OPEN = "half_open"  # Testing recovery
 
 
@@ -39,7 +41,7 @@ class CircuitBreaker:
         name: str,
         failure_threshold: int = 5,
         recovery_timeout: int = 60,
-        success_threshold: int = 3
+        success_threshold: int = 3,
     ):
         self.name = name
         self.failure_threshold = failure_threshold
@@ -61,7 +63,9 @@ class CircuitBreaker:
                     self.state = CircuitState.HALF_OPEN
                     logger.info(f"Circuit breaker {self.name} entering half-open state")
                 else:
-                    raise CircuitBreakerOpenException(f"Circuit breaker {self.name} is open")
+                    raise CircuitBreakerOpenException(
+                        f"Circuit breaker {self.name} is open"
+                    )
 
             try:
                 result = await func(*args, **kwargs)
@@ -85,7 +89,9 @@ class CircuitBreaker:
                 self.state = CircuitState.CLOSED
                 self.failure_count = 0
                 self.success_count = 0
-                logger.info(f"Circuit breaker {self.name} closed after successful recovery")
+                logger.info(
+                    f"Circuit breaker {self.name} closed after successful recovery"
+                )
         else:
             # Reset failure count on success in closed state
             self.failure_count = 0
@@ -98,10 +104,14 @@ class CircuitBreaker:
         if self.state == CircuitState.HALF_OPEN:
             self.state = CircuitState.OPEN
             self.success_count = 0
-            logger.warning(f"Circuit breaker {self.name} opened due to failure in half-open state")
+            logger.warning(
+                f"Circuit breaker {self.name} opened due to failure in half-open state"
+            )
         elif self.failure_count >= self.failure_threshold:
             self.state = CircuitState.OPEN
-            logger.warning(f"Circuit breaker {self.name} opened due to failure threshold exceeded")
+            logger.warning(
+                f"Circuit breaker {self.name} opened due to failure threshold exceeded"
+            )
 
     def get_status(self) -> Dict[str, Any]:
         """Get circuit breaker status."""
@@ -113,8 +123,9 @@ class CircuitBreaker:
             "last_failure_time": self.last_failure_time,
             "next_attempt_time": (
                 self.last_failure_time + self.recovery_timeout
-                if self.last_failure_time else None
-            )
+                if self.last_failure_time
+                else None
+            ),
         }
 
 
@@ -139,15 +150,18 @@ class CircuitBreakerRegistry:
         name: str,
         failure_threshold: Optional[int] = None,
         recovery_timeout: Optional[int] = None,
-        success_threshold: Optional[int] = None
+        success_threshold: Optional[int] = None,
     ) -> CircuitBreaker:
         """Get existing circuit breaker or create new one."""
         if name not in self._breakers:
             self._breakers[name] = CircuitBreaker(
                 name=name,
-                failure_threshold=failure_threshold or self._global_config["failure_threshold"],
-                recovery_timeout=recovery_timeout or self._global_config["recovery_timeout"],
-                success_threshold=success_threshold or self._global_config["success_threshold"],
+                failure_threshold=failure_threshold
+                or self._global_config["failure_threshold"],
+                recovery_timeout=recovery_timeout
+                or self._global_config["recovery_timeout"],
+                success_threshold=success_threshold
+                or self._global_config["success_threshold"],
             )
             logger.info(f"Created circuit breaker: {name}")
 
@@ -158,10 +172,9 @@ class CircuitBreakerRegistry:
         return {
             "total_breakers": len(self._breakers),
             "breakers": {
-                name: breaker.get_status()
-                for name, breaker in self._breakers.items()
+                name: breaker.get_status() for name, breaker in self._breakers.items()
             },
-            "global_config": self._global_config
+            "global_config": self._global_config,
         }
 
     def reset_all(self):
@@ -182,6 +195,7 @@ class CircuitBreakerRegistry:
 
 class CircuitBreakerOpenException(Exception):
     """Exception raised when circuit breaker is open."""
+
     pass
 
 

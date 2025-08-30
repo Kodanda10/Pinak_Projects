@@ -10,13 +10,15 @@ SOTA Security Features:
 - Authentication
 """
 
+import time
+from typing import Optional
+
+import jwt
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-import time
-from typing import Optional
-import jwt
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+
 from .config import settings
 from .logging import logger
 
@@ -37,7 +39,9 @@ def setup_security_middleware(app: FastAPI):
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["X-XSS-Protection"] = "1; mode=block"
-        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        response.headers["Strict-Transport-Security"] = (
+            "max-age=31536000; includeSubDomains"
+        )
         response.headers["Content-Security-Policy"] = "default-src 'self'"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
 
@@ -54,9 +58,7 @@ def verify_token(token: str) -> Optional[dict]:
     """
     try:
         payload = jwt.decode(
-            token,
-            settings.JWT_SECRET_KEY,
-            algorithms=[settings.JWT_ALGORITHM]
+            token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM]
         )
         return payload
     except jwt.ExpiredSignatureError:

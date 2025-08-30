@@ -1,11 +1,11 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
-import uuid
-import hashlib
 import random
 import stat
+import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -69,7 +69,9 @@ class ProjectContext:
             "memory_url": data.get("memory_url"),
             "version": int(data.get("version", 1)),
         }
-        fp = hashlib.sha256(json.dumps(base, separators=(",", ":"), sort_keys=True).encode()).hexdigest()
+        fp = hashlib.sha256(
+            json.dumps(base, separators=(",", ":"), sort_keys=True).encode()
+        ).hexdigest()
         return ProjectContext(
             project_id=base["project_id"],
             project_name=base["project_name"],
@@ -82,7 +84,12 @@ class ProjectContext:
         )
 
     @staticmethod
-    def init_new(project_name: str, memory_url: str, tenant: Optional[str] = None, root: Optional[Path] = None) -> "ProjectContext":
+    def init_new(
+        project_name: str,
+        memory_url: str,
+        tenant: Optional[str] = None,
+        root: Optional[Path] = None,
+    ) -> "ProjectContext":
         pid = f"Pnk-{_uuid7()}"
         root = root or Path.cwd()
         pinak_dir = root / PINAK_DIR
@@ -94,11 +101,23 @@ class ProjectContext:
             "memory_url": memory_url,
             "version": 1,
         }
-        fp = hashlib.sha256(json.dumps(base, separators=(",", ":"), sort_keys=True).encode()).hexdigest()
+        fp = hashlib.sha256(
+            json.dumps(base, separators=(",", ":"), sort_keys=True).encode()
+        ).hexdigest()
         cfg = dict(base)
         cfg.update({"created_at": _now_iso(), "identity_fingerprint": fp})
-        (pinak_dir / PINAK_CONFIG).write_text(json.dumps(cfg, indent=2), encoding="utf-8")
-        return ProjectContext(project_id=pid, project_name=project_name, tenant=tenant, memory_url=memory_url, created_at=cfg["created_at"], root_dir=root, identity_fingerprint=fp)
+        (pinak_dir / PINAK_CONFIG).write_text(
+            json.dumps(cfg, indent=2), encoding="utf-8"
+        )
+        return ProjectContext(
+            project_id=pid,
+            project_name=project_name,
+            tenant=tenant,
+            memory_url=memory_url,
+            created_at=cfg["created_at"],
+            root_dir=root,
+            identity_fingerprint=fp,
+        )
 
     def _kr(self) -> Tuple[str, str]:
         return KEYRING_SERVICE, f"project:{self.project_id}"
@@ -106,8 +125,9 @@ class ProjectContext:
     def set_token(self, token: str, fallback_to_file: bool = True) -> None:
         try:
             import keyring
-            s,u = self._kr()
-            keyring.set_password(s,u,token)
+
+            s, u = self._kr()
+            keyring.set_password(s, u, token)
             return
         except Exception:
             if not fallback_to_file:
@@ -125,8 +145,9 @@ class ProjectContext:
             return env
         try:
             import keyring
-            s,u = self._kr()
-            tok = keyring.get_password(s,u)
+
+            s, u = self._kr()
+            tok = keyring.get_password(s, u)
             if tok:
                 return tok
         except Exception:
@@ -135,12 +156,19 @@ class ProjectContext:
         return t.read_text(encoding="utf-8").strip() if t and t.exists() else None
 
     # Rotation helper: mint a short-lived JWT and store it
-    def rotate_token(self, minutes: int = 60, secret: Optional[str] = None, sub: str = "analyst", role: Optional[str] = None) -> str:
+    def rotate_token(
+        self,
+        minutes: int = 60,
+        secret: Optional[str] = None,
+        sub: str = "analyst",
+        role: Optional[str] = None,
+    ) -> str:
         try:
             from jose import jwt
         except Exception as e:
             raise RuntimeError("python-jose required for token rotation") from e
         import datetime
+
         secret = secret or os.getenv("SECRET_KEY", "change-me-in-prod")
         # Use timezone-aware UTC to avoid local offset errors in exp
         now_utc = datetime.datetime.now(datetime.timezone.utc)

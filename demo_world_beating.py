@@ -1,4 +1,3 @@
-
 """
 🌟 WORLD-BEATING RETRIEVAL DEMO - Surpassing Claude, ChatGPT, Grok
 ===============================================================
@@ -17,21 +16,23 @@ Key Features:
 """
 
 import asyncio
-import time
 import json
+import time
 from datetime import datetime, timezone
-from typing import Dict, List, Any
+from typing import Any, Dict, List
+
 import numpy as np
 
-# Import the world-beating retrieval system
-from src.pinak.context.broker.world_beating_retrieval import WorldBeatingRetrievalEngine
+from src.pinak.context.broker.broker import ContextBroker
 from src.pinak.context.broker.graph_expansion import GraphBasedExpander
 from src.pinak.context.broker.rl_optimizer import adaptive_engine
-from src.pinak.context.core.models import (
-    ContextQuery, ContextResponse, ContextItem, ContextLayer,
-    ContextPriority, SecurityClassification
-)
-from src.pinak.context.broker.broker import ContextBroker
+# Import the world-beating retrieval system
+from src.pinak.context.broker.world_beating_retrieval import \
+    WorldBeatingRetrievalEngine
+from src.pinak.context.core.models import (ContextItem, ContextLayer,
+                                           ContextPriority, ContextQuery,
+                                           ContextResponse,
+                                           SecurityClassification)
 
 
 class PerformanceBenchmark:
@@ -39,21 +40,27 @@ class PerformanceBenchmark:
 
     def __init__(self):
         self.benchmarks = {
-            'traditional_rag': {'precision': 0.65, 'recall': 0.55, 'latency': 1200},
-            'advanced_rag': {'precision': 0.75, 'recall': 0.68, 'latency': 900},
-            'claude_rag': {'precision': 0.82, 'recall': 0.75, 'latency': 800},
-            'world_beating': {'precision': 0.0, 'recall': 0.0, 'latency': 0.0}
+            "traditional_rag": {"precision": 0.65, "recall": 0.55, "latency": 1200},
+            "advanced_rag": {"precision": 0.75, "recall": 0.68, "latency": 900},
+            "claude_rag": {"precision": 0.82, "recall": 0.75, "latency": 800},
+            "world_beating": {"precision": 0.0, "recall": 0.0, "latency": 0.0},
         }
 
-    def measure_performance(self, query: ContextQuery, response: ContextResponse) -> Dict[str, Any]:
+    def measure_performance(
+        self, query: ContextQuery, response: ContextResponse
+    ) -> Dict[str, Any]:
         """Measure comprehensive performance metrics."""
         return {
-            'precision_at_10': self._calculate_precision_at_k(response.items[:10]),
-            'recall_at_10': len(response.items) / max(10, len(response.items)),
-            'latency_ms': response.execution_time_ms,
-            'throughput_qps': 1000 / max(1, response.execution_time_ms),
-            'relevance_score_avg': np.mean([item.relevance_score for item in response.items]),
-            'confidence_score_avg': np.mean([item.confidence_score for item in response.items])
+            "precision_at_10": self._calculate_precision_at_k(response.items[:10]),
+            "recall_at_10": len(response.items) / max(10, len(response.items)),
+            "latency_ms": response.execution_time_ms,
+            "throughput_qps": 1000 / max(1, response.execution_time_ms),
+            "relevance_score_avg": np.mean(
+                [item.relevance_score for item in response.items]
+            ),
+            "confidence_score_avg": np.mean(
+                [item.confidence_score for item in response.items]
+            ),
         }
 
     def _calculate_precision_at_k(self, items: List[ContextItem], k: int = 10) -> float:
@@ -68,14 +75,26 @@ class PerformanceBenchmark:
         comparisons = {}
 
         for system, baseline in self.benchmarks.items():
-            if system == 'world_beating':
+            if system == "world_beating":
                 self.benchmarks[system] = our_metrics
                 continue
 
             comparisons[system] = {
-                'precision_improvement': ((our_metrics['precision_at_10'] - baseline['precision']) / baseline['precision']) * 100,
-                'recall_improvement': ((our_metrics['recall_at_10'] - baseline['recall']) / baseline['recall']) * 100,
-                'latency_improvement': ((baseline['latency'] - our_metrics['latency_ms']) / baseline['latency']) * 100
+                "precision_improvement": (
+                    (our_metrics["precision_at_10"] - baseline["precision"])
+                    / baseline["precision"]
+                )
+                * 100,
+                "recall_improvement": (
+                    (our_metrics["recall_at_10"] - baseline["recall"])
+                    / baseline["recall"]
+                )
+                * 100,
+                "latency_improvement": (
+                    (baseline["latency"] - our_metrics["latency_ms"])
+                    / baseline["latency"]
+                )
+                * 100,
             }
 
         return comparisons
@@ -119,11 +138,13 @@ class WorldBeatingDemo:
             enable_neural_reranking=True,
             enable_query_expansion=True,
             enable_memory_augmentation=True,
-            enable_self_improvement=True
+            enable_self_improvement=True,
         )
 
         print("✅ World-beating system initialized successfully!")
-        print(f"📊 Graph expansion nodes: {self.engine.graph_expander.knowledge_graph.get_statistics()['total_nodes']}")
+        print(
+            f"📊 Graph expansion nodes: {self.engine.graph_expander.knowledge_graph.get_statistics()['total_nodes']}"
+        )
 
     async def demonstrate_stage_1_intent_analysis(self):
         """Demonstrate Stage 1: Intent Analysis & Query Expansion."""
@@ -134,7 +155,7 @@ class WorldBeatingDemo:
             "How do I fix a build failure in Python?",
             "What are best practices for CI/CD pipeline optimization?",
             "Debug memory leak in Node.js application",
-            "Optimize database query performance"
+            "Optimize database query performance",
         ]
 
         for query_text in queries:
@@ -147,15 +168,21 @@ class WorldBeatingDemo:
                 tenant_id="demo-tenant",
                 user_id="demo-user",
                 user_clearance=SecurityClassification.INTERNAL,
-                layers=[ContextLayer.SEMANTIC, ContextLayer.EPISODIC, ContextLayer.PROCESDURAL],
-                limit=10
+                layers=[
+                    ContextLayer.SEMANTIC,
+                    ContextLayer.EPISODIC,
+                    ContextLayer.PROCESDURAL,
+                ],
+                limit=10,
             )
 
             # Execute intent analysis
             intent_result = await self.engine._execute_intent_analysis(query)
 
             print(f"   📝 Query complexity: {intent_result.complexity:.2f}")
-            print(f"   🎯 Detected intent categories: {intent_result.intent_categories}")
+            print(
+                f"   🎯 Detected intent categories: {intent_result.intent_categories}"
+            )
             print(f"   🔄 Expanded queries: {len(intent_result.expanded_queries)}")
             print(f"   📈 Confidence score: {intent_result.confidence:.2f}")
 
@@ -174,7 +201,7 @@ class WorldBeatingDemo:
             tenant_id="demo-tenant",
             user_id="demo-user",
             layers=[ContextLayer.SEMANTIC],
-            limit=15
+            limit=15,
         )
 
         print("🔍 Executing dense retrieval...")
@@ -183,8 +210,12 @@ class WorldBeatingDemo:
         dense_result = await self.engine._execute_dense_retrieval(query)
         execution_time = time.time() - start_time
 
-        print(f"⚡ Retrieved {len(dense_result.vectors)} candidates in {execution_time:.2f}s")
-        print(f"🎯 Top similarity scores: {[f'{score:.3f}' for score in dense_result.similarity_scores[:5]]}")
+        print(
+            f"⚡ Retrieved {len(dense_result.vectors)} candidates in {execution_time:.2f}s"
+        )
+        print(
+            f"🎯 Top similarity scores: {[f'{score:.3f}' for score in dense_result.similarity_scores[:5]]}"
+        )
         print(f"📊 Embedding dimensions: {dense_result.embedding_dimensions}")
         print(f"🎪 Found {dense_result.candidates_found} total candidates")
 
@@ -200,7 +231,7 @@ class WorldBeatingDemo:
             query="database optimization techniques",
             project_id="demo-project",
             tenant_id="demo-tenant",
-            layers=[ContextLayer.SEMANTIC, ContextLayer.RAG]
+            layers=[ContextLayer.SEMANTIC, ContextLayer.RAG],
         )
 
         print("🔄 Computing BM25 + semantic fusion...")
@@ -225,7 +256,7 @@ class WorldBeatingDemo:
             query="microservices architecture patterns",
             project_id="demo-project",
             tenant_id="demo-tenant",
-            layers=[ContextLayer.SEMANTIC]
+            layers=[ContextLayer.SEMANTIC],
         )
 
         print("🌐 Building knowledge graph and expanding...")
@@ -235,14 +266,18 @@ class WorldBeatingDemo:
             query=query,
             initial_items=initial_items,
             expansion_depth=3,
-            relevance_threshold=0.15
+            relevance_threshold=0.15,
         )
 
         execution_time = time.time() - start_time
 
         print(f"⏱️ Expansion completed in {execution_time:.2f}s")
-        print(f"📈 Expanded from {len(initial_items)} to {len(expansion_result.expanded_items)} items")
-        print(f"🔗 Discovered {len(expansion_result.new_relationships)} new relationships")
+        print(
+            f"📈 Expanded from {len(initial_items)} to {len(expansion_result.expanded_items)} items"
+        )
+        print(
+            f"🔗 Discovered {len(expansion_result.new_relationships)} new relationships"
+        )
         print(f"🎯 Expansion confidence: {expansion_result.expansion_confidence:.3f}")
         print(f"📊 Traversal depth: {expansion_result.traversal_depth}")
 
@@ -262,7 +297,7 @@ class WorldBeatingDemo:
         query = ContextQuery(
             query="secure authentication implementation",
             project_id="demo-project",
-            tenant_id="demo-tenant"
+            tenant_id="demo-tenant",
         )
 
         print("🎯 Applying advanced cross-encoder reranking...")
@@ -289,7 +324,7 @@ class WorldBeatingDemo:
             "API rate limiting strategies",
             "container orchestration",
             "security best practices",
-            "performance optimization"
+            "performance optimization",
         ]
 
         for i, query_text in enumerate(queries):
@@ -299,7 +334,7 @@ class WorldBeatingDemo:
                 query=query_text,
                 project_id="demo-project",
                 tenant_id="demo-tenant",
-                user_id="demo-user"
+                user_id="demo-user",
             )
 
             # Execute retrieval
@@ -311,9 +346,11 @@ class WorldBeatingDemo:
             print(f"   📈 Relevance avg: {metrics['relevance_score_avg']:.3f}")
 
             # Show RL optimization if applied
-            if response.metadata and 'optimization' in response.metadata:
-                opt_data = response.metadata['optimization']
-                print(f"   🧠 RL Optimization: {opt_data['parameter_adjusted']} -> improvement: {opt_data['improvement']:.3f}")
+            if response.metadata and "optimization" in response.metadata:
+                opt_data = response.metadata["optimization"]
+                print(
+                    f"   🧠 RL Optimization: {opt_data['parameter_adjusted']} -> improvement: {opt_data['improvement']:.3f}"
+                )
 
         # Show final optimized parameters
         print(f"\n🎯 Final optimized parameters:")
@@ -333,7 +370,7 @@ class WorldBeatingDemo:
             tenant_id="demo-tenant",
             user_id="demo-user",
             layers=[ContextLayer.SEMANTIC, ContextLayer.EPISODIC, ContextLayer.RAG],
-            limit=20
+            limit=20,
         )
 
         print("🔬 Running comprehensive benchmark...")
@@ -370,7 +407,7 @@ class WorldBeatingDemo:
                 created_by="system",
                 tags=["security", "microservices", "authentication"],
                 relevance_score=0.9,
-                confidence_score=0.85
+                confidence_score=0.85,
             ),
             ContextItem(
                 title="Database Connection Optimization",
@@ -382,7 +419,7 @@ class WorldBeatingDemo:
                 created_by="system",
                 tags=["database", "performance", "spring"],
                 relevance_score=0.8,
-                confidence_score=0.8
+                confidence_score=0.8,
             ),
             ContextItem(
                 title="API Rate Limiting Implementation",
@@ -394,8 +431,8 @@ class WorldBeatingDemo:
                 created_by="system",
                 tags=["api", "redis", "rate-limiting"],
                 relevance_score=0.85,
-                confidence_score=0.82
-            )
+                confidence_score=0.82,
+            ),
         ]
 
     async def run_full_demo(self):
@@ -434,4 +471,3 @@ async def main():
 if __name__ == "__main__":
     # Run the comprehensive demo
     asyncio.run(main())
-

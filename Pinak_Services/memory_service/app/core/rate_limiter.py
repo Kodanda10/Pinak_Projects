@@ -13,7 +13,8 @@ SOTA Rate Limiting Implementation:
 import asyncio
 import time
 from collections import defaultdict, deque
-from typing import Dict, Deque, Tuple, Optional
+from typing import Deque, Dict, Optional, Tuple
+
 from .config import settings
 from .logging import logger
 
@@ -34,7 +35,7 @@ class RateLimiter:
         self,
         requests_per_minute: int = 1000,
         burst_limit: int = 100,
-        window_size_seconds: int = 60
+        window_size_seconds: int = 60,
     ):
         """
         Initialize rate limiter.
@@ -57,7 +58,7 @@ class RateLimiter:
             "Rate limiter initialized",
             requests_per_minute=requests_per_minute,
             burst_limit=burst_limit,
-            window_size_seconds=window_size_seconds
+            window_size_seconds=window_size_seconds,
         )
 
     async def check_rate_limit(self, client_ip: str) -> bool:
@@ -86,7 +87,7 @@ class RateLimiter:
                     logger.warning(
                         "Rate limit exceeded for client",
                         client_ip=client_ip,
-                        total_requests=total_requests
+                        total_requests=total_requests,
                     )
                     return False
 
@@ -94,7 +95,9 @@ class RateLimiter:
             self._add_request(client_queue, current_time)
             return True
 
-    def _clean_old_entries(self, client_queue: Deque[Tuple[float, int]], current_time: float):
+    def _clean_old_entries(
+        self, client_queue: Deque[Tuple[float, int]], current_time: float
+    ):
         """Remove entries older than window size."""
         cutoff_time = current_time - self.window_size_seconds
         while client_queue and client_queue[0][0] < cutoff_time:
@@ -129,7 +132,9 @@ class RateLimiter:
 
         total_requests = sum(count for _, count in client_queue)
         remaining = max(0, self.requests_per_minute - total_requests)
-        remaining_burst = max(0, self.requests_per_minute + self.burst_limit - total_requests)
+        remaining_burst = max(
+            0, self.requests_per_minute + self.burst_limit - total_requests
+        )
 
         return {
             "total_requests": total_requests,
@@ -137,7 +142,7 @@ class RateLimiter:
             "remaining_burst": remaining_burst,
             "requests_per_minute": self.requests_per_minute,
             "burst_limit": self.burst_limit,
-            "window_size_seconds": self.window_size_seconds
+            "window_size_seconds": self.window_size_seconds,
         }
 
     def reset_client(self, client_ip: str):
@@ -174,12 +179,12 @@ class RateLimiter:
         if clients_to_remove:
             logger.info(
                 "Cleaned up old client rate limit data",
-                removed_clients=len(clients_to_remove)
+                removed_clients=len(clients_to_remove),
             )
 
 
 # Global rate limiter instance with default settings
 rate_limiter = RateLimiter(
     requests_per_minute=settings.RATE_LIMIT_REQUESTS_PER_MINUTE,
-    burst_limit=settings.RATE_LIMIT_BURST
+    burst_limit=settings.RATE_LIMIT_BURST,
 )

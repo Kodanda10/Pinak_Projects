@@ -5,21 +5,24 @@ Following TDD principles: Write tests first, then implement features.
 Tests cover all 6 stages of the world-beating retrieval pipeline.
 """
 
-import pytest
 import asyncio
-from unittest.mock import Mock, AsyncMock, patch
-from typing import Dict, List, Any
 import time
+from typing import Any, Dict, List
+from unittest.mock import AsyncMock, Mock, patch
 
-from pinak.context.broker.broker import ContextBroker, RetrievalResult, HybridScore
-from pinak.context.broker.world_beating_retrieval import WorldBeatingRetrieval
+import pytest
+
+from pinak.context.broker.broker import (ContextBroker, HybridScore,
+                                         RetrievalResult)
 from pinak.context.broker.graph_expansion import GraphBasedExpander
 from pinak.context.broker.neural_reranker import NeuralReranker
-from pinak.context.broker.rl_optimizer import AdaptiveLearningEngine, QLearningOptimizer
-from pinak.context.core.models import (
-    ContextItem, ContextQuery, ContextResponse, ContextLayer,
-    ContextPriority, SecurityClassification, IContextStore
-)
+from pinak.context.broker.rl_optimizer import (AdaptiveLearningEngine,
+                                               QLearningOptimizer)
+from pinak.context.broker.world_beating_retrieval import WorldBeatingRetrieval
+from pinak.context.core.models import (ContextItem, ContextLayer,
+                                       ContextPriority, ContextQuery,
+                                       ContextResponse, IContextStore,
+                                       SecurityClassification)
 
 
 class MockContextStore(IContextStore):
@@ -34,7 +37,7 @@ class MockContextStore(IContextStore):
         """Mock retrieve implementation."""
         response = ContextResponse()
         response.query_id = query.query_id
-        response.items = self.data[:query.limit]
+        response.items = self.data[: query.limit]
         response.total_results = len(self.data)
         return response
 
@@ -76,7 +79,7 @@ def context_broker(mock_stores):
         semantic_weight=0.6,
         keyword_weight=0.3,
         temporal_weight=0.1,
-        enable_world_beating=True
+        enable_world_beating=True,
     )
 
 
@@ -94,7 +97,7 @@ def sample_context_items():
             confidence_score=0.8,
             tags=["python", "async"],
             created_at=now,
-            metadata={"source": "docs"}
+            metadata={"source": "docs"},
         ),
         ContextItem(
             id="2",
@@ -105,7 +108,7 @@ def sample_context_items():
             confidence_score=0.6,
             tags=["ml", "best-practices"],
             created_at=now - 3600,
-            metadata={"experience": "production"}
+            metadata={"experience": "production"},
         ),
         ContextItem(
             id="3",
@@ -116,8 +119,8 @@ def sample_context_items():
             confidence_score=0.7,
             tags=["debugging", "api"],
             created_at=now - 7200,
-            metadata={"skill_id": "api_debug"}
-        )
+            metadata={"skill_id": "api_debug"},
+        ),
     ]
 
 
@@ -135,7 +138,7 @@ class TestWorldBeatingRetrieval:
             query="python async programming",
             layers=[ContextLayer.SEMANTIC, ContextLayer.EPISODIC],
             limit=10,
-            semantic_search=True
+            semantic_search=True,
         )
 
         # Add sample data
@@ -155,7 +158,9 @@ class TestWorldBeatingRetrieval:
     async def test_stage2_dense_retrieval(self, context_broker, sample_context_items):
         """Test Stage 2: Dense Retrieval Pipeline."""
         # Setup mock for dense retrieval
-        with patch.object(context_broker.stores[ContextLayer.SEMANTIC], 'search_similar') as mock_search:
+        with patch.object(
+            context_broker.stores[ContextLayer.SEMANTIC], "search_similar"
+        ) as mock_search:
             mock_search.return_value = sample_context_items[:2]
 
             query = ContextQuery(
@@ -163,7 +168,7 @@ class TestWorldBeatingRetrieval:
                 query="python programming",
                 layers=[ContextLayer.SEMANTIC],
                 limit=5,
-                semantic_search=True
+                semantic_search=True,
             )
 
             # Execute
@@ -178,26 +183,31 @@ class TestWorldBeatingRetrieval:
         """Test Stage 3: Sparse Hybrid Integration."""
         # Test hybrid scoring
         query = ContextQuery(
-            query_id="test_3",
-            query="python",
-            layers=[ContextLayer.SEMANTIC],
-            limit=10
+            query_id="test_3", query="python", layers=[ContextLayer.SEMANTIC], limit=10
         )
 
         # Add test data
         items = [
             ContextItem(
-                id="1", content="Python programming tutorial",
-                title="Tutorial", layer=ContextLayer.SEMANTIC,
-                relevance_score=0.8, confidence_score=0.9,
-                tags=["python"], created_at=time.time()
+                id="1",
+                content="Python programming tutorial",
+                title="Tutorial",
+                layer=ContextLayer.SEMANTIC,
+                relevance_score=0.8,
+                confidence_score=0.9,
+                tags=["python"],
+                created_at=time.time(),
             ),
             ContextItem(
-                id="2", content="Java programming guide",
-                title="Guide", layer=ContextLayer.SEMANTIC,
-                relevance_score=0.6, confidence_score=0.7,
-                tags=["java"], created_at=time.time()
-            )
+                id="2",
+                content="Java programming guide",
+                title="Guide",
+                layer=ContextLayer.SEMANTIC,
+                relevance_score=0.6,
+                confidence_score=0.7,
+                tags=["java"],
+                created_at=time.time(),
+            ),
         ]
 
         for item in items:
@@ -209,14 +219,16 @@ class TestWorldBeatingRetrieval:
         # Assert hybrid scoring worked
         assert len(response.items) > 0
         # Python-related item should rank higher
-        python_item = next((item for item in response.items if "python" in item.content.lower()), None)
+        python_item = next(
+            (item for item in response.items if "python" in item.content.lower()), None
+        )
         assert python_item is not None
 
     @pytest.mark.asyncio
     async def test_stage4_graph_based_expansion(self, context_broker):
         """Test Stage 4: Graph-Based Knowledge Expansion."""
         # Mock graph expander
-        with patch.object(context_broker, 'graph_expander') as mock_expander:
+        with patch.object(context_broker, "graph_expander") as mock_expander:
             mock_expansion = Mock()
             mock_expansion.expanded_items = [
                 ContextItem(
@@ -227,7 +239,7 @@ class TestWorldBeatingRetrieval:
                     relevance_score=0.7,
                     confidence_score=0.6,
                     tags=["expanded"],
-                    created_at=time.time()
+                    created_at=time.time(),
                 )
             ]
             mock_expansion.new_relationships = ["rel1", "rel2"]
@@ -235,9 +247,7 @@ class TestWorldBeatingRetrieval:
             mock_expander.expand_context = AsyncMock(return_value=mock_expansion)
 
             query = ContextQuery(
-                query_id="test_4",
-                query="test query",
-                layers=[ContextLayer.SEMANTIC]
+                query_id="test_4", query="test query", layers=[ContextLayer.SEMANTIC]
             )
 
             # Execute
@@ -253,18 +263,20 @@ class TestWorldBeatingRetrieval:
         """Test Stage 5: Neural Reranking & Personalization."""
         # Note: Neural reranker is placeholder, so we'll test the framework
         query = ContextQuery(
-            query_id="test_5",
-            query="neural network",
-            layers=[ContextLayer.SEMANTIC]
+            query_id="test_5", query="neural network", layers=[ContextLayer.SEMANTIC]
         )
 
         # Add test items
         items = [
             ContextItem(
-                id="1", content="Neural networks explained",
-                title="NN Tutorial", layer=ContextLayer.SEMANTIC,
-                relevance_score=0.9, confidence_score=0.8,
-                tags=["neural", "ml"], created_at=time.time()
+                id="1",
+                content="Neural networks explained",
+                title="NN Tutorial",
+                layer=ContextLayer.SEMANTIC,
+                relevance_score=0.9,
+                confidence_score=0.8,
+                tags=["neural", "ml"],
+                created_at=time.time(),
             )
         ]
 
@@ -281,7 +293,7 @@ class TestWorldBeatingRetrieval:
     async def test_stage6_adaptive_learning(self, context_broker):
         """Test Stage 6: Adaptive Learning & Optimization."""
         # Mock RL optimizer
-        with patch.object(context_broker, 'adaptive_optimizer') as mock_optimizer:
+        with patch.object(context_broker, "adaptive_optimizer") as mock_optimizer:
             mock_result = Mock()
             mock_result.improvement = 0.15
             mock_result.action_taken = Mock()
@@ -292,7 +304,7 @@ class TestWorldBeatingRetrieval:
             query = ContextQuery(
                 query_id="test_6",
                 query="adaptive learning",
-                layers=[ContextLayer.SEMANTIC]
+                layers=[ContextLayer.SEMANTIC],
             )
 
             # Execute
@@ -317,7 +329,7 @@ class TestHybridRetrievalScoring:
             semantic_score=0.8,
             keyword_score=0.6,
             temporal_score=0.9,
-            combined_score=0.77
+            combined_score=0.77,
         )
 
         assert score.item == item
@@ -332,12 +344,18 @@ class TestHybridRetrievalScoring:
         item2 = sample_context_items[1]
 
         score1 = HybridScore(
-            item=item1, semantic_score=0.8, keyword_score=0.6,
-            temporal_score=0.9, combined_score=0.77
+            item=item1,
+            semantic_score=0.8,
+            keyword_score=0.6,
+            temporal_score=0.9,
+            combined_score=0.77,
         )
         score2 = HybridScore(
-            item=item2, semantic_score=0.6, keyword_score=0.8,
-            temporal_score=0.7, combined_score=0.71
+            item=item2,
+            semantic_score=0.6,
+            keyword_score=0.8,
+            temporal_score=0.7,
+            combined_score=0.71,
         )
 
         # Higher combined score should be "less than" for max-heap behavior
@@ -385,7 +403,7 @@ class TestPerformanceMonitoring:
         query = ContextQuery(
             query_id="perf_test",
             query="performance test",
-            layers=[ContextLayer.SEMANTIC]
+            layers=[ContextLayer.SEMANTIC],
         )
 
         # Execute query
@@ -400,8 +418,13 @@ class TestPerformanceMonitoring:
         metrics = context_broker.get_metrics()
 
         required_keys = [
-            'total_queries', 'cache_hits', 'cache_misses',
-            'avg_execution_time_ms', 'error_count', 'cache_size', 'active_stores'
+            "total_queries",
+            "cache_hits",
+            "cache_misses",
+            "avg_execution_time_ms",
+            "error_count",
+            "cache_size",
+            "active_stores",
         ]
 
         for key in required_keys:
@@ -412,9 +435,7 @@ class TestPerformanceMonitoring:
     async def test_cache_functionality(self, context_broker):
         """Test caching functionality."""
         query = ContextQuery(
-            query_id="cache_test",
-            query="cache test",
-            layers=[ContextLayer.SEMANTIC]
+            query_id="cache_test", query="cache test", layers=[ContextLayer.SEMANTIC]
         )
 
         # First request should miss cache
@@ -427,8 +448,8 @@ class TestPerformanceMonitoring:
 
         # Verify cache metrics
         metrics = context_broker.get_metrics()
-        assert metrics['cache_hits'] >= 1
-        assert metrics['cache_misses'] >= 1
+        assert metrics["cache_hits"] >= 1
+        assert metrics["cache_misses"] >= 1
 
 
 @pytest.mark.tdd
@@ -444,7 +465,7 @@ class TestStressAndLoad:
             ContextQuery(
                 query_id=f"concurrent_{i}",
                 query=f"concurrent test query {i}",
-                layers=[ContextLayer.SEMANTIC, ContextLayer.EPISODIC]
+                layers=[ContextLayer.SEMANTIC, ContextLayer.EPISODIC],
             )
             for i in range(10)
         ]
@@ -473,7 +494,7 @@ class TestStressAndLoad:
                 relevance_score=0.8,
                 confidence_score=0.7,
                 tags=["large", "dataset"],
-                created_at=time.time()
+                created_at=time.time(),
             )
             items.append(item)
             await context_broker.stores[ContextLayer.SEMANTIC].store(item)
@@ -482,7 +503,7 @@ class TestStressAndLoad:
             query_id="large_test",
             query="relevant content",
             layers=[ContextLayer.SEMANTIC],
-            limit=50
+            limit=50,
         )
 
         # Execute query
@@ -502,13 +523,15 @@ class TestErrorHandling:
     async def test_store_failure_handling(self, context_broker):
         """Test handling of store failures."""
         # Mock a store to fail
-        with patch.object(context_broker.stores[ContextLayer.SEMANTIC], 'retrieve') as mock_retrieve:
+        with patch.object(
+            context_broker.stores[ContextLayer.SEMANTIC], "retrieve"
+        ) as mock_retrieve:
             mock_retrieve.side_effect = Exception("Store failure")
 
             query = ContextQuery(
                 query_id="error_test",
                 query="error test",
-                layers=[ContextLayer.SEMANTIC]
+                layers=[ContextLayer.SEMANTIC],
             )
 
             # Should handle error gracefully
@@ -519,7 +542,9 @@ class TestErrorHandling:
     async def test_partial_failure_recovery(self, context_broker):
         """Test recovery from partial failures."""
         # Mock one store to fail, others to succeed
-        with patch.object(context_broker.stores[ContextLayer.SEMANTIC], 'retrieve') as mock_semantic:
+        with patch.object(
+            context_broker.stores[ContextLayer.SEMANTIC], "retrieve"
+        ) as mock_semantic:
             mock_semantic.side_effect = Exception("Semantic store failed")
 
             # Add working data to other stores
@@ -531,14 +556,14 @@ class TestErrorHandling:
                 relevance_score=0.8,
                 confidence_score=0.7,
                 tags=["working"],
-                created_at=time.time()
+                created_at=time.time(),
             )
             await context_broker.stores[ContextLayer.WORKING].store(working_item)
 
             query = ContextQuery(
                 query_id="partial_failure_test",
                 query="test query",
-                layers=[ContextLayer.SEMANTIC, ContextLayer.WORKING]
+                layers=[ContextLayer.SEMANTIC, ContextLayer.WORKING],
             )
 
             # Should still return results from working stores
@@ -548,6 +573,7 @@ class TestErrorHandling:
     @pytest.mark.asyncio
     async def test_timeout_handling(self, context_broker):
         """Test timeout handling."""
+
         # Mock slow store
         async def slow_retrieve(query):
             await asyncio.sleep(0.1)  # Simulate slow operation
@@ -556,19 +582,23 @@ class TestErrorHandling:
             response.items = []
             return response
 
-        with patch.object(context_broker.stores[ContextLayer.SEMANTIC], 'retrieve', side_effect=slow_retrieve):
+        with patch.object(
+            context_broker.stores[ContextLayer.SEMANTIC],
+            "retrieve",
+            side_effect=slow_retrieve,
+        ):
             query = ContextQuery(
                 query_id="timeout_test",
                 query="timeout test",
-                layers=[ContextLayer.SEMANTIC]
+                layers=[ContextLayer.SEMANTIC],
             )
 
             # Should complete within reasonable time
             import time
+
             start_time = time.time()
             response = await context_broker.get_context(query)
             execution_time = time.time() - start_time
 
             # Allow some tolerance for execution time
             assert execution_time < 1.0  # Should complete reasonably quickly
-

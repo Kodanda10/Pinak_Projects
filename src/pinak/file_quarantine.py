@@ -12,23 +12,24 @@ Key Features:
 - Integration with Git for tracking
 """
 
+import datetime
+import hashlib
+import json
+import logging
 import os
 import shutil
-import json
-import hashlib
-import datetime
 import tempfile
-from pathlib import Path
-from typing import Dict, List, Any, Optional, Union
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from enum import Enum
-import logging
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Union
 
 logger = logging.getLogger(__name__)
 
 
 class QuarantineAction(Enum):
     """Types of quarantine actions."""
+
     DELETE_REQUESTED = "delete_requested"
     MOVE_REQUESTED = "move_requested"
     OVERWRITE_REQUESTED = "overwrite_requested"
@@ -38,6 +39,7 @@ class QuarantineAction(Enum):
 
 class QuarantinePriority(Enum):
     """Priority levels for quarantine operations."""
+
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
@@ -47,6 +49,7 @@ class QuarantinePriority(Enum):
 @dataclass
 class QuarantineRecord:
     """Record of a quarantined file operation."""
+
     original_path: str
     quarantine_path: str
     action: QuarantineAction
@@ -62,17 +65,17 @@ class QuarantineRecord:
     def to_dict(self) -> Dict[str, Any]:
         """Convert record to dictionary for JSON serialization."""
         data = asdict(self)
-        data['action'] = self.action.value
-        data['priority'] = self.priority.value
-        data['timestamp'] = self.timestamp.isoformat()
+        data["action"] = self.action.value
+        data["priority"] = self.priority.value
+        data["timestamp"] = self.timestamp.isoformat()
         return data
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> 'QuarantineRecord':
+    def from_dict(cls, data: Dict[str, Any]) -> "QuarantineRecord":
         """Create record from dictionary."""
-        data['action'] = QuarantineAction(data['action'])
-        data['priority'] = QuarantinePriority(data['priority'])
-        data['timestamp'] = datetime.datetime.fromisoformat(data['timestamp'])
+        data["action"] = QuarantineAction(data["action"])
+        data["priority"] = QuarantinePriority(data["priority"])
+        data["timestamp"] = datetime.datetime.fromisoformat(data["timestamp"])
         return cls(**data)
 
 
@@ -88,7 +91,7 @@ class FileQuarantineManager:
         self,
         quarantine_base: Optional[Union[str, Path]] = None,
         auto_cleanup_days: int = 90,
-        max_quarantine_size_gb: float = 10.0
+        max_quarantine_size_gb: float = 10.0,
     ):
         """
         Initialize the quarantine manager.
@@ -120,7 +123,7 @@ class FileQuarantineManager:
         """Find the project root directory."""
         current = Path.cwd()
         # Look for common project markers
-        markers = ['setup.py', 'pyproject.toml', '.git', 'README.md']
+        markers = ["setup.py", "pyproject.toml", ".git", "README.md"]
 
         while current != current.parent:
             if any((current / marker).exists() for marker in markers):
@@ -152,7 +155,7 @@ class FileQuarantineManager:
             return {}
 
         try:
-            with open(self.records_file, 'r', encoding='utf-8') as f:
+            with open(self.records_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 return {
                     record_id: QuarantineRecord.from_dict(record_data)
@@ -165,16 +168,12 @@ class FileQuarantineManager:
     def _save_records(self):
         """Save quarantine records to disk."""
         data = {
-            record_id: record.to_dict()
-            for record_id, record in self.records.items()
+            record_id: record.to_dict() for record_id, record in self.records.items()
         }
 
         # Write to temporary file first for atomicity
         with tempfile.NamedTemporaryFile(
-            mode='w',
-            dir=self.records_file.parent,
-            delete=False,
-            suffix='.tmp'
+            mode="w", dir=self.records_file.parent, delete=False, suffix=".tmp"
         ) as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
 
@@ -189,14 +188,16 @@ class FileQuarantineManager:
 
         hash_sha256 = hashlib.sha256()
         try:
-            with open(file_path, 'rb') as f:
+            with open(file_path, "rb") as f:
                 for chunk in iter(lambda: f.read(4096), b""):
                     hash_sha256.update(chunk)
             return hash_sha256.hexdigest()
         except (OSError, IOError):
             return ""
 
-    def _get_quarantine_path(self, original_path: Path, priority: QuarantinePriority) -> Path:
+    def _get_quarantine_path(
+        self, original_path: Path, priority: QuarantinePriority
+    ) -> Path:
         """Generate quarantine path for a file."""
         # Create a unique name based on original path and timestamp
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -218,7 +219,7 @@ class FileQuarantineManager:
         user: str = "system",
         priority: QuarantinePriority = QuarantinePriority.MEDIUM,
         metadata: Optional[Dict[str, Any]] = None,
-        preserve_git_history: bool = True
+        preserve_git_history: bool = True,
     ) -> Optional[str]:
         """
         Quarantine a file instead of deleting it.
@@ -264,7 +265,7 @@ class FileQuarantineManager:
                 file_size=file_size,
                 priority=priority,
                 metadata=metadata or {},
-                can_restore=True
+                can_restore=True,
             )
 
             # Add git information if available
@@ -283,14 +284,18 @@ class FileQuarantineManager:
             # Check if we need to cleanup old files
             self._check_auto_cleanup()
 
-            logger.info(f"File quarantined: {file_path} -> {quarantine_path} (ID: {record_id})")
+            logger.info(
+                f"File quarantined: {file_path} -> {quarantine_path} (ID: {record_id})"
+            )
             return record_id
 
         except Exception as e:
             logger.error(f"Failed to quarantine file {file_path}: {e}")
             return None
 
-    def restore_file(self, record_id: str, target_path: Optional[Union[str, Path]] = None) -> bool:
+    def restore_file(
+        self, record_id: str, target_path: Optional[Union[str, Path]] = None
+    ) -> bool:
         """
         Restore a quarantined file.
 
@@ -331,8 +336,8 @@ class FileQuarantineManager:
 
             # Update record
             record.can_restore = False
-            record.metadata['restored_at'] = datetime.datetime.now().isoformat()
-            record.metadata['restored_to'] = str(target_path)
+            record.metadata["restored_at"] = datetime.datetime.now().isoformat()
+            record.metadata["restored_to"] = str(target_path)
             self._save_records()
 
             logger.info(f"File restored: {quarantine_path} -> {target_path}")
@@ -347,7 +352,7 @@ class FileQuarantineManager:
         action_filter: Optional[QuarantineAction] = None,
         priority_filter: Optional[QuarantinePriority] = None,
         user_filter: Optional[str] = None,
-        limit: int = 100
+        limit: int = 100,
     ) -> List[Dict[str, Any]]:
         """
         List quarantined files with optional filtering.
@@ -367,7 +372,7 @@ class FileQuarantineManager:
                 continue
 
             record_dict = record.to_dict()
-            record_dict['record_id'] = record_id
+            record_dict["record_id"] = record_id
             records.append(record_dict)
 
             if len(records) >= limit:
@@ -379,7 +384,7 @@ class FileQuarantineManager:
         self,
         max_age_days: Optional[int] = None,
         priority_filter: Optional[QuarantinePriority] = None,
-        dry_run: bool = False
+        dry_run: bool = False,
     ) -> Dict[str, Any]:
         """
         Clean up old quarantined files.
@@ -398,15 +403,15 @@ class FileQuarantineManager:
         cutoff_date = datetime.datetime.now() - datetime.timedelta(days=max_age_days)
 
         stats = {
-            'scanned': 0,
-            'to_cleanup': 0,
-            'cleaned_up': 0,
-            'total_size_freed': 0,
-            'errors': 0
+            "scanned": 0,
+            "to_cleanup": 0,
+            "cleaned_up": 0,
+            "total_size_freed": 0,
+            "errors": 0,
         }
 
         for record_id, record in list(self.records.items()):
-            stats['scanned'] += 1
+            stats["scanned"] += 1
 
             # Apply filters
             if record.timestamp > cutoff_date:
@@ -416,7 +421,7 @@ class FileQuarantineManager:
             if not record.can_restore:  # Already processed
                 continue
 
-            stats['to_cleanup'] += 1
+            stats["to_cleanup"] += 1
 
             if dry_run:
                 continue
@@ -426,15 +431,15 @@ class FileQuarantineManager:
                 if quarantine_path.exists():
                     size = quarantine_path.stat().st_size
                     quarantine_path.unlink()
-                    stats['total_size_freed'] += size
-                    stats['cleaned_up'] += 1
+                    stats["total_size_freed"] += size
+                    stats["cleaned_up"] += 1
 
                 # Remove record
                 del self.records[record_id]
 
             except Exception as e:
                 logger.error(f"Failed to cleanup {record_id}: {e}")
-                stats['errors'] += 1
+                stats["errors"] += 1
 
         if not dry_run:
             self._save_records()
@@ -449,10 +454,12 @@ class FileQuarantineManager:
             if Path(record.quarantine_path).exists()
         )
 
-        total_size_gb = total_size / (1024 ** 3)
+        total_size_gb = total_size / (1024**3)
 
         if total_size_gb > self.max_quarantine_size_gb:
-            logger.info(f"Quarantine size ({total_size_gb:.2f}GB) exceeds limit. Running cleanup...")
+            logger.info(
+                f"Quarantine size ({total_size_gb:.2f}GB) exceeds limit. Running cleanup..."
+            )
             stats = self.cleanup_old_files(priority_filter=QuarantinePriority.LOW)
             logger.info(f"Auto cleanup completed: {stats}")
 
@@ -465,20 +472,32 @@ class FileQuarantineManager:
 
             # Get last commit info for the file
             result = subprocess.run(
-                ['git', 'log', '-1', '--pretty=format:%H,%an,%ae,%ad', '--date=iso', '--', str(file_path)],
+                [
+                    "git",
+                    "log",
+                    "-1",
+                    "--pretty=format:%H,%an,%ae,%ad",
+                    "--date=iso",
+                    "--",
+                    str(file_path),
+                ],
                 capture_output=True,
                 text=True,
-                cwd=file_path.parent if file_path.parent.exists() else None
+                cwd=file_path.parent if file_path.parent.exists() else None,
             )
 
             if result.returncode == 0 and result.stdout.strip():
-                commit_hash, author_name, author_email, date = result.stdout.strip().split(',')
-                git_info.update({
-                    'last_commit_hash': commit_hash,
-                    'last_author': author_name,
-                    'last_author_email': author_email,
-                    'last_modified': date
-                })
+                commit_hash, author_name, author_email, date = (
+                    result.stdout.strip().split(",")
+                )
+                git_info.update(
+                    {
+                        "last_commit_hash": commit_hash,
+                        "last_author": author_name,
+                        "last_author_email": author_email,
+                        "last_modified": date,
+                    }
+                )
 
         except Exception as e:
             logger.debug(f"Could not get git info for {file_path}: {e}")
@@ -491,7 +510,11 @@ class FileQuarantineManager:
         priority_counts = {p.value: 0 for p in QuarantinePriority}
         action_counts = {a.value: 0 for a in QuarantineAction}
         age_distribution = {
-            '1_day': 0, '7_days': 0, '30_days': 0, '90_days': 0, 'older': 0
+            "1_day": 0,
+            "7_days": 0,
+            "30_days": 0,
+            "90_days": 0,
+            "older": 0,
         }
 
         now = datetime.datetime.now()
@@ -511,25 +534,25 @@ class FileQuarantineManager:
             # Age distribution
             age_days = (now - record.timestamp).days
             if age_days <= 1:
-                age_distribution['1_day'] += 1
+                age_distribution["1_day"] += 1
             elif age_days <= 7:
-                age_distribution['7_days'] += 1
+                age_distribution["7_days"] += 1
             elif age_days <= 30:
-                age_distribution['30_days'] += 1
+                age_distribution["30_days"] += 1
             elif age_days <= 90:
-                age_distribution['90_days'] += 1
+                age_distribution["90_days"] += 1
             else:
-                age_distribution['older'] += 1
+                age_distribution["older"] += 1
 
         return {
-            'total_files': len(self.records),
-            'total_size_bytes': total_size,
-            'total_size_gb': total_size / (1024 ** 3),
-            'priority_distribution': priority_counts,
-            'action_distribution': action_counts,
-            'age_distribution': age_distribution,
-            'auto_cleanup_days': self.auto_cleanup_days,
-            'max_size_gb': self.max_quarantine_size_gb
+            "total_files": len(self.records),
+            "total_size_bytes": total_size,
+            "total_size_gb": total_size / (1024**3),
+            "priority_distribution": priority_counts,
+            "action_distribution": action_counts,
+            "age_distribution": age_distribution,
+            "auto_cleanup_days": self.auto_cleanup_days,
+            "max_size_gb": self.max_quarantine_size_gb,
         }
 
 
@@ -556,16 +579,21 @@ def safe_delete(file_path: Union[str, Path], reason: str, user: str = "system") 
 
     This function should be used instead of os.remove() or Path.unlink().
     """
-    return quarantine_file(
-        file_path=file_path,
-        action=QuarantineAction.DELETE_REQUESTED,
-        reason=reason,
-        user=user,
-        priority=QuarantinePriority.MEDIUM
-    ) is not None
+    return (
+        quarantine_file(
+            file_path=file_path,
+            action=QuarantineAction.DELETE_REQUESTED,
+            reason=reason,
+            user=user,
+            priority=QuarantinePriority.MEDIUM,
+        )
+        is not None
+    )
 
 
-def safe_move(src: Union[str, Path], dst: Union[str, Path], reason: str, user: str = "system") -> bool:
+def safe_move(
+    src: Union[str, Path], dst: Union[str, Path], reason: str, user: str = "system"
+) -> bool:
     """
     Safe move function that quarantines the source file.
 
@@ -579,7 +607,7 @@ def safe_move(src: Union[str, Path], dst: Union[str, Path], reason: str, user: s
             action=QuarantineAction.OVERWRITE_REQUESTED,
             reason=f"Overwritten by move from {src}: {reason}",
             user=user,
-            priority=QuarantinePriority.HIGH
+            priority=QuarantinePriority.HIGH,
         )
 
     # Then perform the move
@@ -598,7 +626,7 @@ def patch_file_operations():
 
     # Store original functions
     original_remove = os.remove
-    original_unlink = os.unlink if hasattr(os, 'unlink') else None
+    original_unlink = os.unlink if hasattr(os, "unlink") else None
     original_rmdir = os.rmdir
 
     def safe_os_remove(path):
@@ -620,7 +648,7 @@ def patch_file_operations():
         path_obj = Path(path)
         if path_obj.exists() and path_obj.is_dir():
             # Quarantine all files in directory first
-            for file_path in path_obj.rglob('*'):
+            for file_path in path_obj.rglob("*"):
                 if file_path.is_file():
                     safe_delete(file_path, f"Directory removal: {path}", "system")
 
@@ -638,4 +666,3 @@ def patch_file_operations():
 # Auto-patch on import if enabled
 if os.getenv("PINAK_SAFE_FILE_OPS", "true").lower() == "true":
     patch_file_operations()
-

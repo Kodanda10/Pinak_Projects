@@ -1,30 +1,28 @@
 from __future__ import annotations
 
+import datetime
+import glob
 import json
 import math
 import os
-import datetime
-import glob
 import threading
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
-import numpy as np
 import faiss
-from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy import create_engine
-from sqlalchemy.orm import Session
-from sqlalchemy import select
-
+import numpy as np
+from app.core.schemas import MemoryCreate, MemoryOut, MemorySearchResult
 # ---- Project imports (adjust paths if your structure differs) ----
 # Models / Schemas
-from app.db.models import Memory, Base
-from app.core.schemas import MemoryCreate, MemoryOut, MemorySearchResult
+from app.db.models import Base, Memory
 from app.embedder import get_embedder
+from sqlalchemy import create_engine, select
+from sqlalchemy.orm import Session, sessionmaker
 
 # ------------------------------------------------------------------
 # In-process FAISS index holder (one per process). If you have multi-process workers,
 # back the index by a shared store or rebuild per process at startup.
 # ------------------------------------------------------------------
+
 
 class _FaissHolder:
     """
@@ -71,11 +69,13 @@ _FAISS = _FaissHolder()
 # Utility helpers
 # -----------------------
 
+
 def _to_vec(x: Sequence[float]) -> np.ndarray:
     arr = np.asarray(x, dtype="float32")
     if arr.ndim == 1:
         arr = arr.reshape(1, -1)
     return arr
+
 
 def _preserve_rank(items: Iterable[Memory], order_ids: List[int]) -> List[Memory]:
     by_id = {m.faiss_id: m for m in items if m.faiss_id is not None}
@@ -85,6 +85,7 @@ def _preserve_rank(items: Iterable[Memory], order_ids: List[int]) -> List[Memory
 # -----------------------
 # Service
 # -----------------------
+
 
 class MemoryService:
     """
@@ -100,16 +101,24 @@ class MemoryService:
       - project_id: Optional[str]  (if multi-tenant)
     """
 
-    def __init__(self, project_id: Optional[str] = None, config_path: Optional[str] = None, database_url: Optional[str] = None, data_dir: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        project_id: Optional[str] = None,
+        config_path: Optional[str] = None,
+        database_url: Optional[str] = None,
+        data_dir: Optional[str] = None,
+    ) -> None:
         self.project_id = project_id
         self.config_path = config_path
         self.database_url = database_url or "sqlite:///./data/memory.db"
         self.data_dir = data_dir or "data"  # Default data directory
-        
+
         # Initialize SQLAlchemy engine and session
         self.engine = create_engine(self.database_url, echo=False)
-        self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
-        
+        self.SessionLocal = sessionmaker(
+            autocommit=False, autoflush=False, bind=self.engine
+        )
+
         self.embedder = get_embedder()
         # Initialize FAISS with correct dim once
         _FAISS.ensure(self.embedder.dim)
@@ -138,12 +147,14 @@ class MemoryService:
             except Exception:
                 pass
         # Dispose of SQLAlchemy engine
-        if hasattr(self, 'engine') and self.engine is not None:
+        if hasattr(self, "engine") and self.engine is not None:
             self.engine.dispose()
 
     # ------------- Add -------------
 
-    def add_memory(self, payload: MemoryCreate, db: Optional[Session] = None) -> MemoryOut:
+    def add_memory(
+        self, payload: MemoryCreate, db: Optional[Session] = None
+    ) -> MemoryOut:
         """
         Single-commit add:
           1) Compute embedding
@@ -155,6 +166,7 @@ class MemoryService:
         if db is None:
             # Simple in-memory storage for testing
             import uuid
+
             memory_id = str(uuid.uuid4())
             return MemoryOut(
                 id=memory_id,
@@ -163,9 +175,9 @@ class MemoryService:
                 metadata=None,
                 tags=payload.tags or [],
                 created_at=datetime.datetime.now(datetime.timezone.utc),
-                redacted=None
+                redacted=None,
             )
-        
+
         # 1) Embed
         vec = self._embed_text(payload.content)  # (1, d)
         d = vec.shape[1]
@@ -176,7 +188,7 @@ class MemoryService:
             tags=payload.tags,
             memory_data=self._safe_metadata(payload.metadata),
             project_id=self.project_id,
-            created_at=datetime.datetime.now(datetime.timezone.utc)
+            created_at=datetime.datetime.now(datetime.timezone.utc),
         )
         db.add(row)
         db.flush()  # assigns row.id without committing
@@ -287,10 +299,10 @@ class MemoryService:
                     tags=["mock"],
                     created_at=datetime.datetime.now(datetime.timezone.utc),
                     redacted=None,
-                    distance=0.5
+                    distance=0.5,
                 )
             ]
-        
+
         # Fetch rows in bulk
         stmt = select(Memory).where(Memory.faiss_id.in_(ordered_ids))
         if project_id or self.project_id:
@@ -315,8 +327,12 @@ class MemoryService:
                 cache_data = []
                 for result in results:
                     result_dict = result.model_dump()
-                    if 'created_at' in result_dict and isinstance(result_dict['created_at'], datetime.datetime):
-                        result_dict['created_at'] = result_dict['created_at'].isoformat()
+                    if "created_at" in result_dict and isinstance(
+                        result_dict["created_at"], datetime.datetime
+                    ):
+                        result_dict["created_at"] = result_dict[
+                            "created_at"
+                        ].isoformat()
                     cache_data.append(result_dict)
                 self.redis_client.setex(cache_key, 3600, json.dumps(cache_data))  # type: ignore
             except Exception as e:
@@ -421,105 +437,142 @@ class MemoryService:
             tags=row.tags,
             created_at=row.created_at,
             redacted=row.redacted,
-            distance=distance
+            distance=distance,
         )
 
     def _store_dir(self, tenant: str, project_id: Optional[str]) -> str:
         """Get storage directory for tenant/project."""
-        base = os.path.join(self.data_dir, tenant, project_id or 'default')
+        base = os.path.join(self.data_dir, tenant, project_id or "default")
         os.makedirs(base, exist_ok=True)
         return base
 
     def _dated_file(self, base: str, layer: str, prefix: str) -> str:
         """Get dated file path for layer."""
-        date = datetime.datetime.utcnow().strftime('%Y%m%d')
-        return os.path.join(base, layer, f'{prefix}_{date}.jsonl')
+        date = datetime.datetime.utcnow().strftime("%Y%m%d")
+        return os.path.join(base, layer, f"{prefix}_{date}.jsonl")
 
     def _append_audit_jsonl(self, path: str, record: Dict[str, Any]):
         """Append record to JSONL file with audit."""
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, 'a') as f:
+        with open(path, "a") as f:
             json.dump(record, f)
-            f.write('\n')
+            f.write("\n")
 
     def _append_jsonl(self, path: str, record: Dict[str, Any]):
         """Append record to JSONL file."""
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, 'a') as f:
+        with open(path, "a") as f:
             json.dump(record, f)
-            f.write('\n')
+            f.write("\n")
 
     def _session_file(self, base: str, session_id: str) -> str:
         """Get session file path."""
-        return os.path.join(base, 'session', f'session_{session_id}.jsonl')
+        return os.path.join(base, "session", f"session_{session_id}.jsonl")
 
     def _working_file(self, base: str) -> str:
         """Get working file path."""
-        date = datetime.datetime.utcnow().strftime('%Y%m%d')
-        return os.path.join(base, 'working', f'working_{date}.jsonl')
+        date = datetime.datetime.utcnow().strftime("%Y%m%d")
+        return os.path.join(base, "working", f"working_{date}.jsonl")
 
-    def redact_memory(self, memory_id: str, tenant: str, project_id: Optional[str], reason: str) -> Dict[str, Any]:
+    def redact_memory(
+        self, memory_id: str, tenant: str, project_id: Optional[str], reason: str
+    ) -> Dict[str, Any]:
         """Redact a memory."""
         # Stub: mark as redacted
         return {"status": "redacted", "id": memory_id}
 
-    def list_changelog(self, tenant: str, project_id: Optional[str], change_type: Optional[str], since: Optional[str], until: Optional[str], limit: int, offset: int) -> List[Dict[str, Any]]:
+    def list_changelog(
+        self,
+        tenant: str,
+        project_id: Optional[str],
+        change_type: Optional[str],
+        since: Optional[str],
+        until: Optional[str],
+        limit: int,
+        offset: int,
+    ) -> List[Dict[str, Any]]:
         """List changelog entries."""
         base = self._store_dir(tenant, project_id)
         out = []
-        folder = os.path.join(base, 'changelog')
+        folder = os.path.join(base, "changelog")
         import glob
-        for fp in sorted(glob.glob(os.path.join(folder, 'changes_*.jsonl'))):
+
+        for fp in sorted(glob.glob(os.path.join(folder, "changes_*.jsonl"))):
             if os.path.exists(fp):
-                with open(fp, 'r') as f:
+                with open(fp, "r") as f:
                     for line in f:
                         try:
                             obj = json.loads(line)
                             out.append(obj)
                         except:
                             pass
-        return out[offset:offset+limit]
+        return out[offset : offset + limit]
 
-    def write_audit_anchor(self, tenant: str, project_id: Optional[str], kind: str, date: Optional[str], reason: str) -> Dict[str, Any]:
+    def write_audit_anchor(
+        self,
+        tenant: str,
+        project_id: Optional[str],
+        kind: str,
+        date: Optional[str],
+        reason: str,
+    ) -> Dict[str, Any]:
         """Write audit anchor."""
         base = self._store_dir(tenant, project_id)
-        path = os.path.join(base, 'audit', f'anchor_{kind}.json')
-        anchor = {"kind": kind, "date": date, "reason": reason, "ts": datetime.datetime.utcnow().isoformat()}
+        path = os.path.join(base, "audit", f"anchor_{kind}.json")
+        anchor = {
+            "kind": kind,
+            "date": date,
+            "reason": reason,
+            "ts": datetime.datetime.utcnow().isoformat(),
+        }
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, 'w') as f:
+        with open(path, "w") as f:
             json.dump(anchor, f)
         return anchor
 
-    def verify_audit_chain(self, tenant: str, project_id: Optional[str], kind: str, date: Optional[str]) -> Dict[str, Any]:
+    def verify_audit_chain(
+        self, tenant: str, project_id: Optional[str], kind: str, date: Optional[str]
+    ) -> Dict[str, Any]:
         """Verify audit chain."""
         # Stub implementation - always return verified for now
         return {"verified": True, "kind": kind, "ok": True, "count": 1}
 
     # Layer-specific service functions (outside the class for import)
 
-def add_episodic(memory_service: MemoryService, tenant: str, project_id: Optional[str], content: str, salience: int) -> Dict[str, Any]:
+
+def add_episodic(
+    memory_service: MemoryService,
+    tenant: str,
+    project_id: Optional[str],
+    content: str,
+    salience: int,
+) -> Dict[str, Any]:
     """Add episodic memory with salience."""
     # Store in JSONL file
     base = memory_service._store_dir(tenant, project_id)
-    path = memory_service._dated_file(base, 'episodic', 'episodic')
+    path = memory_service._dated_file(base, "episodic", "episodic")
     rec = {
-        'content': content,
-        'salience': salience,
-        'project_id': project_id,
-        'ts': datetime.datetime.utcnow().isoformat(),
+        "content": content,
+        "salience": salience,
+        "project_id": project_id,
+        "ts": datetime.datetime.utcnow().isoformat(),
     }
     memory_service._append_audit_jsonl(path, rec)
     return rec
 
-def list_episodic(memory_service: MemoryService, tenant: str, project_id: Optional[str]) -> List[Dict[str, Any]]:
+
+def list_episodic(
+    memory_service: MemoryService, tenant: str, project_id: Optional[str]
+) -> List[Dict[str, Any]]:
     """List episodic memories."""
     base = memory_service._store_dir(tenant, project_id)
     out = []
     import glob
-    folder = os.path.join(base, 'episodic')
-    for fp in sorted(glob.glob(os.path.join(folder, 'episodic_*.jsonl'))):
+
+    folder = os.path.join(base, "episodic")
+    for fp in sorted(glob.glob(os.path.join(folder, "episodic_*.jsonl"))):
         if os.path.exists(fp):
-            with open(fp, 'r') as f:
+            with open(fp, "r") as f:
                 for line in f:
                     try:
                         obj = json.loads(line)
@@ -527,31 +580,42 @@ def list_episodic(memory_service: MemoryService, tenant: str, project_id: Option
                     except:
                         pass
     # Sort by salience in descending order (highest first)
-    out.sort(key=lambda x: x.get('salience', 0), reverse=True)
+    out.sort(key=lambda x: x.get("salience", 0), reverse=True)
     return out
 
-def add_procedural(memory_service: MemoryService, tenant: str, project_id: Optional[str], skill_id: str, steps: List[str]) -> Dict[str, Any]:
+
+def add_procedural(
+    memory_service: MemoryService,
+    tenant: str,
+    project_id: Optional[str],
+    skill_id: str,
+    steps: List[str],
+) -> Dict[str, Any]:
     """Add procedural memory."""
     base = memory_service._store_dir(tenant, project_id)
-    path = memory_service._dated_file(base, 'procedural', 'procedural')
+    path = memory_service._dated_file(base, "procedural", "procedural")
     rec = {
-        'skill_id': skill_id,
-        'steps': steps,
-        'project_id': project_id,
-        'ts': datetime.datetime.utcnow().isoformat(),
+        "skill_id": skill_id,
+        "steps": steps,
+        "project_id": project_id,
+        "ts": datetime.datetime.utcnow().isoformat(),
     }
     memory_service._append_audit_jsonl(path, rec)
     return rec
 
-def list_procedural(memory_service: MemoryService, tenant: str, project_id: Optional[str]) -> List[Dict[str, Any]]:
+
+def list_procedural(
+    memory_service: MemoryService, tenant: str, project_id: Optional[str]
+) -> List[Dict[str, Any]]:
     """List procedural memories."""
     base = memory_service._store_dir(tenant, project_id)
     out = []
     import glob
-    folder = os.path.join(base, 'procedural')
-    for fp in sorted(glob.glob(os.path.join(folder, 'procedural_*.jsonl'))):
+
+    folder = os.path.join(base, "procedural")
+    for fp in sorted(glob.glob(os.path.join(folder, "procedural_*.jsonl"))):
         if os.path.exists(fp):
-            with open(fp, 'r') as f:
+            with open(fp, "r") as f:
                 for line in f:
                     try:
                         obj = json.loads(line)
@@ -560,28 +624,39 @@ def list_procedural(memory_service: MemoryService, tenant: str, project_id: Opti
                         pass
     return out
 
-def add_rag(memory_service: MemoryService, tenant: str, project_id: Optional[str], query: str, external_source: Optional[str]) -> Dict[str, Any]:
+
+def add_rag(
+    memory_service: MemoryService,
+    tenant: str,
+    project_id: Optional[str],
+    query: str,
+    external_source: Optional[str],
+) -> Dict[str, Any]:
     """Add RAG memory."""
     base = memory_service._store_dir(tenant, project_id)
-    path = memory_service._dated_file(base, 'rag', 'rag')
+    path = memory_service._dated_file(base, "rag", "rag")
     rec = {
-        'query': query,
-        'external_source': external_source,
-        'project_id': project_id,
-        'ts': datetime.datetime.utcnow().isoformat(),
+        "query": query,
+        "external_source": external_source,
+        "project_id": project_id,
+        "ts": datetime.datetime.utcnow().isoformat(),
     }
     memory_service._append_audit_jsonl(path, rec)
     return rec
 
-def list_rag(memory_service: MemoryService, tenant: str, project_id: Optional[str]) -> List[Dict[str, Any]]:
+
+def list_rag(
+    memory_service: MemoryService, tenant: str, project_id: Optional[str]
+) -> List[Dict[str, Any]]:
     """List RAG memories."""
     base = memory_service._store_dir(tenant, project_id)
     out = []
     import glob
-    folder = os.path.join(base, 'rag')
-    for fp in sorted(glob.glob(os.path.join(folder, 'rag_*.jsonl'))):
+
+    folder = os.path.join(base, "rag")
+    for fp in sorted(glob.glob(os.path.join(folder, "rag_*.jsonl"))):
         if os.path.exists(fp):
-            with open(fp, 'r') as f:
+            with open(fp, "r") as f:
                 for line in f:
                     try:
                         obj = json.loads(line)
@@ -590,19 +665,32 @@ def list_rag(memory_service: MemoryService, tenant: str, project_id: Optional[st
                         pass
     return out
 
-def search_v2(memory_service: MemoryService, tenant: str, project_id: Optional[str], query: str, layer_list: List[str]) -> Dict[str, Any]:
+
+def search_v2(
+    memory_service: MemoryService,
+    tenant: str,
+    project_id: Optional[str],
+    query: str,
+    layer_list: List[str],
+) -> Dict[str, Any]:
     """Search across multiple layers."""
     results = {}
     # Semantic not included here as it's DB-based
-    if 'episodic' in layer_list:
+    if "episodic" in layer_list:
         epi_results = list_episodic(memory_service, tenant, project_id)
         # Simple filter by content
-        results['episodic'] = [r for r in epi_results if query.lower() in r.get('content', '').lower()][:5]
-    if 'procedural' in layer_list:
+        results["episodic"] = [
+            r for r in epi_results if query.lower() in r.get("content", "").lower()
+        ][:5]
+    if "procedural" in layer_list:
         proc_results = list_procedural(memory_service, tenant, project_id)
-        results['procedural'] = [r for r in proc_results if query.lower() in r.get('skill_id', '').lower()][:5]
-    if 'rag' in layer_list:
+        results["procedural"] = [
+            r for r in proc_results if query.lower() in r.get("skill_id", "").lower()
+        ][:5]
+    if "rag" in layer_list:
         rag_results = list_rag(memory_service, tenant, project_id)
-        results['rag'] = [r for r in rag_results if query.lower() in r.get('query', '').lower()][:5]
+        results["rag"] = [
+            r for r in rag_results if query.lower() in r.get("query", "").lower()
+        ][:5]
     # Add other layers similarly
     return results

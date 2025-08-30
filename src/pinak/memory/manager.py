@@ -1,12 +1,15 @@
 import os
-import httpx
 import sys
 import time
-from typing import List, Dict, Any, Optional, Mapping
+from typing import Any, Dict, List, Mapping, Optional
+
+import httpx
+
 try:
     from ..bridge.context import ProjectContext
 except Exception:
     ProjectContext = None  # type: ignore
+
 
 class MemoryManager:
     """An API client for the Pinak Memory Service."""
@@ -33,7 +36,7 @@ class MemoryManager:
         base = base or "http://localhost:8000"  # Updated to match our service port
         self.base_url = base  # Remove hardcoded /api/v1/memory
         self._timeout = timeout
-        headers: Dict[str,str] = {}
+        headers: Dict[str, str] = {}
         if tok:
             headers["Authorization"] = f"Bearer {tok}"
         if proj:
@@ -46,23 +49,36 @@ class MemoryManager:
             headers.update(default_headers)
         ca = os.getenv("PINAK_MEMORY_CA")
         verify_opt = ca if ca else True
-        self.client = client or httpx.Client(headers=headers, timeout=self._timeout, verify=verify_opt)
-        print(f"MemoryManager client initialized. Pointing to service at: {self.base_url}")
+        self.client = client or httpx.Client(
+            headers=headers, timeout=self._timeout, verify=verify_opt
+        )
+        print(
+            f"MemoryManager client initialized. Pointing to service at: {self.base_url}"
+        )
 
-    def add_memory(self, content: str, tags: Optional[List[str]] = None) -> Optional[Dict[str, Any]]:
+    def add_memory(
+        self, content: str, tags: Optional[List[str]] = None
+    ) -> Optional[Dict[str, Any]]:
         """Sends a request to the Memory Service to add a new memory."""
         try:
             # Map generic add to episodic add for mock server compatibility
             response = self.client.post(
                 f"{self.base_url}/api/v1/memory/episodic",
                 json={"content": content, "tags": tags or [], "salience": 0},
-                timeout=self._timeout
+                timeout=self._timeout,
             )
             if response.status_code == 401:
-                print("Auth failed (401). Token may be missing or expired. Run 'pinak token --exp 120 --set' or 'pinak-bridge token rotate' and retry.", file=sys.stderr)
+                print(
+                    "Auth failed (401). Token may be missing or expired. Run 'pinak token --exp 120 --set' or 'pinak-bridge token rotate' and retry.",
+                    file=sys.stderr,
+                )
             response.raise_for_status()  # Raise an exception for bad status codes (4xx or 5xx)
             result = response.json()
-            return result.get("data") if isinstance(result, dict) and "data" in result else result
+            return (
+                result.get("data")
+                if isinstance(result, dict) and "data" in result
+                else result
+            )
         except httpx.RequestError as e:
             print(f"An error occurred while requesting {e.request.url!r}.")
             return None
@@ -73,10 +89,13 @@ class MemoryManager:
             response = self.client.get(
                 f"{self.base_url}/api/v1/memory/search",
                 params={"q": query},  # Use 'q' parameter as expected by mock server
-                timeout=self._timeout
+                timeout=self._timeout,
             )
             if response.status_code == 401:
-                print("Auth failed (401). Token may be missing or expired. Run 'pinak token --exp 120 --set' or 'pinak-bridge token rotate' and retry.", file=sys.stderr)
+                print(
+                    "Auth failed (401). Token may be missing or expired. Run 'pinak token --exp 120 --set' or 'pinak-bridge token rotate' and retry.",
+                    file=sys.stderr,
+                )
             response.raise_for_status()
             result = response.json()
             # Extract data from the mock server's response format
@@ -94,9 +113,12 @@ class MemoryManager:
         except httpx.RequestError as e:
             print(f"An error occurred while requesting {e.request.url!r}.")
             return []
+
     def health(self) -> bool:
         try:
-            r = self.client.get(f"{self.base_url}/api/v1/memory/health", timeout=self._timeout)
+            r = self.client.get(
+                f"{self.base_url}/api/v1/memory/health", timeout=self._timeout
+            )
             return r.status_code == 200
         except Exception:
             return False
@@ -106,7 +128,11 @@ class MemoryManager:
         Expected keys include: type, ts, project_id, and any domain-specific fields.
         """
         try:
-            r = self.client.post(f"{self.base_url}/api/v1/memory/events", json=payload, timeout=self._timeout)
+            r = self.client.post(
+                f"{self.base_url}/api/v1/memory/events",
+                json=payload,
+                timeout=self._timeout,
+            )
             if r.status_code < 400:
                 return True
             return False
@@ -121,153 +147,237 @@ class MemoryManager:
             response = self.client.post(
                 f"{self.base_url}/api/v1/memory/episodic",
                 json={"content": content, "salience": salience},
-                timeout=self._timeout
+                timeout=self._timeout,
             )
             response.raise_for_status()
             result = response.json()
-            return result.get("data") if isinstance(result, dict) and "data" in result else result
+            return (
+                result.get("data")
+                if isinstance(result, dict) and "data" in result
+                else result
+            )
         except Exception:
             return None
 
     def list_episodic(self, limit: int = 50) -> List[Dict[str, Any]]:
         """List all episodic memories."""
         try:
-            response = self.client.get(f"{self.base_url}/api/v1/memory/episodic", params={"limit": limit}, timeout=self._timeout)
+            response = self.client.get(
+                f"{self.base_url}/api/v1/memory/episodic",
+                params={"limit": limit},
+                timeout=self._timeout,
+            )
             response.raise_for_status()
             result = response.json()
             return result.get("data", []) if isinstance(result, dict) else result
         except Exception:
             return []
 
-    def add_procedural(self, skill_id: str, steps: List[str]) -> Optional[Dict[str, Any]]:
+    def add_procedural(
+        self, skill_id: str, steps: List[str]
+    ) -> Optional[Dict[str, Any]]:
         """Add procedural memory (skill with steps)."""
         try:
             response = self.client.post(
                 f"{self.base_url}/api/v1/memory/procedural",
                 json={"skill_id": skill_id, "steps": steps},
-                timeout=self._timeout
+                timeout=self._timeout,
             )
             response.raise_for_status()
             result = response.json()
-            return result.get("data") if isinstance(result, dict) and "data" in result else result
+            return (
+                result.get("data")
+                if isinstance(result, dict) and "data" in result
+                else result
+            )
         except Exception:
             return None
 
     def list_procedural(self, limit: int = 50) -> List[Dict[str, Any]]:
         """List all procedural memories."""
         try:
-            response = self.client.get(f"{self.base_url}/api/v1/memory/procedural", params={"limit": limit}, timeout=self._timeout)
+            response = self.client.get(
+                f"{self.base_url}/api/v1/memory/procedural",
+                params={"limit": limit},
+                timeout=self._timeout,
+            )
             response.raise_for_status()
             result = response.json()
             return result.get("data", []) if isinstance(result, dict) else result
         except Exception:
             return []
 
-    def add_rag(self, query: str, external_source: str = "") -> Optional[Dict[str, Any]]:
+    def add_rag(
+        self, query: str, external_source: str = ""
+    ) -> Optional[Dict[str, Any]]:
         """Add RAG memory with external source."""
         try:
             response = self.client.post(
                 f"{self.base_url}/api/v1/memory/rag",
                 json={"query": query, "external_source": external_source},
-                timeout=self._timeout
+                timeout=self._timeout,
             )
             response.raise_for_status()
             result = response.json()
-            return result.get("data") if isinstance(result, dict) and "data" in result else result
+            return (
+                result.get("data")
+                if isinstance(result, dict) and "data" in result
+                else result
+            )
         except Exception:
             return None
 
     def list_rag(self, limit: int = 50) -> List[Dict[str, Any]]:
         """List all RAG memories."""
         try:
-            response = self.client.get(f"{self.base_url}/api/v1/memory/rag", params={"limit": limit}, timeout=self._timeout)
+            response = self.client.get(
+                f"{self.base_url}/api/v1/memory/rag",
+                params={"limit": limit},
+                timeout=self._timeout,
+            )
             response.raise_for_status()
             result = response.json()
             return result.get("data", []) if isinstance(result, dict) else result
         except Exception:
             return []
 
-    def list_events(self, q: Optional[str] = None, since: Optional[str] = None, 
-                   until: Optional[str] = None, limit: int = 100) -> List[Dict[str, Any]]:
+    def list_events(
+        self,
+        q: Optional[str] = None,
+        since: Optional[str] = None,
+        until: Optional[str] = None,
+        limit: int = 100,
+    ) -> List[Dict[str, Any]]:
         """List events with optional filtering."""
         try:
             params: Dict[str, Any] = {"limit": limit}
-            if q: params["q"] = q
-            if since: params["since"] = since
-            if until: params["until"] = until
-            
-            response = self.client.get(f"{self.base_url}/api/v1/memory/events", params=params, timeout=self._timeout)
+            if q:
+                params["q"] = q
+            if since:
+                params["since"] = since
+            if until:
+                params["until"] = until
+
+            response = self.client.get(
+                f"{self.base_url}/api/v1/memory/events",
+                params=params,
+                timeout=self._timeout,
+            )
             response.raise_for_status()
             result = response.json()
             return result.get("data", []) if isinstance(result, dict) else result
         except Exception:
             return []
 
-    def add_session(self, session_id: str, content: str, ttl_seconds: Optional[int] = None) -> Optional[Dict[str, Any]]:
+    def add_session(
+        self, session_id: str, content: str, ttl_seconds: Optional[int] = None
+    ) -> Optional[Dict[str, Any]]:
         """Add session memory with optional TTL."""
         try:
             payload: Dict[str, Any] = {"key": session_id, "value": content}
-            if ttl_seconds: payload["ttl"] = ttl_seconds
-            
-            response = self.client.post(f"{self.base_url}/api/v1/memory/session", json=payload, timeout=self._timeout)
+            if ttl_seconds:
+                payload["ttl"] = ttl_seconds
+
+            response = self.client.post(
+                f"{self.base_url}/api/v1/memory/session",
+                json=payload,
+                timeout=self._timeout,
+            )
             response.raise_for_status()
             result = response.json()
-            return result.get("data") if isinstance(result, dict) and "data" in result else result
+            return (
+                result.get("data")
+                if isinstance(result, dict) and "data" in result
+                else result
+            )
         except Exception:
             return None
 
     def list_session(self, session_id: str, limit: int = 100) -> List[Dict[str, Any]]:
         """List session memories."""
         try:
-            response = self.client.get(f"{self.base_url}/api/v1/memory/session", 
-                                     params={"session_id": session_id, "limit": limit}, 
-                                     timeout=self._timeout)
+            response = self.client.get(
+                f"{self.base_url}/api/v1/memory/session",
+                params={"session_id": session_id, "limit": limit},
+                timeout=self._timeout,
+            )
             response.raise_for_status()
             result = response.json()
             data = result.get("data", {}) if isinstance(result, dict) else result
             if isinstance(data, dict):
-                return [{"key": k, "value": v.get("value"), "exp": v.get("exp")} for k, v in data.items()]
+                return [
+                    {"key": k, "value": v.get("value"), "exp": v.get("exp")}
+                    for k, v in data.items()
+                ]
             return data if isinstance(data, list) else []
         except Exception:
             return []
 
-    def add_working(self, content: str, ttl_seconds: Optional[int] = None) -> Optional[Dict[str, Any]]:
+    def add_working(
+        self, content: str, ttl_seconds: Optional[int] = None
+    ) -> Optional[Dict[str, Any]]:
         """Add working memory with optional TTL."""
         try:
-            payload: Dict[str, Any] = {"key": f"working_{int(time.time())}", "value": content}
-            if ttl_seconds: payload["expires_in"] = ttl_seconds
-            
-            response = self.client.post(f"{self.base_url}/api/v1/memory/working", json=payload, timeout=self._timeout)
+            payload: Dict[str, Any] = {
+                "key": f"working_{int(time.time())}",
+                "value": content,
+            }
+            if ttl_seconds:
+                payload["expires_in"] = ttl_seconds
+
+            response = self.client.post(
+                f"{self.base_url}/api/v1/memory/working",
+                json=payload,
+                timeout=self._timeout,
+            )
             response.raise_for_status()
             result = response.json()
-            return result.get("data") if isinstance(result, dict) and "data" in result else result
+            return (
+                result.get("data")
+                if isinstance(result, dict) and "data" in result
+                else result
+            )
         except Exception:
             return None
 
     def list_working(self, limit: int = 100) -> List[Dict[str, Any]]:
         """List working memories."""
         try:
-            response = self.client.get(f"{self.base_url}/api/v1/memory/working", params={"limit": limit}, timeout=self._timeout)
+            response = self.client.get(
+                f"{self.base_url}/api/v1/memory/working",
+                params={"limit": limit},
+                timeout=self._timeout,
+            )
             response.raise_for_status()
             result = response.json()
             data = result.get("data", {}) if isinstance(result, dict) else result
             if isinstance(data, dict):
-                return [{"key": k, "value": v.get("value"), "exp": v.get("exp")} for k, v in data.items()]
+                return [
+                    {"key": k, "value": v.get("value"), "exp": v.get("exp")}
+                    for k, v in data.items()
+                ]
             return data if isinstance(data, list) else []
         except Exception:
             return []
 
-    def search_all_layers(self, query: str, layers: str = "episodic,procedural,rag", 
-                         limit: int = 20) -> Dict[str, Any]:
+    def search_all_layers(
+        self, query: str, layers: str = "episodic,procedural,rag", limit: int = 20
+    ) -> Dict[str, Any]:
         """Search across multiple memory layers simultaneously."""
         try:
             response = self.client.get(
                 f"{self.base_url}/api/v1/memory/search",
-                params={"q": query},  # Only use 'q' parameter as expected by mock server
-                timeout=self._timeout
+                params={
+                    "q": query
+                },  # Only use 'q' parameter as expected by mock server
+                timeout=self._timeout,
             )
             response.raise_for_status()
             result = response.json()
-            return result.get("data", {}) if isinstance(result, dict) and "data" in result else result
+            return (
+                result.get("data", {})
+                if isinstance(result, dict) and "data" in result
+                else result
+            )
         except Exception:
             return {}

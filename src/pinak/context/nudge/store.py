@@ -5,16 +5,14 @@ Supports multiple storage backends with caching and performance optimization.
 """
 
 from __future__ import annotations
-from typing import Dict, List, Optional, Any
-from datetime import datetime, timezone
+
 import asyncio
 import logging
 from collections import defaultdict
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
 
-from .models import (
-    Nudge, NudgeTemplate, NudgeDeliveryResult,
-    INudgeStore
-)
+from .models import INudgeStore, Nudge, NudgeDeliveryResult, NudgeTemplate
 
 logger = logging.getLogger(__name__)
 
@@ -63,10 +61,12 @@ class InMemoryNudgeStore(INudgeStore):
             now = datetime.now(timezone.utc)
 
             for nudge in self._nudges.values():
-                if (nudge.user_id == user_id and
-                    not nudge.is_delivered() and
-                    not nudge.is_expired() and
-                    (nudge.expires_at is None or nudge.expires_at > now)):
+                if (
+                    nudge.user_id == user_id
+                    and not nudge.is_delivered()
+                    and not nudge.is_expired()
+                    and (nudge.expires_at is None or nudge.expires_at > now)
+                ):
                     pending.append(nudge)
 
             # Sort by priority and creation time
@@ -96,7 +96,9 @@ class InMemoryNudgeStore(INudgeStore):
                 logger.error(f"Failed to update nudge {nudge_id} status: {e}")
                 return False
 
-    async def get_nudge_templates(self, active_only: bool = True) -> List[NudgeTemplate]:
+    async def get_nudge_templates(
+        self, active_only: bool = True
+    ) -> List[NudgeTemplate]:
         """Get available nudge templates."""
         async with self._lock:
             templates = list(self._templates.values())
@@ -113,7 +115,9 @@ class InMemoryNudgeStore(INudgeStore):
                 self._delivery_results[result.nudge_id].append(result)
                 return True
             except Exception as e:
-                logger.error(f"Failed to store delivery result for {result.nudge_id}: {e}")
+                logger.error(
+                    f"Failed to store delivery result for {result.nudge_id}: {e}"
+                )
                 return False
 
     async def _cleanup_expired_nudges(self):
@@ -134,11 +138,13 @@ class InMemoryNudgeStore(INudgeStore):
     def get_stats(self) -> Dict[str, Any]:
         """Get storage statistics."""
         return {
-            'total_nudges': len(self._nudges),
-            'total_templates': len(self._templates),
-            'total_delivery_results': sum(len(results) for results in self._delivery_results.values()),
-            'max_capacity': self.max_nudges,
-            'utilization_percent': (len(self._nudges) / self.max_nudges) * 100
+            "total_nudges": len(self._nudges),
+            "total_templates": len(self._templates),
+            "total_delivery_results": sum(
+                len(results) for results in self._delivery_results.values()
+            ),
+            "max_capacity": self.max_nudges,
+            "utilization_percent": (len(self._nudges) / self.max_nudges) * 100,
         }
 
 
@@ -164,6 +170,7 @@ class RedisNudgeStore(INudgeStore):
         if not self._initialized:
             try:
                 import redis.asyncio as redis
+
                 self._redis = redis.from_url(self.redis_url, db=self.db)
                 await self._redis.ping()
                 self._initialized = True
@@ -204,6 +211,7 @@ class RedisNudgeStore(INudgeStore):
 
             if data:
                 import json
+
                 nudge_data = json.loads(data)
                 return Nudge(**nudge_data)
 
@@ -229,12 +237,15 @@ class RedisNudgeStore(INudgeStore):
                     data = await self._redis.get(key)
                     if data:
                         import json
+
                         nudge_data = json.loads(data)
                         nudge = Nudge(**nudge_data)
 
-                        if (nudge.user_id == user_id and
-                            not nudge.is_delivered() and
-                            not nudge.is_expired()):
+                        if (
+                            nudge.user_id == user_id
+                            and not nudge.is_delivered()
+                            and not nudge.is_expired()
+                        ):
                             pending.append(nudge)
                 except Exception:
                     continue
@@ -271,7 +282,9 @@ class RedisNudgeStore(INudgeStore):
             logger.error(f"Failed to update nudge {nudge_id} status: {e}")
             return False
 
-    async def get_nudge_templates(self, active_only: bool = True) -> List[NudgeTemplate]:
+    async def get_nudge_templates(
+        self, active_only: bool = True
+    ) -> List[NudgeTemplate]:
         """Get nudge templates from Redis."""
         await self._ensure_connection()
 
@@ -281,6 +294,7 @@ class RedisNudgeStore(INudgeStore):
 
             if data:
                 import json
+
                 templates_data = json.loads(data)
                 templates = [NudgeTemplate(**t) for t in templates_data]
 
@@ -304,7 +318,7 @@ class RedisNudgeStore(INudgeStore):
             data = result.dict()
 
             # Keep delivery results for 30 days
-            await self._redis.set(key, str(data), ex=30*24*60*60)
+            await self._redis.set(key, str(data), ex=30 * 24 * 60 * 60)
             return True
 
         except Exception as e:
@@ -338,7 +352,8 @@ class DatabaseNudgeStore(INudgeStore):
         """Ensure database connection is established."""
         if not self._engine:
             try:
-                from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+                from sqlalchemy.ext.asyncio import (AsyncSession,
+                                                    create_async_engine)
                 from sqlalchemy.orm import sessionmaker
 
                 self._engine = create_async_engine(self.connection_string)
@@ -412,7 +427,9 @@ class DatabaseNudgeStore(INudgeStore):
                 logger.error(f"Failed to update nudge {nudge_id} status: {e}")
                 return False
 
-    async def get_nudge_templates(self, active_only: bool = True) -> List[NudgeTemplate]:
+    async def get_nudge_templates(
+        self, active_only: bool = True
+    ) -> List[NudgeTemplate]:
         """Get nudge templates from the database."""
         await self._ensure_connection()
 
@@ -435,7 +452,9 @@ class DatabaseNudgeStore(INudgeStore):
                 # This is a placeholder implementation
                 return True
             except Exception as e:
-                logger.error(f"Failed to store delivery result for {result.nudge_id}: {e}")
+                logger.error(
+                    f"Failed to store delivery result for {result.nudge_id}: {e}"
+                )
                 return False
 
     async def close(self):

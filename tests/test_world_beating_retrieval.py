@@ -5,36 +5,25 @@ Implements comprehensive testing for the 6-stage retrieval pipeline surpassing C
 """
 
 import asyncio
-import pytest
-from typing import Dict, List, Optional, Any
-from datetime import datetime, timezone, timedelta
-import sys
 import os
+import sys
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, List, Optional
+
+import pytest
 
 # Add the src directory to the path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from pinak.context.core.models import (
-    ContextQuery,
-    ContextResponse,
-    ContextLayer,
-    SecurityClassification,
-    ContextItem,
-    ContextPriority,
-    IContextStore
-)
 from pinak.context.broker.world_beating_retrieval import (
-    WorldBeatingRetrievalEngine,
-    RetrievalStage,
-    RetrievalPipeline,
-    AdvancedScore,
-    IntentAnalysisResult,
-    DenseRetrievalResult,
-    SparseHybridResult,
-    GraphExpansionResult,
-    NeuralRerankResult,
-    AdaptiveOptimizationResult
-)
+    AdaptiveOptimizationResult, AdvancedScore, DenseRetrievalResult,
+    GraphExpansionResult, IntentAnalysisResult, NeuralRerankResult,
+    RetrievalPipeline, RetrievalStage, SparseHybridResult,
+    WorldBeatingRetrievalEngine)
+from pinak.context.core.models import (ContextItem, ContextLayer,
+                                       ContextPriority, ContextQuery,
+                                       ContextResponse, IContextStore,
+                                       SecurityClassification)
 
 
 class MockAdvancedStore(IContextStore):
@@ -72,7 +61,7 @@ class MockAdvancedStore(IContextStore):
                 priority=ContextPriority.MEDIUM,
                 tags=["mock"],
                 relevance_score=0.9,
-                confidence_score=0.95
+                confidence_score=0.95,
             )
         ]
 
@@ -105,7 +94,7 @@ def sample_query():
         user_clearance=SecurityClassification.CONFIDENTIAL,
         semantic_search=True,
         min_relevance=0.1,
-        min_confidence=0.1
+        min_confidence=0.1,
     )
 
 
@@ -130,7 +119,7 @@ def sample_items():
             priority=ContextPriority.HIGH,
             tags=["python", "exception", "best-practices"],
             relevance_score=0.95,
-            confidence_score=0.9
+            confidence_score=0.9,
         ),
         ContextItem(
             id="item-2",
@@ -146,8 +135,8 @@ def sample_items():
             priority=ContextPriority.MEDIUM,
             tags=["database", "connection"],
             relevance_score=0.6,
-            confidence_score=0.7
-        )
+            confidence_score=0.7,
+        ),
     ]
 
 
@@ -181,7 +170,9 @@ class TestWorldBeatingRetrievalEngine:
         assert result.candidates_found >= 0
 
     @pytest.mark.asyncio
-    async def test_sparse_hybrid_integration(self, mock_stores, sample_query, sample_items):
+    async def test_sparse_hybrid_integration(
+        self, mock_stores, sample_query, sample_items
+    ):
         """Test Stage 3: Sparse Hybrid Integration"""
         engine = WorldBeatingRetrievalEngine(mock_stores)
 
@@ -275,7 +266,7 @@ class TestWorldBeatingRetrievalEngine:
                 "sparse_hybrid",
                 "graph_expansion",
                 "neural_rerank",
-                "adaptive_learning"
+                "adaptive_learning",
             ]
 
     @pytest.mark.asyncio
@@ -290,10 +281,10 @@ class TestWorldBeatingRetrievalEngine:
         metrics = engine.get_performance_metrics()
 
         assert isinstance(metrics, dict)
-        assert 'total_queries' in metrics
-        assert 'avg_execution_time_ms' in metrics
-        assert 'cache_hit_rate' in metrics
-        assert 'error_rate' in metrics
+        assert "total_queries" in metrics
+        assert "avg_execution_time_ms" in metrics
+        assert "cache_hit_rate" in metrics
+        assert "error_rate" in metrics
 
     @pytest.mark.asyncio
     async def test_error_handling_and_resilience(self, mock_stores):
@@ -309,7 +300,7 @@ class TestWorldBeatingRetrievalEngine:
                 project_id="test",
                 tenant_id="test",
                 user_id="test",
-                layers=[]
+                layers=[],
             )
         except ValidationError:
             # Expected validation error for empty query
@@ -324,25 +315,27 @@ class TestWorldBeatingRetrievalEngine:
     def test_pipeline_configuration(self, mock_stores):
         """Test pipeline configuration and hyperparameters"""
         config = {
-            'embedding_dimensions': 768,
-            'similarity_threshold': 0.7,
-            'rerank_model': 'transformer',
-            'cache_ttl': 3600,
-            'max_parallel_requests': 10
+            "embedding_dimensions": 768,
+            "similarity_threshold": 0.7,
+            "rerank_model": "transformer",
+            "cache_ttl": 3600,
+            "max_parallel_requests": 10,
         }
 
         engine = WorldBeatingRetrievalEngine(mock_stores, config=config)
 
         # Verify configuration is applied
-        assert engine.embedding_dimensions == config['embedding_dimensions']
-        assert engine.similarity_threshold == config['similarity_threshold']
+        assert engine.embedding_dimensions == config["embedding_dimensions"]
+        assert engine.similarity_threshold == config["similarity_threshold"]
 
     @pytest.mark.asyncio
     async def test_multi_layer_fusion(self, mock_stores, sample_query, sample_items):
         """Test multi-layer result fusion and ranking"""
         engine = WorldBeatingRetrievalEngine(mock_stores)
 
-        fused_results = await engine._execute_multi_layer_fusion(sample_query, [sample_items])
+        fused_results = await engine._execute_multi_layer_fusion(
+            sample_query, [sample_items]
+        )
 
         assert isinstance(fused_results, list)
         assert all(isinstance(item, ContextItem) for item in fused_results)
@@ -350,7 +343,10 @@ class TestWorldBeatingRetrievalEngine:
         # Check that items are properly ranked by relevance
         if len(fused_results) > 1:
             for i in range(len(fused_results) - 1):
-                assert fused_results[i].relevance_score >= fused_results[i + 1].relevance_score
+                assert (
+                    fused_results[i].relevance_score
+                    >= fused_results[i + 1].relevance_score
+                )
 
 
 class TestRetrievalPipeline:
@@ -380,7 +376,7 @@ class TestRetrievalPipeline:
             "sparse_hybrid",
             "graph_expansion",
             "neural_rerank",
-            "adaptive_learning"
+            "adaptive_learning",
         ]
 
         assert execution_order == expected_order
@@ -411,11 +407,13 @@ async def test_end_to_end_retrieval_pipeline(mock_stores, sample_query):
             SecurityClassification.PUBLIC: 1,
             SecurityClassification.INTERNAL: 2,
             SecurityClassification.CONFIDENTIAL: 3,
-            SecurityClassification.RESTRICTED: 4
+            SecurityClassification.RESTRICTED: 4,
         }
         user_level = clearance_levels.get(sample_query.user_clearance, 0)
         item_level = clearance_levels.get(item.classification, 0)
-        assert user_level >= item_level, f"User clearance {sample_query.user_clearance} should allow access to {item.classification}"
+        assert (
+            user_level >= item_level
+        ), f"User clearance {sample_query.user_clearance} should allow access to {item.classification}"
 
     # Verify cross-layer search
     layers_represented = set(item.layer for item in result.items)

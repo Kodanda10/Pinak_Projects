@@ -20,12 +20,12 @@ What this does:
 That's it! Your project now has memory capabilities.
 """
 
-import os
-import sys
 import json
+import os
 import subprocess
-from pathlib import Path
+import sys
 import time
+from pathlib import Path
 
 
 class PinakIntegrator:
@@ -78,9 +78,13 @@ class PinakIntegrator:
         """Detect the type of Python project."""
         if (self.project_root / "manage.py").exists():
             return "Django"
-        elif (self.project_root / "app.py").exists() and "flask" in self._read_requirements():
+        elif (
+            self.project_root / "app.py"
+        ).exists() and "flask" in self._read_requirements():
             return "Flask"
-        elif (self.project_root / "main.py").exists() and "fastapi" in self._read_requirements():
+        elif (
+            self.project_root / "main.py"
+        ).exists() and "fastapi" in self._read_requirements():
             return "FastAPI"
         elif (self.project_root / "setup.py").exists():
             return "Python Package"
@@ -114,7 +118,7 @@ class PinakIntegrator:
             "default_project": self.project_root.name,
             "auto_initialize": True,
             "enable_caching": True,
-            "default_layers": ["episodic", "working", "session"]
+            "default_layers": ["episodic", "working", "session"],
         }
 
         config_file = self.project_root / "pinak_config.json"
@@ -240,7 +244,7 @@ if __name__ == "__main__":
                 print("❌ Configuration file not found")
                 return False
 
-            with open(config_file, 'r') as f:
+            with open(config_file, "r") as f:
                 config = json.load(f)
 
             required_keys = ["memory_service_url", "api_key", "default_project"]
@@ -254,7 +258,7 @@ if __name__ == "__main__":
             if integration_file.exists():
                 # Basic syntax check
                 try:
-                    compile(integration_file.read_text(), str(integration_file), 'exec')
+                    compile(integration_file.read_text(), str(integration_file), "exec")
                     print("✅ Integration code syntax is valid")
                 except SyntaxError as e:
                     print(f"❌ Syntax error in integration code: {e}")

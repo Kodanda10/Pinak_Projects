@@ -3,23 +3,23 @@
 Test script for Nudge Engine functionality
 """
 import asyncio
-import sys
 import os
+import sys
 
 # Add the src directory to the path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
-from pinak.context.nudge.models import (
-    NudgeTemplate, NudgeCondition, NudgeTrigger, NudgeType, NudgePriority
-)
-from pinak.context.nudge.engine import NudgeEngine
-from pinak.context.nudge.store import InMemoryNudgeStore
-from pinak.context.nudge.delivery import CLINudgeDelivery, CompositeNudgeDelivery
-from typing import cast, Dict
-from pinak.context.core.models import (
-    ContextLayer, SecurityClassification, IContextStore
-)
+from typing import Dict, cast
+
 from pinak.context.broker.broker import ContextBroker
+from pinak.context.core.models import (ContextLayer, IContextStore,
+                                       SecurityClassification)
+from pinak.context.nudge.delivery import (CLINudgeDelivery,
+                                          CompositeNudgeDelivery)
+from pinak.context.nudge.engine import NudgeEngine
+from pinak.context.nudge.models import (NudgeCondition, NudgePriority,
+                                        NudgeTemplate, NudgeTrigger, NudgeType)
+from pinak.context.nudge.store import InMemoryNudgeStore
 
 
 class MockContextStore:
@@ -30,28 +30,33 @@ class MockContextStore:
 
     async def retrieve(self, query):
         """Mock retrieve method"""
-        from pinak.context.core.models import ContextItem, ContextResponse, ContextPriority
-        return ContextResponse(items=[
-            ContextItem(
-                id=f"test-{self.layer.value}-1",
-                title=f"Test {self.layer.value} Item",
-                summary=f"This is a test item from {self.layer.value} layer",
-                content=f"This is a test item from {self.layer.value} layer",
-                layer=self.layer,
-                project_id="test-project",
-                tenant_id="test-tenant",
-                created_by="test-user",
-                classification=SecurityClassification.PUBLIC,
-                priority=ContextPriority.MEDIUM,
-                tags=["test"],
-                relevance_score=0.8,
-                confidence_score=0.9
-            )
-        ])
+        from pinak.context.core.models import (ContextItem, ContextPriority,
+                                               ContextResponse)
+
+        return ContextResponse(
+            items=[
+                ContextItem(
+                    id=f"test-{self.layer.value}-1",
+                    title=f"Test {self.layer.value} Item",
+                    summary=f"This is a test item from {self.layer.value} layer",
+                    content=f"This is a test item from {self.layer.value} layer",
+                    layer=self.layer,
+                    project_id="test-project",
+                    tenant_id="test-tenant",
+                    created_by="test-user",
+                    classification=SecurityClassification.PUBLIC,
+                    priority=ContextPriority.MEDIUM,
+                    tags=["test"],
+                    relevance_score=0.8,
+                    confidence_score=0.9,
+                )
+            ]
+        )
 
     async def search_similar(self, content: str, limit: int = 10):
         """Mock semantic search"""
         from pinak.context.core.models import ContextItem, ContextPriority
+
         return [
             ContextItem(
                 id=f"semantic-{self.layer.value}-1",
@@ -66,7 +71,7 @@ class MockContextStore:
                 priority=ContextPriority.MEDIUM,
                 tags=["semantic"],
                 relevance_score=0.9,
-                confidence_score=0.95
+                confidence_score=0.95,
             )
         ]
 
@@ -100,9 +105,7 @@ async def test_nudge_engine():
 
     # Create nudge engine
     engine = NudgeEngine(
-        store=nudge_store,
-        delivery_channels=[composite_delivery],
-        context_broker=broker
+        store=nudge_store, delivery_channels=[composite_delivery], context_broker=broker
     )
 
     # Create some nudge templates
@@ -116,10 +119,9 @@ async def test_nudge_engine():
             message_template="You haven't documented any context in the last 7 days. Consider adding some notes about your recent activities to help with future reference.",
             conditions=[
                 NudgeCondition(
-                    trigger_type=NudgeTrigger.TIME_BASED,
-                    time_window_minutes=60
+                    trigger_type=NudgeTrigger.TIME_BASED, time_window_minutes=60
                 )
-            ]
+            ],
         ),
         NudgeTemplate(
             name="Security Alert Template",
@@ -130,10 +132,9 @@ async def test_nudge_engine():
             message_template="Some of your context items haven't been reviewed recently. Please review high-security items regularly.",
             conditions=[
                 NudgeCondition(
-                    trigger_type=NudgeTrigger.TIME_BASED,
-                    time_window_minutes=30
+                    trigger_type=NudgeTrigger.TIME_BASED, time_window_minutes=30
                 )
-            ]
+            ],
         ),
         NudgeTemplate(
             name="Performance Tip Template",
@@ -145,10 +146,10 @@ async def test_nudge_engine():
             conditions=[
                 NudgeCondition(
                     trigger_type=NudgeTrigger.PATTERN_RECOGNITION,
-                    pattern_confidence_threshold=0.8
+                    pattern_confidence_threshold=0.8,
                 )
-            ]
-        )
+            ],
+        ),
     ]
 
     # Store templates
@@ -170,7 +171,9 @@ async def test_nudge_engine():
     if nudges:
         print("📤 Testing nudge delivery...")
         delivery_results = await engine.deliver_nudges(nudges)
-        print(f"✅ Delivered {len([r for r in delivery_results if r.success])} out of {len(delivery_results)} nudges")
+        print(
+            f"✅ Delivered {len([r for r in delivery_results if r.success])} out of {len(delivery_results)} nudges"
+        )
 
         # Test acknowledgment
         if delivery_results:
@@ -186,7 +189,7 @@ async def test_nudge_engine():
         project_id=project_id,
         tenant_id=tenant_id,
         activity_type="context_query",
-        activity_data={"query": "test query", "results_count": 5}
+        activity_data={"query": "test query", "results_count": 5},
     )
     print(f"✅ Generated {len(activity_nudges)} activity-triggered nudges")
 

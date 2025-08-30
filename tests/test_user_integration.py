@@ -13,15 +13,16 @@ Test Scenario:
 - User should be able to start using memory features immediately
 """
 
-import pytest
-import tempfile
+import json
 import os
-import sys
+import shutil
 import subprocess
+import sys
+import tempfile
 import time
 from pathlib import Path
-import shutil
-import json
+
+import pytest
 
 
 class TestUserIntegration:
@@ -88,7 +89,7 @@ class TestUserIntegration:
             "fastapi_app",
             "cli_tool",
             "data_science",
-            "web_scraper"
+            "web_scraper",
         ]
 
         for project_type in project_types:
@@ -132,23 +133,29 @@ class TestUserIntegration:
         project_dir.mkdir()
 
         # Create basic Python project structure
-        (project_dir / "main.py").write_text("""
+        (project_dir / "main.py").write_text(
+            """
 def main():
     print("Hello from user project!")
 
 if __name__ == "__main__":
     main()
-""")
+"""
+        )
 
-        (project_dir / "requirements.txt").write_text("""
+        (project_dir / "requirements.txt").write_text(
+            """
 requests==2.31.0
-""")
+"""
+        )
 
-        (project_dir / "README.md").write_text("""
+        (project_dir / "README.md").write_text(
+            """
 # My Awesome Project
 
 A simple Python application.
-""")
+"""
+        )
 
         return project_dir
 
@@ -158,7 +165,8 @@ A simple Python application.
         project_dir.mkdir()
 
         if project_type == "flask_app":
-            (project_dir / "app.py").write_text("""
+            (project_dir / "app.py").write_text(
+                """
 from flask import Flask
 
 app = Flask(__name__)
@@ -169,11 +177,13 @@ def hello():
 
 if __name__ == '__main__':
     app.run()
-""")
+"""
+            )
             (project_dir / "requirements.txt").write_text("flask==2.3.0\n")
 
         elif project_type == "fastapi_app":
-            (project_dir / "main.py").write_text("""
+            (project_dir / "main.py").write_text(
+                """
 from fastapi import FastAPI
 
 app = FastAPI()
@@ -181,8 +191,11 @@ app = FastAPI()
 @app.get("/")
 async def read_root():
     return {"message": "Hello from FastAPI"}
-""")
-            (project_dir / "requirements.txt").write_text("fastapi==0.100.0\nuvicorn==0.23.0\n")
+"""
+            )
+            (project_dir / "requirements.txt").write_text(
+                "fastapi==0.100.0\nuvicorn==0.23.0\n"
+            )
 
         # Add more project types as needed...
 
@@ -200,7 +213,7 @@ async def read_root():
             "memory_service_url": "http://localhost:8000",
             "api_key": "test_key",
             "default_project": "user_project",
-            "auto_initialize": True
+            "auto_initialize": True,
         }
 
         config_file = project_dir / "pinak_config.json"
@@ -212,7 +225,8 @@ async def read_root():
         """Perform one-click setup of Pinak integration."""
         # Create simple integration script
         setup_script = project_dir / "setup_pinak.py"
-        setup_script.write_text("""
+        setup_script.write_text(
+            """
 # One-click Pinak setup
 import os
 import json
@@ -231,7 +245,8 @@ def setup_pinak():
 
 if __name__ == "__main__":
     setup_pinak()
-""")
+"""
+        )
 
         # Run the setup
         os.chdir(project_dir)
@@ -243,13 +258,14 @@ if __name__ == "__main__":
             "integration_success": False,
             "setup_time_seconds": 0,
             "memory_operations": 0,
-            "error_count": 0
+            "error_count": 0,
         }
 
         try:
             # Test basic integration
             integration_script = project_dir / "test_integration.py"
-            integration_script.write_text(f"""
+            integration_script.write_text(
+                f"""
 import json
 import time
 
@@ -271,7 +287,8 @@ for op in memory_ops:
     time.sleep(0.1)  # Simulate operation
 
 print("Integration test passed!")
-""")
+"""
+            )
 
             os.chdir(project_dir)
             start_time = time.time()
@@ -296,13 +313,15 @@ print("Integration test passed!")
         """Test that functionality works immediately after setup."""
         try:
             test_script = project_dir / "immediate_test.py"
-            test_script.write_text("""
+            test_script.write_text(
+                """
 # Test immediate functionality
 print("Testing immediate Pinak functionality...")
 
 # This should work without any additional setup
 print("✅ Basic functionality test passed")
-""")
+"""
+            )
 
             os.chdir(project_dir)
             subprocess.run([sys.executable, "immediate_test.py"], check=True)
@@ -310,13 +329,11 @@ print("✅ Basic functionality test passed")
         except:
             return False
 
-    def _integrate_with_project_type(self, project_dir: Path, project_type: str) -> dict:
+    def _integrate_with_project_type(
+        self, project_dir: Path, project_type: str
+    ) -> dict:
         """Test integration with specific project types."""
-        result = {
-            "compatible": True,
-            "integration_steps": 1,
-            "works_out_of_box": True
-        }
+        result = {"compatible": True, "integration_steps": 1, "works_out_of_box": True}
 
         # Simulate integration testing
         try:
@@ -334,6 +351,7 @@ print("✅ Basic functionality test passed")
 
     def _get_memory_client(self, project_dir: Path):
         """Get a mock memory client for testing."""
+
         class MockMemoryClient:
             def add_memory(self, content, layer):
                 return {"id": "test_id", "content": content, "layer": layer}
@@ -360,12 +378,15 @@ def test_user_journey_breeze_integration():
     assert True  # Placeholder assertion
 
 
-@pytest.mark.parametrize("user_scenario", [
-    "new_project_setup",
-    "existing_project_upgrade",
-    "multi_service_integration",
-    "cloud_deployment_ready"
-])
+@pytest.mark.parametrize(
+    "user_scenario",
+    [
+        "new_project_setup",
+        "existing_project_upgrade",
+        "multi_service_integration",
+        "cloud_deployment_ready",
+    ],
+)
 def test_user_scenarios_seamless_integration(user_scenario):
     """
     Test various user scenarios to ensure seamless integration across
@@ -376,7 +397,7 @@ def test_user_scenarios_seamless_integration(user_scenario):
         "new_project_setup",
         "existing_project_upgrade",
         "multi_service_integration",
-        "cloud_deployment_ready"
+        "cloud_deployment_ready",
     ]
 
     # Each scenario should demonstrate breeze-like integration

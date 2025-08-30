@@ -1,4 +1,3 @@
-
 """
 Pinak Memory Service - SOTA Enterprise-Grade FastAPI Application
 ================================================================
@@ -18,25 +17,24 @@ import asyncio
 import logging
 import os
 import time
-from contextlib import asynccontextmanager
-from typing import AsyncGenerator, Dict, Any, Optional
 import uuid
+from contextlib import asynccontextmanager
+from typing import Any, AsyncGenerator, Dict, Optional
 
-from fastapi import FastAPI, Request, Response, HTTPException, status
+import structlog
+from app.api.v1 import endpoints
+from app.core.circuit_breaker import CircuitBreakerRegistry
+# Enterprise-grade imports
+from app.core.config import settings
+from app.core.logging import setup_logging
+from app.core.metrics import REQUEST_COUNT, REQUEST_LATENCY, setup_metrics
+from app.core.rate_limiter import RateLimiter
+from app.core.security import setup_security_middleware
+from fastapi import FastAPI, HTTPException, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
-import structlog
-
-# Enterprise-grade imports
-from app.core.config import settings
-from app.core.logging import setup_logging
-from app.core.metrics import setup_metrics, REQUEST_COUNT, REQUEST_LATENCY
-from app.core.security import setup_security_middleware
-from app.core.circuit_breaker import CircuitBreakerRegistry
-from app.core.rate_limiter import RateLimiter
-from app.api.v1 import endpoints
 
 # Setup structured logging
 setup_logging()
@@ -48,8 +46,9 @@ circuit_breaker = CircuitBreakerRegistry()
 # Global rate limiter
 rate_limiter = RateLimiter(
     requests_per_minute=settings.RATE_LIMIT_REQUESTS_PER_MINUTE,
-    burst_limit=settings.RATE_LIMIT_BURST
+    burst_limit=settings.RATE_LIMIT_BURST,
 )
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
@@ -62,7 +61,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     startup_time = time.time()
 
-    logger.info("🚀 Starting Pinak Memory Service", service="memory", version=settings.VERSION)
+    logger.info(
+        "🚀 Starting Pinak Memory Service", service="memory", version=settings.VERSION
+    )
 
     # Startup health checks
     await perform_startup_checks()
@@ -70,12 +71,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Initialize core services
     await initialize_core_services()
 
-
-
     startup_duration = time.time() - startup_time
-    logger.info("✅ Service startup complete",
-               startup_duration=f"{startup_duration:.2f}s",
-               service="memory")
+    logger.info(
+        "✅ Service startup complete",
+        startup_duration=f"{startup_duration:.2f}s",
+        service="memory",
+    )
 
     yield
 
@@ -86,9 +87,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await cleanup_resources()
 
     shutdown_duration = time.time() - startup_time
-    logger.info("✅ Service shutdown complete",
-               total_uptime=f"{shutdown_duration:.2f}s",
-               service="memory")
+    logger.info(
+        "✅ Service shutdown complete",
+        total_uptime=f"{shutdown_duration:.2f}s",
+        service="memory",
+    )
+
 
 async def perform_startup_checks() -> None:
     """Enterprise startup health checks."""
@@ -108,6 +112,7 @@ async def perform_startup_checks() -> None:
             if settings.FAIL_FAST_ON_STARTUP:
                 raise
 
+
 async def initialize_core_services() -> None:
     """Initialize all core services with proper error handling."""
     try:
@@ -120,6 +125,7 @@ async def initialize_core_services() -> None:
         logger.error("Failed to initialize core services", error=str(e))
         raise
 
+
 async def cleanup_resources() -> None:
     """Clean up all resources during shutdown."""
     try:
@@ -131,11 +137,23 @@ async def cleanup_resources() -> None:
     except Exception as e:
         logger.error("Error during resource cleanup", error=str(e))
 
+
 # Health check functions (implement these)
-async def check_database_connectivity() -> None: pass
-async def check_vector_store() -> None: pass
-async def check_redis_connectivity() -> None: pass
-async def check_file_system_permissions() -> None: pass
+async def check_database_connectivity() -> None:
+    pass
+
+
+async def check_vector_store() -> None:
+    pass
+
+
+async def check_redis_connectivity() -> None:
+    pass
+
+
+async def check_file_system_permissions() -> None:
+    pass
+
 
 # Create FastAPI application with enterprise configuration
 app = FastAPI(
@@ -151,7 +169,7 @@ app = FastAPI(
     responses={
         422: {"description": "Validation Error"},
         500: {"description": "Internal Server Error"},
-    }
+    },
 )
 
 # Enterprise Security Middleware
@@ -177,6 +195,7 @@ if settings.PRODUCTION:
         allowed_hosts=settings.ALLOWED_HOSTS,
     )
 
+
 # Request ID Middleware
 @app.middleware("http")
 async def add_request_id(request: Request, call_next):
@@ -191,7 +210,7 @@ async def add_request_id(request: Request, call_next):
     if not await rate_limiter.check_rate_limit(client_ip):
         return JSONResponse(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            content={"error": "Rate limit exceeded", "request_id": request_id}
+            content={"error": "Rate limit exceeded", "request_id": request_id},
         )
 
     try:
@@ -203,64 +222,72 @@ async def add_request_id(request: Request, call_next):
         REQUEST_COUNT.labels(
             method=request.method,
             endpoint=request.url.path,
-            status_code=response.status_code
+            status_code=response.status_code,
         ).inc()
 
         REQUEST_LATENCY.labels(
-            method=request.method,
-            endpoint=request.url.path
+            method=request.method, endpoint=request.url.path
         ).observe(time.time() - start_time)
 
         return response
 
     except Exception as e:
-        logger.error("Request failed",
-                    request_id=request_id,
-                    method=request.method,
-                    path=request.url.path,
-                    error=str(e))
+        logger.error(
+            "Request failed",
+            request_id=request_id,
+            method=request.method,
+            path=request.url.path,
+            error=str(e),
+        )
         raise
+
 
 # Global Exception Handler
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
     """Enterprise-grade exception handling."""
-    request_id = getattr(request.state, 'request_id', 'unknown')
+    request_id = getattr(request.state, "request_id", "unknown")
 
-    logger.warning("HTTP exception",
-                  request_id=request_id,
-                  status_code=exc.status_code,
-                  detail=exc.detail)
+    logger.warning(
+        "HTTP exception",
+        request_id=request_id,
+        status_code=exc.status_code,
+        detail=exc.detail,
+    )
 
     return JSONResponse(
         status_code=exc.status_code,
         content={
             "error": exc.detail,
             "request_id": request_id,
-            "timestamp": time.time()
-        }
+            "timestamp": time.time(),
+        },
     )
+
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     """Global exception handler for unhandled errors."""
-    request_id = getattr(request.state, 'request_id', 'unknown')
+    request_id = getattr(request.state, "request_id", "unknown")
 
-    logger.error("Unhandled exception",
-                request_id=request_id,
-                method=request.method,
-                path=request.url.path,
-                error=str(exc),
-                exc_info=True)
+    logger.error(
+        "Unhandled exception",
+        request_id=request_id,
+        method=request.method,
+        path=request.url.path,
+        error=str(exc),
+        exc_info=True,
+    )
 
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={
             "error": "Internal server error" if settings.PRODUCTION else str(exc),
             "request_id": request_id,
-            "timestamp": time.time()
-        }
+            "timestamp": time.time(),
+        },
     )
+
 
 # Health Check Endpoint
 @app.get("/health")
@@ -270,7 +297,7 @@ async def health_check():
         "status": "healthy",
         "timestamp": time.time(),
         "version": settings.VERSION,
-        "checks": {}
+        "checks": {},
     }
 
     # Perform health checks
@@ -284,14 +311,25 @@ async def health_check():
     for check_name, check_func in checks:
         try:
             result = await check_func()
-            health_status["checks"][check_name] = {"status": "healthy", "details": result}
+            health_status["checks"][check_name] = {
+                "status": "healthy",
+                "details": result,
+            }
         except Exception as e:
-            health_status["checks"][check_name] = {"status": "unhealthy", "error": str(e)}
+            health_status["checks"][check_name] = {
+                "status": "unhealthy",
+                "error": str(e),
+            }
             health_status["status"] = "degraded"
 
-    status_code = status.HTTP_200_OK if health_status["status"] == "healthy" else status.HTTP_503_SERVICE_UNAVAILABLE
+    status_code = (
+        status.HTTP_200_OK
+        if health_status["status"] == "healthy"
+        else status.HTTP_503_SERVICE_UNAVAILABLE
+    )
 
     return JSONResponse(status_code=status_code, content=health_status)
+
 
 # Readiness Check Endpoint
 @app.get("/ready")
@@ -299,6 +337,7 @@ async def readiness_check():
     """Kubernetes readiness probe."""
     # Check if service is ready to accept traffic
     return {"status": "ready"}
+
 
 # API Routes
 app.include_router(
@@ -309,8 +348,9 @@ app.include_router(
         422: {"description": "Validation Error"},
         429: {"description": "Rate Limited"},
         500: {"description": "Internal Server Error"},
-    }
+    },
 )
+
 
 # Root endpoint
 @app.get("/")
@@ -325,17 +365,23 @@ async def root():
         "metrics": "/metrics" if settings.METRICS_ENABLED else None,
     }
 
+
 # Metrics endpoint (if enabled)
 if settings.METRICS_ENABLED:
+
     @app.get("/metrics")
     async def metrics():
         """Prometheus metrics endpoint."""
         from app.core.metrics import generate_metrics
+
         return Response(
             content=generate_metrics(),
-            media_type="text/plain; version=0.0.4; charset=utf-8"
+            media_type="text/plain; version=0.0.4; charset=utf-8",
         )
 
-logger.info("🎯 Pinak Memory Service initialized with SOTA enterprise features",
-           version=settings.VERSION,
-           production=settings.PRODUCTION)
+
+logger.info(
+    "🎯 Pinak Memory Service initialized with SOTA enterprise features",
+    version=settings.VERSION,
+    production=settings.PRODUCTION,
+)

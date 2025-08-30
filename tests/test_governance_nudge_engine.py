@@ -5,21 +5,21 @@ Following TDD principles: Write tests first, then implement features.
 Tests cover behavioral detection, nudge generation, and governance integration.
 """
 
-import pytest
 import asyncio
-from unittest.mock import Mock, AsyncMock, patch
-from typing import Dict, List, Any, Optional
 import time
 from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
+from unittest.mock import AsyncMock, Mock, patch
 
-from pinak.context.nudge.engine import NudgeEngine
-from pinak.context.nudge.models import (
-    BehavioralPattern, NudgeRequest, NudgeResponse,
-    NudgeType, NudgeChannel, GovernancePolicy
-)
-from pinak.context.nudge.delivery import NudgeDelivery
-from pinak.context.nudge.store import NudgeStore
+import pytest
+
 from pinak.context.core.models import SecurityClassification
+from pinak.context.nudge.delivery import NudgeDelivery
+from pinak.context.nudge.engine import NudgeEngine
+from pinak.context.nudge.models import (BehavioralPattern, GovernancePolicy,
+                                        NudgeChannel, NudgeRequest,
+                                        NudgeResponse, NudgeType)
+from pinak.context.nudge.store import NudgeStore
 
 
 @pytest.fixture
@@ -32,11 +32,11 @@ def governance_policy():
         rules={
             "max_api_calls_per_minute": 100,
             "require_encryption": True,
-            "audit_log_retention_days": 90
+            "audit_log_retention_days": 90,
         },
         classification=SecurityClassification.CONFIDENTIAL,
         created_at=datetime.now(timezone.utc),
-        updated_at=datetime.now(timezone.utc)
+        updated_at=datetime.now(timezone.utc),
     )
 
 
@@ -51,13 +51,10 @@ def behavioral_pattern():
         indicators={
             "api_calls_per_minute": 150,
             "failed_auth_attempts": 3,
-            "suspicious_ips": ["192.168.1.100"]
+            "suspicious_ips": ["192.168.1.100"],
         },
         timestamp=datetime.now(timezone.utc),
-        context={
-            "endpoint": "/api/v1/memory/search",
-            "user_agent": "TestClient/1.0"
-        }
+        context={"endpoint": "/api/v1/memory/search", "user_agent": "TestClient/1.0"},
     )
 
 
@@ -65,9 +62,7 @@ def behavioral_pattern():
 def nudge_engine(governance_policy):
     """Create NudgeEngine instance for testing."""
     return NudgeEngine(
-        policies=[governance_policy],
-        learning_enabled=True,
-        adaptive_thresholds=True
+        policies=[governance_policy], learning_enabled=True, adaptive_thresholds=True
     )
 
 
@@ -109,10 +104,7 @@ class TestNudgeEngine:
         request = NudgeRequest(
             user_id=behavioral_pattern.user_id,
             pattern=behavioral_pattern,
-            context={
-                "current_action": "api_call",
-                "risk_level": "medium"
-            }
+            context={"current_action": "api_call", "risk_level": "medium"},
         )
 
         # Execute
@@ -121,7 +113,11 @@ class TestNudgeEngine:
         # Assert
         assert isinstance(response, NudgeResponse)
         assert response.user_id == request.user_id
-        assert response.nudge_type in [NudgeType.WARNING, NudgeType.SUGGESTION, NudgeType.BLOCK]
+        assert response.nudge_type in [
+            NudgeType.WARNING,
+            NudgeType.SUGGESTION,
+            NudgeType.BLOCK,
+        ]
         assert len(response.channels) > 0
 
     @pytest.mark.asyncio
@@ -131,7 +127,7 @@ class TestNudgeEngine:
         context = {
             "api_calls_per_minute": 120,
             "encryption_enabled": False,
-            "audit_logs_present": True
+            "audit_logs_present": True,
         }
 
         # Execute
@@ -156,7 +152,7 @@ class TestNudgeEngine:
             "true_positives": 10,
             "false_positives": 2,
             "true_negatives": 15,
-            "false_negatives": 1
+            "false_negatives": 1,
         }
 
         # Execute learning
@@ -174,7 +170,7 @@ class TestNudgeEngine:
             "id": "test_nudge_1",
             "type": NudgeType.WARNING,
             "message": "Security policy violation detected",
-            "channels": [NudgeChannel.IDE, NudgeChannel.CLI, NudgeChannel.SYSTEM]
+            "channels": [NudgeChannel.IDE, NudgeChannel.CLI, NudgeChannel.SYSTEM],
         }
 
         # Execute
@@ -193,7 +189,7 @@ class TestNudgeEngine:
             "nudge_id": nudge_id,
             "user_action": "acknowledged",
             "response_time_seconds": 30,
-            "compliance_improved": True
+            "compliance_improved": True,
         }
 
         # Execute
@@ -211,7 +207,7 @@ class TestNudgeEngine:
         monitoring_config = {
             "enabled": True,
             "alert_threshold": 0.8,
-            "monitoring_window_minutes": 5
+            "monitoring_window_minutes": 5,
         }
 
         # Start monitoring
@@ -225,14 +221,14 @@ class TestNudgeEngine:
                 "user_id": "test_user_1",
                 "event_type": "api_call",
                 "severity": 0.3,
-                "timestamp": datetime.now(timezone.utc)
+                "timestamp": datetime.now(timezone.utc),
             },
             {
                 "user_id": "test_user_1",
                 "event_type": "auth_failure",
                 "severity": 0.9,
-                "timestamp": datetime.now(timezone.utc)
-            }
+                "timestamp": datetime.now(timezone.utc),
+            },
         ]
 
         # Send events to monitoring
@@ -262,17 +258,16 @@ class TestBehavioralIntelligence:
         # Setup diverse behavioral data
         training_data = [
             {
-                "features": [100, 5, 0, 80],  # api_calls, failures, blocks, success_rate
-                "label": "normal"
+                "features": [
+                    100,
+                    5,
+                    0,
+                    80,
+                ],  # api_calls, failures, blocks, success_rate
+                "label": "normal",
             },
-            {
-                "features": [200, 15, 2, 60],
-                "label": "suspicious"
-            },
-            {
-                "features": [500, 50, 10, 30],
-                "label": "malicious"
-            }
+            {"features": [200, 15, 2, 60], "label": "suspicious"},
+            {"features": [500, 50, 10, 30], "label": "malicious"},
         ]
 
         # Train pattern recognition
@@ -292,9 +287,21 @@ class TestBehavioralIntelligence:
         """Test anomaly detection in behavioral patterns."""
         # Setup baseline behavior
         baseline_data = [
-            {"metric": "api_calls_per_minute", "value": 50, "timestamp": datetime.now(timezone.utc)},
-            {"metric": "api_calls_per_minute", "value": 55, "timestamp": datetime.now(timezone.utc)},
-            {"metric": "api_calls_per_minute", "value": 48, "timestamp": datetime.now(timezone.utc)},
+            {
+                "metric": "api_calls_per_minute",
+                "value": 50,
+                "timestamp": datetime.now(timezone.utc),
+            },
+            {
+                "metric": "api_calls_per_minute",
+                "value": 55,
+                "timestamp": datetime.now(timezone.utc),
+            },
+            {
+                "metric": "api_calls_per_minute",
+                "value": 48,
+                "timestamp": datetime.now(timezone.utc),
+            },
         ]
 
         # Establish baseline
@@ -302,8 +309,16 @@ class TestBehavioralIntelligence:
 
         # Test anomaly detection
         anomalous_data = [
-            {"metric": "api_calls_per_minute", "value": 200, "timestamp": datetime.now(timezone.utc)},
-            {"metric": "api_calls_per_minute", "value": 250, "timestamp": datetime.now(timezone.utc)},
+            {
+                "metric": "api_calls_per_minute",
+                "value": 200,
+                "timestamp": datetime.now(timezone.utc),
+            },
+            {
+                "metric": "api_calls_per_minute",
+                "value": 250,
+                "timestamp": datetime.now(timezone.utc),
+            },
         ]
 
         anomalies = await nudge_engine.detect_anomalies(anomalous_data)
@@ -323,19 +338,19 @@ class TestBehavioralIntelligence:
                     "time_of_day": "business_hours",
                     "user_role": "developer",
                     "risk_level": "low",
-                    "previous_violations": []
+                    "previous_violations": [],
                 },
-                "expected_nudge_type": NudgeType.SUGGESTION
+                "expected_nudge_type": NudgeType.SUGGESTION,
             },
             {
                 "context": {
                     "time_of_day": "after_hours",
                     "user_role": "admin",
                     "risk_level": "high",
-                    "previous_violations": ["policy_violation_1", "policy_violation_2"]
+                    "previous_violations": ["policy_violation_1", "policy_violation_2"],
                 },
-                "expected_nudge_type": NudgeType.WARNING
-            }
+                "expected_nudge_type": NudgeType.WARNING,
+            },
         ]
 
         for scenario in scenarios:
@@ -348,9 +363,9 @@ class TestBehavioralIntelligence:
                     severity="medium",
                     confidence=0.8,
                     indicators={},
-                    timestamp=datetime.now(timezone.utc)
+                    timestamp=datetime.now(timezone.utc),
                 ),
-                context=scenario["context"]
+                context=scenario["context"],
             )
 
             nudge_response = await nudge_engine.generate_nudge(nudge_request)
@@ -368,16 +383,18 @@ class TestGovernanceIntegration:
     async def test_parlant_policy_integration(self, nudge_engine):
         """Test integration with Parlant governance policies."""
         # Mock Parlant client
-        with patch('pinak.context.nudge.engine.ParlantClient') as mock_parlant:
+        with patch("pinak.context.nudge.engine.ParlantClient") as mock_parlant:
             mock_client = Mock()
-            mock_client.get_policies = AsyncMock(return_value=[
-                {
-                    "id": "parlant_policy_1",
-                    "name": "Parlant Security Policy",
-                    "rules": {"encryption_required": True},
-                    "priority": "high"
-                }
-            ])
+            mock_client.get_policies = AsyncMock(
+                return_value=[
+                    {
+                        "id": "parlant_policy_1",
+                        "name": "Parlant Security Policy",
+                        "rules": {"encryption_required": True},
+                        "priority": "high",
+                    }
+                ]
+            )
             mock_parlant.return_value = mock_client
 
             # Execute policy sync
@@ -395,10 +412,7 @@ class TestGovernanceIntegration:
         compliance_config = {
             "monitoring_enabled": True,
             "check_interval_seconds": 60,
-            "alert_thresholds": {
-                "critical": 0.9,
-                "warning": 0.7
-            }
+            "alert_thresholds": {"critical": 0.9, "warning": 0.7},
         }
 
         # Start compliance monitoring
@@ -412,14 +426,14 @@ class TestGovernanceIntegration:
                 "event_type": "policy_violation",
                 "severity": 0.8,
                 "policy_id": "test_policy_1",
-                "timestamp": datetime.now(timezone.utc)
+                "timestamp": datetime.now(timezone.utc),
             },
             {
                 "event_type": "compliance_check",
                 "severity": 0.2,
                 "policy_id": "test_policy_1",
-                "timestamp": datetime.now(timezone.utc)
-            }
+                "timestamp": datetime.now(timezone.utc),
+            },
         ]
 
         # Process compliance events
@@ -443,11 +457,7 @@ class TestGovernanceIntegration:
     async def test_audit_trail_integration(self, nudge_engine, nudge_store):
         """Test audit trail integration for governance."""
         # Setup audit configuration
-        audit_config = {
-            "enabled": True,
-            "retention_days": 90,
-            "detailed_logging": True
-        }
+        audit_config = {"enabled": True, "retention_days": 90, "detailed_logging": True}
 
         # Configure audit
         nudge_engine.configure_audit(audit_config)
@@ -459,14 +469,14 @@ class TestGovernanceIntegration:
                 "nudge_id": "audit_nudge_1",
                 "user_id": "test_user",
                 "timestamp": datetime.now(timezone.utc),
-                "details": {"reason": "policy_violation"}
+                "details": {"reason": "policy_violation"},
             },
             {
                 "event_type": "user_response",
                 "nudge_id": "audit_nudge_1",
                 "user_action": "acknowledged",
-                "timestamp": datetime.now(timezone.utc)
-            }
+                "timestamp": datetime.now(timezone.utc),
+            },
         ]
 
         # Process auditable events
@@ -504,7 +514,7 @@ class TestGovernanceStress:
                 "event_type": "api_call",
                 "severity": 0.1 + (i % 9) * 0.1,  # Varying severity
                 "timestamp": base_time,
-                "metadata": {"request_id": f"req_{i}"}
+                "metadata": {"request_id": f"req_{i}"},
             }
             events.append(event)
 
@@ -531,13 +541,13 @@ class TestGovernanceStress:
                 severity="medium",
                 confidence=0.8,
                 indicators={"test_indicator": i},
-                timestamp=datetime.now(timezone.utc)
+                timestamp=datetime.now(timezone.utc),
             )
 
             request = NudgeRequest(
                 user_id=pattern.user_id,
                 pattern=pattern,
-                context={"concurrent_test": True}
+                context={"concurrent_test": True},
             )
             requests.append(request)
 
@@ -573,7 +583,7 @@ class TestGovernanceStress:
                 "event_type": "memory_test_event",
                 "severity": 0.5,
                 "timestamp": datetime.now(timezone.utc),
-                "metadata": {"event_number": event_count}
+                "metadata": {"event_number": event_count},
             }
 
             await nudge_engine.process_behavioral_event(event)
@@ -597,7 +607,7 @@ class TestGovernanceErrorHandling:
     async def test_policy_loading_failure(self, nudge_engine):
         """Test handling of policy loading failures."""
         # Mock policy loading failure
-        with patch.object(nudge_engine, '_load_policies_from_store') as mock_load:
+        with patch.object(nudge_engine, "_load_policies_from_store") as mock_load:
             mock_load.side_effect = Exception("Policy store unavailable")
 
             # Attempt to reload policies
@@ -612,12 +622,15 @@ class TestGovernanceErrorHandling:
             "id": "failing_nudge",
             "type": NudgeType.WARNING,
             "message": "Test failure recovery",
-            "channels": [NudgeChannel.IDE, NudgeChannel.CLI]
+            "channels": [NudgeChannel.IDE, NudgeChannel.CLI],
         }
 
         # Mock delivery failures
-        with patch.object(nudge_delivery, '_deliver_to_channel') as mock_deliver:
-            mock_deliver.side_effect = [Exception("Channel down"), None]  # First fails, second succeeds
+        with patch.object(nudge_delivery, "_deliver_to_channel") as mock_deliver:
+            mock_deliver.side_effect = [
+                Exception("Channel down"),
+                None,
+            ]  # First fails, second succeeds
 
             # Attempt delivery
             result = await nudge_delivery.deliver_nudge(failing_nudge)
@@ -650,4 +663,3 @@ class TestGovernanceErrorHandling:
         # Assert system remains stable
         health = await nudge_engine.health_check()
         assert health["status"] == "healthy"
-

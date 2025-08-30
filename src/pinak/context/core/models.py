@@ -5,17 +5,20 @@ Implements comprehensive type safety, validation, and serialization.
 """
 
 from __future__ import annotations
-from typing import Dict, List, Optional, Any, Union, Iterator, Protocol
-from pydantic import BaseModel, Field, validator
-from datetime import datetime, timezone
-from enum import Enum
+
 import hashlib
 import json
 import uuid
+from datetime import datetime, timezone
+from enum import Enum
+from typing import Any, Dict, Iterator, List, Optional, Protocol, Union
+
+from pydantic import BaseModel, Field, validator
 
 
 class ContextLayer(str, Enum):
     """Memory layers available for context retrieval."""
+
     SEMANTIC = "semantic"
     EPISODIC = "episodic"
     PROCEDURAL = "procedural"
@@ -28,6 +31,7 @@ class ContextLayer(str, Enum):
 
 class ContextPriority(str, Enum):
     """Priority levels for context items."""
+
     CRITICAL = "critical"
     HIGH = "high"
     MEDIUM = "medium"
@@ -36,6 +40,7 @@ class ContextPriority(str, Enum):
 
 class SecurityClassification(str, Enum):
     """Security classification levels for context data."""
+
     PUBLIC = "public"
     INTERNAL = "internal"
     CONFIDENTIAL = "confidential"
@@ -87,12 +92,13 @@ class ContextItem(BaseModel):
 
     class Config:
         """Pydantic configuration for enterprise features."""
+
         validate_assignment = True
         json_encoders = {
             datetime: lambda v: v.isoformat(),
         }
 
-    @validator('checksum', always=True)
+    @validator("checksum", always=True)
     def generate_checksum(cls, v, values):
         """Generate tamper-evident checksum for the context item."""
         if v is not None:
@@ -100,12 +106,16 @@ class ContextItem(BaseModel):
 
         # Create canonical representation for hashing
         canonical_data = {
-            'id': values.get('id', ''),
-            'title': values.get('title', ''),
-            'content': values.get('content', ''),
-            'created_at': values.get('created_at', '').isoformat() if values.get('created_at') else '',
-            'project_id': values.get('project_id', ''),
-            'tenant_id': values.get('tenant_id', ''),
+            "id": values.get("id", ""),
+            "title": values.get("title", ""),
+            "content": values.get("content", ""),
+            "created_at": (
+                values.get("created_at", "").isoformat()
+                if values.get("created_at")
+                else ""
+            ),
+            "project_id": values.get("project_id", ""),
+            "tenant_id": values.get("tenant_id", ""),
         }
 
         canonical_json = json.dumps(canonical_data, sort_keys=True)
@@ -127,11 +137,11 @@ class ContextItem(BaseModel):
         if user_clearance.value < self.classification.value:
             # Return redacted version for insufficient clearance
             return {
-                'id': self.id,
-                'title': '[REDACTED]',
-                'summary': '[REDACTED - Insufficient Security Clearance]',
-                'classification': self.classification.value,
-                'created_at': self.created_at.isoformat(),
+                "id": self.id,
+                "title": "[REDACTED]",
+                "summary": "[REDACTED - Insufficient Security Clearance]",
+                "classification": self.classification.value,
+                "created_at": self.created_at.isoformat(),
             }
 
         return self.dict()
@@ -146,7 +156,9 @@ class ContextItem(BaseModel):
         age_score = 0.5 ** (age_hours / 24)
 
         # Bonus for recent updates
-        update_bonus = 0.2 if update_age_hours < 1 else 0.1 if update_age_hours < 24 else 0
+        update_bonus = (
+            0.2 if update_age_hours < 1 else 0.1 if update_age_hours < 24 else 0
+        )
 
         return min(1.0, age_score + update_bonus)
 
@@ -220,7 +232,9 @@ class ContextResponse(BaseModel):
     # Advanced metadata for world-beating retrieval
     metadata: Optional[Dict[str, Any]] = None
 
-    def add_item(self, item: ContextItem, user_clearance: SecurityClassification) -> None:
+    def add_item(
+        self, item: ContextItem, user_clearance: SecurityClassification
+    ) -> None:
         """Add an item with security filtering."""
         if user_clearance.value >= item.classification.value:
             self.items.append(item)
@@ -231,15 +245,15 @@ class ContextResponse(BaseModel):
     def to_audit_log(self) -> Dict[str, Any]:
         """Generate audit log entry for this response."""
         return {
-            'query_id': self.query_id,
-            'audit_token': self.audit_token,
-            'total_results': self.total_results,
-            'returned_results': self.returned_results,
-            'filtered_count': self.filtered_count,
-            'redacted_count': self.redacted_count,
-            'execution_time_ms': self.execution_time_ms,
-            'cache_hit': self.cache_hit,
-            'timestamp': datetime.now(timezone.utc).isoformat(),
+            "query_id": self.query_id,
+            "audit_token": self.audit_token,
+            "total_results": self.total_results,
+            "returned_results": self.returned_results,
+            "filtered_count": self.filtered_count,
+            "redacted_count": self.redacted_count,
+            "execution_time_ms": self.execution_time_ms,
+            "cache_hit": self.cache_hit,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
         }
 
 
@@ -264,17 +278,20 @@ class ContextEvent(BaseModel):
 
     def to_log_entry(self) -> str:
         """Convert to structured log entry."""
-        return json.dumps({
-            'event_id': self.event_id,
-            'event_type': self.event_type,
-            'timestamp': self.timestamp.isoformat(),
-            'project_id': self.project_id,
-            'tenant_id': self.tenant_id,
-            'user_id': self.user_id,
-            'source': self.source,
-            'version': self.version,
-            'data': self.data,
-        }, default=str)
+        return json.dumps(
+            {
+                "event_id": self.event_id,
+                "event_type": self.event_type,
+                "timestamp": self.timestamp.isoformat(),
+                "project_id": self.project_id,
+                "tenant_id": self.tenant_id,
+                "user_id": self.user_id,
+                "source": self.source,
+                "version": self.version,
+                "data": self.data,
+            },
+            default=str,
+        )
 
 
 class IContextStore(Protocol):

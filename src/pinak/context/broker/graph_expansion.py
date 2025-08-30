@@ -6,19 +6,20 @@ and contextual path finding with relevance weighting.
 """
 
 from __future__ import annotations
-from typing import Dict, List, Optional, Any, Set, Tuple
+
+import asyncio
+import heapq
+import logging
+from collections import defaultdict, deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
-import asyncio
-import logging
-import networkx as nx
-from collections import defaultdict, deque
-import heapq
+from typing import Any, Dict, List, Optional, Set, Tuple
 
-from ..core.models import (
-    ContextItem, ContextQuery, ContextResponse, ContextLayer,
-    ContextPriority, SecurityClassification
-)
+import networkx as nx
+
+from ..core.models import (ContextItem, ContextLayer, ContextPriority,
+                           ContextQuery, ContextResponse,
+                           SecurityClassification)
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +27,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class KnowledgeNode:
     """Node in the knowledge graph representing entities and concepts."""
+
     id: str
     type: str
     content: str
@@ -43,6 +45,7 @@ class KnowledgeNode:
 @dataclass
 class KnowledgeEdge:
     """Edge in the knowledge graph representing relationships."""
+
     source_id: str
     target_id: str
     relationship_type: str
@@ -55,6 +58,7 @@ class KnowledgeEdge:
 @dataclass
 class GraphExpansionResult:
     """Result of graph-based expansion."""
+
     original_items: List[ContextItem]
     expanded_items: List[ContextItem]
     new_relationships: List[KnowledgeEdge]
@@ -90,7 +94,7 @@ class KnowledgeGraph:
             relationship_type=edge.relationship_type,
             weight=edge.weight,
             confidence=edge.confidence,
-            temporal_context=edge.temporal_context
+            temporal_context=edge.temporal_context,
         )
 
         if edge.bidirectional:
@@ -100,7 +104,7 @@ class KnowledgeGraph:
                 relationship_type=f"reverse_{edge.relationship_type}",
                 weight=edge.weight,
                 confidence=edge.confidence,
-                temporal_context=edge.temporal_context
+                temporal_context=edge.temporal_context,
             )
 
     def build_from_context_items(self, items: List[ContextItem]) -> None:
@@ -117,8 +121,8 @@ class KnowledgeGraph:
                     "title": item.title,
                     "tags": item.tags,
                     "references": item.references,
-                    "created_at": item.created_at.isoformat()
-                }
+                    "created_at": item.created_at.isoformat(),
+                },
             )
             self.add_node(node)
 
@@ -139,7 +143,7 @@ class KnowledgeGraph:
                             relationship_type=relationship["type"],
                             weight=relationship["weight"],
                             confidence=relationship["confidence"],
-                            bidirectional=True
+                            bidirectional=True,
                         )
                         self.add_edge(edge)
 
@@ -166,7 +170,7 @@ class KnowledgeGraph:
             return {
                 "type": "semantic_similarity",
                 "weight": jaccard_similarity,
-                "confidence": min(0.9, jaccard_similarity + 0.1)
+                "confidence": min(0.9, jaccard_similarity + 0.1),
             }
 
         # Tag-based relationships
@@ -176,7 +180,7 @@ class KnowledgeGraph:
                 return {
                     "type": "tag_related",
                     "weight": tag_overlap / max(len(item1.tags), len(item2.tags)),
-                    "confidence": 0.7
+                    "confidence": 0.7,
                 }
 
         return None
@@ -200,7 +204,7 @@ class KnowledgeGraph:
                     relationship_type="temporal_sequence",
                     weight=min(1.0, 3600 / max(time_diff, 1)),
                     confidence=0.8,
-                    temporal_context="sequential"
+                    temporal_context="sequential",
                 )
                 self.add_edge(edge)
 
@@ -209,7 +213,7 @@ class KnowledgeGraph:
         start_node_ids: List[str],
         max_depth: int = 3,
         relevance_threshold: float = 0.1,
-        max_expansions: int = 50
+        max_expansions: int = 50,
     ) -> List[KnowledgeNode]:
         """Traverse graph from starting nodes to find related knowledge."""
         if not start_node_ids:
@@ -243,17 +247,21 @@ class KnowledgeGraph:
                     if neighbor_node:
                         edge_data = self.graph.get_edge_data(node_id, neighbor_id)
                         if edge_data:
-                            edge_weight = edge_data.get('weight', 1.0)
+                            edge_weight = edge_data.get("weight", 1.0)
                             propagated_relevance = (
-                                current_node.relevance_score * edge_weight * self.decay_factor ** depth
+                                current_node.relevance_score
+                                * edge_weight
+                                * self.decay_factor**depth
                             )
 
                             if propagated_relevance >= relevance_threshold:
                                 neighbor_node.relevance_score = max(
-                                    neighbor_node.relevance_score,
-                                    propagated_relevance
+                                    neighbor_node.relevance_score, propagated_relevance
                                 )
-                                heapq.heappush(queue, (-propagated_relevance, depth + 1, neighbor_id))
+                                heapq.heappush(
+                                    queue,
+                                    (-propagated_relevance, depth + 1, neighbor_id),
+                                )
                                 visited.add(neighbor_id)
 
         return expanded_nodes
@@ -268,14 +276,16 @@ class KnowledgeGraph:
 
         nodes_to_evict = []
         for node_id, node in self.node_index.items():
-            age_hours = (current_time - node.metadata.get('created_at', current_time)).total_seconds() / 3600
-            decay_score = node.temporal_weight * (self.decay_factor ** age_hours)
+            age_hours = (
+                current_time - node.metadata.get("created_at", current_time)
+            ).total_seconds() / 3600
+            decay_score = node.temporal_weight * (self.decay_factor**age_hours)
 
             if decay_score < 0.1:  # Very old nodes
                 nodes_to_evict.append(node_id)
 
         # Remove oldest nodes
-        for node_id in nodes_to_evict[:len(nodes_to_evict) // 4]:  # Remove 25%
+        for node_id in nodes_to_evict[: len(nodes_to_evict) // 4]:  # Remove 25%
             if node_id in self.node_index:
                 del self.node_index[node_id]
                 self.graph.remove_node(node_id)
@@ -287,8 +297,12 @@ class KnowledgeGraph:
             "total_edges": self.graph.number_of_edges(),
             "node_types": self._count_node_types(),
             "edge_types": self._count_edge_types(),
-            "average_degree": sum(dict(self.graph.degree()).values()) / len(self.node_index) if self.node_index else 0,
-            "connected_components": nx.number_weakly_connected_components(self.graph)
+            "average_degree": (
+                sum(dict(self.graph.degree()).values()) / len(self.node_index)
+                if self.node_index
+                else 0
+            ),
+            "connected_components": nx.number_weakly_connected_components(self.graph),
         }
 
     def _count_node_types(self) -> Dict[str, int]:
@@ -302,7 +316,7 @@ class KnowledgeGraph:
         """Count edges by relationship type."""
         type_counts = defaultdict(int)
         for _, _, edge_data in self.graph.edges(data=True):
-            rel_type = edge_data.get('relationship_type', 'unknown')
+            rel_type = edge_data.get("relationship_type", "unknown")
             type_counts[rel_type] += 1
         return dict(type_counts)
 
@@ -323,11 +337,10 @@ class GraphBasedExpander:
         max_graph_nodes: int = 5000,
         max_expansion_depth: int = 3,
         relevance_threshold: float = 0.15,
-        temporal_decay_factor: float = 0.95
+        temporal_decay_factor: float = 0.95,
     ):
         self.knowledge_graph = KnowledgeGraph(
-            max_nodes=max_graph_nodes,
-            decay_factor=temporal_decay_factor
+            max_nodes=max_graph_nodes, decay_factor=temporal_decay_factor
         )
         self.max_expansion_depth = max_expansion_depth
         self.relevance_threshold = relevance_threshold
@@ -335,10 +348,10 @@ class GraphBasedExpander:
         # Performance tracking
         self._expansion_history = []
         self._metrics = {
-            'total_expansions': 0,
-            'average_expansion_time_ms': 0.0,
-            'cache_hit_rate': 0.0,
-            'graph_growth_rate': 0.0
+            "total_expansions": 0,
+            "average_expansion_time_ms": 0.0,
+            "cache_hit_rate": 0.0,
+            "graph_growth_rate": 0.0,
         }
 
         logger.info("🌐 Graph-Based Knowledge Expander initialized")
@@ -348,7 +361,7 @@ class GraphBasedExpander:
         query: ContextQuery,
         initial_items: List[ContextItem],
         expansion_depth: Optional[int] = None,
-        relevance_threshold: Optional[float] = None
+        relevance_threshold: Optional[float] = None,
     ) -> GraphExpansionResult:
         """
         Expand context through graph-based knowledge exploration.
@@ -379,7 +392,7 @@ class GraphBasedExpander:
                 start_node_ids=start_node_ids,
                 max_depth=depth,
                 relevance_threshold=threshold,
-                max_expansions=query.limit * 2
+                max_expansions=query.limit * 2,
             )
 
             # Extract new relationships discovered during traversal
@@ -407,7 +420,7 @@ class GraphBasedExpander:
                 traversal_depth=depth,
                 relevance_threshold=threshold,
                 expansion_confidence=expansion_confidence,
-                execution_time_ms=execution_time
+                execution_time_ms=execution_time,
             )
 
             # Update metrics
@@ -432,32 +445,34 @@ class GraphBasedExpander:
                 traversal_depth=0,
                 relevance_threshold=threshold,
                 expansion_confidence=0.0,
-                execution_time_ms=execution_time
+                execution_time_ms=execution_time,
             )
 
-    def _extract_new_relationships(self, nodes: List[KnowledgeNode]) -> List[KnowledgeEdge]:
+    def _extract_new_relationships(
+        self, nodes: List[KnowledgeNode]
+    ) -> List[KnowledgeEdge]:
         """Extract new relationships discovered during expansion."""
         new_relationships = []
 
         for node in nodes:
             # Get all edges for this node
-            for source, target, edge_data in self.knowledge_graph.graph.in_edges(node.id, data=True):
+            for source, target, edge_data in self.knowledge_graph.graph.in_edges(
+                node.id, data=True
+            ):
                 if edge_data:
                     edge = KnowledgeEdge(
                         source_id=source,
                         target_id=target,
-                        relationship_type=edge_data.get('relationship_type', 'unknown'),
-                        weight=edge_data.get('weight', 1.0),
-                        confidence=edge_data.get('confidence', 1.0)
+                        relationship_type=edge_data.get("relationship_type", "unknown"),
+                        weight=edge_data.get("weight", 1.0),
+                        confidence=edge_data.get("confidence", 1.0),
                     )
                     new_relationships.append(edge)
 
         return new_relationships
 
     async def _convert_nodes_to_items(
-        self,
-        nodes: List[KnowledgeNode],
-        query: ContextQuery
+        self, nodes: List[KnowledgeNode], query: ContextQuery
     ) -> List[ContextItem]:
         """Convert knowledge nodes back to context items."""
         items = []
@@ -483,8 +498,8 @@ class GraphBasedExpander:
                 metadata={
                     "expansion_source": "graph_traversal",
                     "traversal_confidence": node.confidence_score,
-                    "temporal_weight": node.temporal_weight
-                }
+                    "temporal_weight": node.temporal_weight,
+                },
             )
             items.append(item)
 
@@ -494,7 +509,7 @@ class GraphBasedExpander:
         self,
         expanded_items: List[ContextItem],
         query: ContextQuery,
-        original_items: List[ContextItem]
+        original_items: List[ContextItem],
     ) -> List[ContextItem]:
         """Filter and rank expanded items based on query criteria."""
         # Remove duplicates with original items
@@ -503,21 +518,25 @@ class GraphBasedExpander:
 
         # Apply query filters
         if query.min_relevance > 0:
-            filtered = [item for item in filtered if item.relevance_score >= query.min_relevance]
+            filtered = [
+                item for item in filtered if item.relevance_score >= query.min_relevance
+            ]
 
         if query.min_confidence > 0:
-            filtered = [item for item in filtered if item.confidence_score >= query.min_confidence]
+            filtered = [
+                item
+                for item in filtered
+                if item.confidence_score >= query.min_confidence
+            ]
 
         # Sort by relevance score
         filtered.sort(key=lambda x: x.relevance_score, reverse=True)
 
         # Apply limit
-        return filtered[:query.limit]
+        return filtered[: query.limit]
 
     def _calculate_expansion_confidence(
-        self,
-        original_items: List[ContextItem],
-        expanded_items: List[ContextItem]
+        self, original_items: List[ContextItem], expanded_items: List[ContextItem]
     ) -> float:
         """Calculate confidence score for the expansion result."""
         if not original_items:
@@ -525,22 +544,28 @@ class GraphBasedExpander:
 
         # Base confidence on expansion ratio and quality
         expansion_ratio = len(expanded_items) / len(original_items)
-        average_relevance = sum(item.relevance_score for item in expanded_items) / max(len(expanded_items), 1)
+        average_relevance = sum(item.relevance_score for item in expanded_items) / max(
+            len(expanded_items), 1
+        )
 
         # Confidence increases with moderate expansion and high relevance
-        ratio_confidence = min(1.0, expansion_ratio / 2.0)  # Optimal around 2x expansion
-        relevance_confidence = min(1.0, average_relevance * 2.0)  # Scale relevance to confidence
+        ratio_confidence = min(
+            1.0, expansion_ratio / 2.0
+        )  # Optimal around 2x expansion
+        relevance_confidence = min(
+            1.0, average_relevance * 2.0
+        )  # Scale relevance to confidence
 
         return (ratio_confidence + relevance_confidence) / 2.0
 
     def _update_metrics(self, result: GraphExpansionResult) -> None:
         """Update internal metrics."""
-        self._metrics['total_expansions'] += 1
+        self._metrics["total_expansions"] += 1
 
         # Update average expansion time
-        current_avg = self._metrics['average_expansion_time_ms']
-        total = self._metrics['total_expansions']
-        self._metrics['average_expansion_time_ms'] = (
+        current_avg = self._metrics["average_expansion_time_ms"]
+        total = self._metrics["total_expansions"]
+        self._metrics["average_expansion_time_ms"] = (
             (current_avg * (total - 1)) + result.execution_time_ms
         ) / total
 
@@ -548,7 +573,7 @@ class GraphBasedExpander:
         """Get expansion metrics."""
         metrics = self._metrics.copy()
         metrics.update(self.knowledge_graph.get_statistics())
-        metrics['expansion_history_size'] = len(self._expansion_history)
+        metrics["expansion_history_size"] = len(self._expansion_history)
 
         return metrics
 
@@ -557,7 +582,7 @@ class GraphBasedExpander:
         # Remove low-confidence edges
         edges_to_remove = []
         for source, target, edge_data in self.knowledge_graph.graph.edges(data=True):
-            if edge_data.get('confidence', 0) < 0.3:
+            if edge_data.get("confidence", 0) < 0.3:
                 edges_to_remove.append((source, target))
 
         for source, target in edges_to_remove:
@@ -566,15 +591,15 @@ class GraphBasedExpander:
         # Update temporal weights
         current_time = datetime.now(timezone.utc)
         for node in self.knowledge_graph.node_index.values():
-            age_hours = (current_time - node.metadata.get('created_at', current_time)).total_seconds() / 3600
-            node.temporal_weight *= (self.knowledge_graph.decay_factor ** age_hours)
+            age_hours = (
+                current_time - node.metadata.get("created_at", current_time)
+            ).total_seconds() / 3600
+            node.temporal_weight *= self.knowledge_graph.decay_factor**age_hours
 
         logger.info("Knowledge graph optimized")
 
     async def find_related_entities(
-        self,
-        entity_name: str,
-        max_related: int = 10
+        self, entity_name: str, max_related: int = 10
     ) -> List[Tuple[str, float]]:
         """Find related entities through graph traversal."""
         # This would integrate with external knowledge bases

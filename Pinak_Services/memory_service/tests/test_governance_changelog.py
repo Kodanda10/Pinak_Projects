@@ -1,5 +1,5 @@
-import os
 import json
+import os
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -8,8 +8,9 @@ from fastapi.testclient import TestClient
 
 def client():
     # Ensure mock embeddings for speed
-    os.environ.setdefault('USE_MOCK_EMBEDDINGS','true')
+    os.environ.setdefault("USE_MOCK_EMBEDDINGS", "true")
     from app.main import app
+
     return TestClient(app)
 
 
@@ -19,7 +20,7 @@ def iso(dt):
 
 def test_governance_event_mirrors_to_changelog(tmp_path, monkeypatch):
     c = client()
-    pid = 'Pnk-test'
+    pid = "Pnk-test"
 
     # Emit a governance audit event
     now = datetime.now(timezone.utc)
@@ -57,7 +58,7 @@ def test_governance_event_mirrors_to_changelog(tmp_path, monkeypatch):
 
 def test_changelog_since_until_filters(tmp_path, monkeypatch):
     c = client()
-    pid = 'Pnk-test2'
+    pid = "Pnk-test2"
     # Create two governance entries separated by time
     r = c.post(
         "/api/v1/memory/event",

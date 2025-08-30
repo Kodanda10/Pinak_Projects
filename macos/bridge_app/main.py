@@ -8,6 +8,7 @@ def main():
     if src not in sys.path:
         sys.path.insert(0, src)
     from pinak.menubar.app import main as run
+
     return run()
 
 

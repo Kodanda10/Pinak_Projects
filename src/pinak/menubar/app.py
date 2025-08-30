@@ -23,6 +23,7 @@ ICON_WARN = ICON_OK
 def check_health() -> dict:
     try:
         from pinak.memory.manager import MemoryManager  # type: ignore
+
         mm = MemoryManager()
         mem_ok = mm.health()
     except Exception:
@@ -31,7 +32,9 @@ def check_health() -> dict:
     token_expires_in = None
     try:
         from jose import jwt  # type: ignore
+
         from pinak.bridge.context import ProjectContext  # type: ignore
+
         ctx = ProjectContext.find()
         tok = ctx.get_token() if ctx else None
         if tok:
@@ -60,11 +63,13 @@ def try_self_heal(log_cb=None) -> dict:
                 log_cb(msg)
             except Exception:
                 pass
+
     info = check_health()
     changed = False
     if info.get("token_expired") is True:
         try:
             from pinak.bridge.context import ProjectContext  # type: ignore
+
             ctx = ProjectContext.find()
             if ctx:
                 secret = os.getenv("SECRET_KEY", "change-me-in-prod")
@@ -76,6 +81,7 @@ def try_self_heal(log_cb=None) -> dict:
     if not info.get("memory_api_ok"):
         try:
             from pinak.cli import cmd_up  # type: ignore
+
             rc = cmd_up(type("NS", (), {})())
             log(f"pinak up: rc={rc}")
             changed = True
@@ -133,6 +139,7 @@ class PinakStatusApp(rumps.App):
     def on_rotate(self, _):
         try:
             from pinak.bridge.context import ProjectContext  # type: ignore
+
             ctx = ProjectContext.find()
             if ctx:
                 secret = os.getenv("SECRET_KEY", "change-me-in-prod")
@@ -145,6 +152,7 @@ class PinakStatusApp(rumps.App):
     def on_stop(self, _):
         try:
             from pinak.cli import cmd_down  # type: ignore
+
             cmd_down(type("NS", (), {})())
         except Exception:
             try:
@@ -183,4 +191,3 @@ def main():
     app = PinakStatusApp()
     app.run()
     return 0
-

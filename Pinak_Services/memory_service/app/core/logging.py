@@ -18,7 +18,7 @@ import time
 from contextvars import ContextVar
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional, TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Any, Dict, Optional, Union
 
 if TYPE_CHECKING:
     import structlog
@@ -32,11 +32,10 @@ import structlog
 
 from .config import settings
 
-
 # Context variables for request tracking
-request_id: ContextVar[Optional[str]] = ContextVar('request_id', default=None)
-user_id: ContextVar[Optional[str]] = ContextVar('user_id', default=None)
-correlation_id: ContextVar[Optional[str]] = ContextVar('correlation_id', default=None)
+request_id: ContextVar[Optional[str]] = ContextVar("request_id", default=None)
+user_id: ContextVar[Optional[str]] = ContextVar("user_id", default=None)
+correlation_id: ContextVar[Optional[str]] = ContextVar("correlation_id", default=None)
 
 
 class EnterpriseLogger:
@@ -102,15 +101,13 @@ class EnterpriseLogger:
 
         # File handler for all logs
         file_handler = logging.FileHandler(
-            log_dir / "pinak_memory.log",
-            encoding='utf-8'
+            log_dir / "pinak_memory.log", encoding="utf-8"
         )
         file_handler.setFormatter(self._get_json_formatter())
 
         # Error handler for errors only
         error_handler = logging.FileHandler(
-            log_dir / "pinak_memory_error.log",
-            encoding='utf-8'
+            log_dir / "pinak_memory_error.log", encoding="utf-8"
         )
         error_handler.setLevel(logging.ERROR)
         error_handler.setFormatter(self._get_json_formatter())
@@ -120,7 +117,7 @@ class EnterpriseLogger:
         if settings.DEBUG:
             console_handler.setFormatter(
                 logging.Formatter(
-                    '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+                    "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
                 )
             )
         else:
@@ -137,31 +134,34 @@ class EnterpriseLogger:
     def _get_json_formatter(self) -> logging.Formatter:
         """Get JSON formatter for structured logging."""
         return logging.Formatter(
-            json.dumps({
-                "timestamp": "%(asctime)s",
-                "level": "%(levelname)s",
-                "logger": "%(name)s",
-                "message": "%(message)s",
-                "module": "%(module)s",
-                "function": "%(funcName)s",
-                "line": "%(lineno)d",
-            })
+            json.dumps(
+                {
+                    "timestamp": "%(asctime)s",
+                    "level": "%(levelname)s",
+                    "logger": "%(name)s",
+                    "message": "%(message)s",
+                    "module": "%(module)s",
+                    "function": "%(funcName)s",
+                    "line": "%(lineno)d",
+                }
+            )
         )
 
     def _add_enterprise_fields(
-        self, logger: logging.Logger, method_name: str,
-        event_dict: Dict[str, Any]
+        self, logger: logging.Logger, method_name: str, event_dict: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Add enterprise-specific fields to log records."""
-        event_dict.update({
-            "service": settings.APP_NAME,
-            "version": settings.VERSION,
-            "environment": "production" if settings.PRODUCTION else "development",
-            "request_id": request_id.get(),
-            "user_id": user_id.get(),
-            "correlation_id": correlation_id.get(),
-            "timestamp_ms": int(time.time() * 1000),
-        })
+        event_dict.update(
+            {
+                "service": settings.APP_NAME,
+                "version": settings.VERSION,
+                "environment": "production" if settings.PRODUCTION else "development",
+                "request_id": request_id.get(),
+                "user_id": user_id.get(),
+                "correlation_id": correlation_id.get(),
+                "timestamp_ms": int(time.time() * 1000),
+            }
+        )
         return event_dict
 
     def info(self, event: str, **kwargs):
@@ -186,12 +186,7 @@ class EnterpriseLogger:
 
     def security_event(self, event: str, severity: str = "medium", **kwargs):
         """Log security-related events."""
-        self._logger.warning(
-            event,
-            event_type="security",
-            severity=severity,
-            **kwargs
-        )
+        self._logger.warning(event, event_type="security", severity=severity, **kwargs)
 
     def performance_metric(self, operation: str, duration_ms: float, **kwargs):
         """Log performance metrics."""
@@ -200,7 +195,7 @@ class EnterpriseLogger:
             event_type="performance",
             operation=operation,
             duration_ms=duration_ms,
-            **kwargs
+            **kwargs,
         )
 
     def audit_event(self, action: str, resource: str, **kwargs):
@@ -210,7 +205,7 @@ class EnterpriseLogger:
             event_type="audit",
             action=action,
             resource=resource,
-            **kwargs
+            **kwargs,
         )
 
 

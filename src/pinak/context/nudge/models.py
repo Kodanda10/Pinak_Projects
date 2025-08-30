@@ -5,20 +5,24 @@ Implements proactive context delivery with intelligent triggers and personalizat
 """
 
 from __future__ import annotations
-from typing import Dict, List, Optional, Any, Union, Protocol
-from pydantic import BaseModel, Field, validator
-from datetime import datetime, timezone
-from enum import Enum
+
 import asyncio
 import logging
+from datetime import datetime, timezone
+from enum import Enum
+from typing import Any, Dict, List, Optional, Protocol, Union
 
-from ..core.models import ContextItem, ContextQuery, ContextLayer, SecurityClassification
+from pydantic import BaseModel, Field, validator
+
+from ..core.models import (ContextItem, ContextLayer, ContextQuery,
+                           SecurityClassification)
 
 logger = logging.getLogger(__name__)
 
 
 class NudgeType(str, Enum):
     """Types of proactive nudges."""
+
     CONTEXT_SUGGESTION = "context_suggestion"
     RELEVANT_UPDATE = "relevant_update"
     MISSING_CONTEXT = "missing_context"
@@ -29,6 +33,7 @@ class NudgeType(str, Enum):
 
 class NudgePriority(str, Enum):
     """Priority levels for nudges."""
+
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
@@ -37,6 +42,7 @@ class NudgePriority(str, Enum):
 
 class NudgeTrigger(str, Enum):
     """Trigger conditions for nudges."""
+
     TIME_BASED = "time_based"
     CONTEXT_CHANGE = "context_change"
     USER_ACTIVITY = "user_activity"
@@ -70,7 +76,9 @@ class NudgeCondition(BaseModel):
 class NudgeTemplate(BaseModel):
     """Template for generating nudges."""
 
-    template_id: str = Field(default_factory=lambda: f"template_{datetime.now().timestamp()}")
+    template_id: str = Field(
+        default_factory=lambda: f"template_{datetime.now().timestamp()}"
+    )
     name: str = Field(..., min_length=1)
     description: str = Field(..., min_length=1)
 
@@ -162,16 +170,12 @@ class Nudge(BaseModel):
             return 0.0
 
         # Weight different factors
-        weights = {
-            'relevance': 0.4,
-            'timeliness': 0.3,
-            'engagement': 0.3
-        }
+        weights = {"relevance": 0.4, "timeliness": 0.3, "engagement": 0.3}
 
         return (
-            weights['relevance'] * self.relevance_score +
-            weights['timeliness'] * self.timeliness_score +
-            weights['engagement'] * self.user_engagement_score
+            weights["relevance"] * self.relevance_score
+            + weights["timeliness"] * self.timeliness_score
+            + weights["engagement"] * self.user_engagement_score
         )
 
 
@@ -215,7 +219,9 @@ class INudgeStore(Protocol):
         """Update nudge delivery/acknowledgment status."""
         ...
 
-    async def get_nudge_templates(self, active_only: bool = True) -> List[NudgeTemplate]:
+    async def get_nudge_templates(
+        self, active_only: bool = True
+    ) -> List[NudgeTemplate]:
         """Get available nudge templates."""
         ...
 

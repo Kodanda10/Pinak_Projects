@@ -13,6 +13,7 @@ SOTA Configuration Management with:
 import os
 import secrets
 from typing import List, Optional, Set
+
 from pydantic import BaseModel, Field, validator
 
 
@@ -39,12 +40,8 @@ class Settings(BaseModel):
     WORKERS: int = Field(default=1)
 
     # Security
-    SECRET_KEY: str = Field(
-        default_factory=lambda: secrets.token_urlsafe(32)
-    )
-    JWT_SECRET_KEY: str = Field(
-        default_factory=lambda: secrets.token_urlsafe(32)
-    )
+    SECRET_KEY: str = Field(default_factory=lambda: secrets.token_urlsafe(32))
+    JWT_SECRET_KEY: str = Field(default_factory=lambda: secrets.token_urlsafe(32))
     JWT_ALGORITHM: str = "HS256"
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
 
@@ -52,22 +49,16 @@ class Settings(BaseModel):
     ALLOWED_ORIGINS: List[str] = Field(
         default=["http://localhost:3000", "http://localhost:8000"]
     )
-    ALLOWED_HOSTS: List[str] = Field(
-        default=["*"]
-    )
+    ALLOWED_HOSTS: List[str] = Field(default=["*"])
 
     # Database
-    DATABASE_URL: str = Field(
-        default="sqlite:///./data/memory.db"
-    )
+    DATABASE_URL: str = Field(default="sqlite:///./data/memory.db")
     DB_POOL_SIZE: int = Field(default=10)
     DB_MAX_OVERFLOW: int = Field(default=20)
     DB_POOL_RECYCLE: int = Field(default=3600)
 
     # Vector Store
-    VECTOR_DB_PATH: str = Field(
-        default="./data/memory.faiss"
-    )
+    VECTOR_DB_PATH: str = Field(default="./data/memory.faiss")
     VECTOR_DIMENSION: int = Field(default=384)
     VECTOR_INDEX_TYPE: str = Field(default="IndexFlatIP")
 
@@ -77,21 +68,13 @@ class Settings(BaseModel):
     REDIS_DB: int = Field(default=0)
 
     # Rate Limiting
-    RATE_LIMIT_REQUESTS_PER_MINUTE: int = Field(
-        default=1000
-    )
+    RATE_LIMIT_REQUESTS_PER_MINUTE: int = Field(default=1000)
     RATE_LIMIT_BURST: int = Field(default=100)
 
     # Circuit Breaker
-    CIRCUIT_BREAKER_FAILURE_THRESHOLD: int = Field(
-        default=5
-    )
-    CIRCUIT_BREAKER_RECOVERY_TIMEOUT: int = Field(
-        default=60
-    )
-    CIRCUIT_BREAKER_SUCCESS_THRESHOLD: int = Field(
-        default=3
-    )
+    CIRCUIT_BREAKER_FAILURE_THRESHOLD: int = Field(default=5)
+    CIRCUIT_BREAKER_RECOVERY_TIMEOUT: int = Field(default=60)
+    CIRCUIT_BREAKER_SUCCESS_THRESHOLD: int = Field(default=3)
 
     # Observability
     METRICS_ENABLED: bool = Field(default=True)
@@ -121,28 +104,28 @@ class Settings(BaseModel):
     BACKUP_ENABLED: bool = Field(default=True)
     BACKUP_INTERVAL_HOURS: int = Field(default=24)
 
-    @validator('ALLOWED_ORIGINS', pre=True)
+    @validator("ALLOWED_ORIGINS", pre=True)
     def parse_allowed_origins(cls, v):
         """Parse comma-separated origins."""
         if isinstance(v, str):
-            return [origin.strip() for origin in v.split(',')]
+            return [origin.strip() for origin in v.split(",")]
         return v
 
-    @validator('ALLOWED_HOSTS', pre=True)
+    @validator("ALLOWED_HOSTS", pre=True)
     def parse_allowed_hosts(cls, v):
         """Parse comma-separated hosts."""
         if isinstance(v, str):
-            return [host.strip() for host in v.split(',')]
+            return [host.strip() for host in v.split(",")]
         return v
 
-    @validator('DATABASE_URL')
+    @validator("DATABASE_URL")
     def validate_database_url(cls, v):
         """Validate database URL format."""
         if not v:
             raise ValueError("DATABASE_URL is required")
         return v
 
-    @validator('SECRET_KEY', 'JWT_SECRET_KEY')
+    @validator("SECRET_KEY", "JWT_SECRET_KEY")
     def validate_secret_keys(cls, v):
         """Ensure secret keys are sufficiently long."""
         if len(v) < 32:
@@ -151,6 +134,7 @@ class Settings(BaseModel):
 
     class Config:
         """Pydantic configuration."""
+
         env_file = ".env"
         env_file_encoding = "utf-8"
         case_sensitive = True
@@ -160,7 +144,7 @@ class Settings(BaseModel):
 settings = Settings()
 
 # Environment-specific overrides
-if os.getenv('PRODUCTION', 'false').lower() in ('true', '1', 'yes'):
+if os.getenv("PRODUCTION", "false").lower() in ("true", "1", "yes"):
     # Production hardening
     settings.DEBUG = False
     settings.LOG_LEVEL = "WARNING"
@@ -171,7 +155,7 @@ if os.getenv('PRODUCTION', 'false').lower() in ('true', '1', 'yes'):
     settings.FAIL_FAST_ON_STARTUP = True
     settings.PRODUCTION = True
 
-elif os.getenv('DEBUG', 'false').lower() in ('true', '1', 'yes'):
+elif os.getenv("DEBUG", "false").lower() in ("true", "1", "yes"):
     # Development settings
     settings.LOG_LEVEL = "DEBUG"
     settings.METRICS_ENABLED = False

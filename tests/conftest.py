@@ -5,26 +5,27 @@ This module provides shared fixtures, utilities, and configuration for all tests
 Following TDD principles: tests first, then implementation.
 """
 
-import os
-import sys
-import pytest
 import asyncio
-import tempfile
+import os
 import shutil
-from pathlib import Path
-from typing import Dict, Any, Generator, AsyncGenerator
+import sys
+import tempfile
 from contextlib import contextmanager
-import httpx
-import uvicorn
 from multiprocessing import Process
+from pathlib import Path
+from typing import Any, AsyncGenerator, Dict, Generator
+
+import httpx
+import pytest
+import uvicorn
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from pinak.memory.manager import MemoryManager
 
-
 # ===== ENVIRONMENT SETUP =====
+
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_test_environment():
@@ -41,6 +42,7 @@ def setup_test_environment():
 
 # ===== TEST DATA AND FIXTURES =====
 
+
 @pytest.fixture
 def test_data() -> Dict[str, Any]:
     """Provide comprehensive test data for all test types."""
@@ -48,28 +50,25 @@ def test_data() -> Dict[str, Any]:
         "episodic": {
             "content": "Test episodic memory content",
             "salience": 0.8,
-            "tags": ["test", "episodic"]
+            "tags": ["test", "episodic"],
         },
         "procedural": {
             "skill_id": "test_skill",
-            "steps": ["Step 1", "Step 2", "Step 3"]
+            "steps": ["Step 1", "Step 2", "Step 3"],
         },
         "rag": {
             "query": "Test RAG content",
-            "external_source": "https://example.com/test"
+            "external_source": "https://example.com/test",
         },
         "session": {
             "session_id": "test_session",
             "content": "Session test content",
-            "ttl": 300
+            "ttl": 300,
         },
-        "working": {
-            "content": "Working memory test",
-            "ttl": 300
-        },
+        "working": {"content": "Working memory test", "ttl": 300},
         "search_query": "test search query",
         "project_id": "test_project_123",
-        "user_clearance": "confidential"
+        "user_clearance": "confidential",
     }
 
 
@@ -77,26 +76,24 @@ def test_data() -> Dict[str, Any]:
 def sample_memories(test_data) -> Dict[str, Any]:
     """Provide sample memories for testing."""
     return {
-        "episodic_1": {
-            "content": "First episodic memory for testing",
-            "salience": 0.9
-        },
+        "episodic_1": {"content": "First episodic memory for testing", "salience": 0.9},
         "episodic_2": {
             "content": "Second episodic memory about Python development",
-            "salience": 0.7
+            "salience": 0.7,
         },
         "procedural_1": {
             "skill_id": "git_workflow",
-            "steps": ["git add .", "git commit -m 'test'", "git push"]
+            "steps": ["git add .", "git commit -m 'test'", "git push"],
         },
         "rag_1": {
             "query": "Python async programming guide",
-            "external_source": "https://docs.python.org/3/library/asyncio.html"
-        }
+            "external_source": "https://docs.python.org/3/library/asyncio.html",
+        },
     }
 
 
 # ===== MEMORY MANAGER FIXTURES =====
+
 
 @pytest.fixture
 def memory_manager() -> MemoryManager:
@@ -105,7 +102,7 @@ def memory_manager() -> MemoryManager:
         service_base_url="http://127.0.0.1:8000",
         token="TEST_TOKEN",
         project_id="test_project",
-        timeout=30.0
+        timeout=30.0,
     )
 
 
@@ -117,6 +114,7 @@ def memory_manager_with_auth(memory_manager) -> MemoryManager:
 
 
 # ===== MOCK SERVER FIXTURES =====
+
 
 @pytest.fixture(scope="session")
 def mock_server_url():
@@ -151,6 +149,7 @@ def mock_server_process(mock_server_url) -> Generator[Process, None, None]:
         except Exception:
             pass
         import time
+
         time.sleep(0.5)
     else:
         process.terminate()
@@ -169,11 +168,12 @@ def http_client(mock_server_url) -> httpx.Client:
     return httpx.Client(
         base_url=mock_server_url,
         headers={"Authorization": "Bearer TEST_TOKEN"},
-        timeout=10.0
+        timeout=10.0,
     )
 
 
 # ===== ASYNC FIXTURES =====
+
 
 @pytest.fixture
 async def async_http_client(mock_server_url) -> AsyncGenerator[httpx.AsyncClient, None]:
@@ -181,12 +181,13 @@ async def async_http_client(mock_server_url) -> AsyncGenerator[httpx.AsyncClient
     async with httpx.AsyncClient(
         base_url=mock_server_url,
         headers={"Authorization": "Bearer TEST_TOKEN"},
-        timeout=10.0
+        timeout=10.0,
     ) as client:
         yield client
 
 
 # ===== TEMPORARY DIRECTORY FIXTURES =====
+
 
 @pytest.fixture
 def temp_dir() -> Generator[Path, None, None]:
@@ -206,6 +207,7 @@ def temp_file(temp_dir) -> Generator[Path, None, None]:
 
 # ===== CONFIGURATION FIXTURES =====
 
+
 @pytest.fixture
 def test_config() -> Dict[str, Any]:
     """Provide test configuration."""
@@ -213,20 +215,15 @@ def test_config() -> Dict[str, Any]:
         "memory_service": {
             "base_url": "http://127.0.0.1:8000",
             "timeout": 30.0,
-            "retries": 3
+            "retries": 3,
         },
-        "context_broker": {
-            "cache_ttl": 300,
-            "max_parallel": 5
-        },
-        "security": {
-            "secret_key": "test-secret-key",
-            "token_expiry": 3600
-        }
+        "context_broker": {"cache_ttl": 300, "max_parallel": 5},
+        "security": {"secret_key": "test-secret-key", "token_expiry": 3600},
     }
 
 
 # ===== CONTEXT MANAGERS =====
+
 
 @contextmanager
 def mock_environment(**env_vars):
@@ -254,14 +251,18 @@ def mock_env():
 
 # ===== TEST UTILITIES =====
 
+
 @pytest.fixture
 def assert_memory_operation():
     """Provide utility for asserting memory operations."""
+
     def _assert_operation(result, expected_type=None, should_succeed=True):
         if should_succeed:
             assert result is not None, "Memory operation should succeed"
             if expected_type:
-                assert isinstance(result, expected_type), f"Result should be {expected_type}"
+                assert isinstance(
+                    result, expected_type
+                ), f"Result should be {expected_type}"
         else:
             assert result is None, "Memory operation should fail"
         return result
@@ -272,8 +273,10 @@ def assert_memory_operation():
 @pytest.fixture
 def wait_for_condition():
     """Provide utility for waiting for async conditions."""
+
     async def _wait_for_condition(condition_func, timeout=10.0, interval=0.1):
         import time
+
         start_time = time.time()
         while time.time() - start_time < timeout:
             if await condition_func():
@@ -286,6 +289,7 @@ def wait_for_condition():
 
 # ===== MARKERS AND SKIPS =====
 
+
 def pytest_configure(config):
     """Configure pytest with custom markers."""
     config.addinivalue_line("markers", "slow: mark test as slow running")
@@ -293,7 +297,9 @@ def pytest_configure(config):
     config.addinivalue_line("markers", "unit: mark test as unit test")
     config.addinivalue_line("markers", "smoke: mark test as smoke test")
     config.addinivalue_line("markers", "tdd: mark test as written in TDD style")
-    config.addinivalue_line("markers", "world_beating: mark test for world-beating features")
+    config.addinivalue_line(
+        "markers", "world_beating: mark test for world-beating features"
+    )
     config.addinivalue_line("markers", "governance: mark test for governance features")
     config.addinivalue_line("markers", "security: mark test for security features")
     config.addinivalue_line("markers", "memory: mark test for memory service")
@@ -319,6 +325,7 @@ def pytest_collection_modifyitems(config, items):
 
 # ===== PERFORMANCE MONITORING =====
 
+
 @pytest.fixture
 def performance_monitor():
     """Provide performance monitoring utility."""
@@ -337,6 +344,7 @@ def performance_monitor():
 
 # ===== CLEANUP FIXTURES =====
 
+
 @pytest.fixture(autouse=True)
 def cleanup_after_test():
     """Clean up after each test."""
@@ -351,4 +359,3 @@ def cleanup_after_session():
     yield
     # Add session-level cleanup logic here
     # For example, clean up temp files, reset databases, etc.
-

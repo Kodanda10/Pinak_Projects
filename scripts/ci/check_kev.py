@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-import json, sys, urllib.request
+import json
+import sys
+import urllib.request
+
 
 def load_kev_set():
     # CISA KEV catalog JSON
@@ -10,8 +13,13 @@ def load_kev_set():
     except Exception as e:
         print(f"KEV feed unavailable: {e}. Skipping KEV gate.")
         return None
-    cves = {item.get("cveID") for item in data.get("vulnerabilities", []) if item.get("cveID")}
+    cves = {
+        item.get("cveID")
+        for item in data.get("vulnerabilities", [])
+        if item.get("cveID")
+    }
     return cves
+
 
 def main():
     if len(sys.argv) < 2:
@@ -29,7 +37,13 @@ def main():
         for vul in dep.get("vulns", []):
             cve = vul.get("id")
             if cve and cve in kev:
-                bad.append({"package": dep.get("name"), "version": dep.get("version"), "cve": cve})
+                bad.append(
+                    {
+                        "package": dep.get("name"),
+                        "version": dep.get("version"),
+                        "cve": cve,
+                    }
+                )
     if bad:
         print("Found KEV vulnerabilities in Python dependencies:")
         for b in bad:
@@ -37,6 +51,7 @@ def main():
         return 1
     print("No KEV-listed vulnerabilities detected in pip dependencies.")
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

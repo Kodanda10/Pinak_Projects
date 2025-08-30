@@ -14,17 +14,17 @@ Usage:
     python docs/generate_docs.py [--output-dir OUTPUT_DIR] [--include-tests] [--include-coverage]
 """
 
-import os
-import sys
-import json
-import re
 import ast
 import inspect
-from pathlib import Path
-from typing import Dict, List, Any, Optional, Set
-from datetime import datetime
-import subprocess
+import json
+import os
+import re
 import shutil
+import subprocess
+import sys
+from datetime import datetime
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Set
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
@@ -53,10 +53,7 @@ class DocumentationGenerator:
         """Generate all documentation components."""
         print("🔄 Starting comprehensive documentation generation...")
 
-        results = {
-            "timestamp": datetime.now().isoformat(),
-            "components": {}
-        }
+        results = {"timestamp": datetime.now().isoformat(), "components": {}}
 
         # Analyze codebase
         print("📊 Analyzing codebase...")
@@ -100,7 +97,7 @@ class DocumentationGenerator:
             "total_lines": 0,
             "languages": {},
             "modules": {},
-            "complexity": {}
+            "complexity": {},
         }
 
         # Analyze Python files
@@ -111,7 +108,7 @@ class DocumentationGenerator:
             analysis["total_files"] += 1
 
             try:
-                with open(py_file, 'r', encoding='utf-8') as f:
+                with open(py_file, "r", encoding="utf-8") as f:
                     content = f.read()
                     lines = len(content.splitlines())
                     analysis["total_lines"] += lines
@@ -133,28 +130,39 @@ class DocumentationGenerator:
 
     def _analyze_module(self, file_path: Path, tree: ast.AST, analysis: Dict[str, Any]):
         """Analyze a single Python module."""
-        module_name = file_path.relative_to(self.src_dir).with_suffix('').as_posix().replace('/', '.')
+        module_name = (
+            file_path.relative_to(self.src_dir)
+            .with_suffix("")
+            .as_posix()
+            .replace("/", ".")
+        )
 
         module_info = {
             "path": str(file_path),
             "classes": [],
             "functions": [],
-            "imports": []
+            "imports": [],
         }
 
         for node in ast.walk(tree):
             if isinstance(node, ast.ClassDef):
-                module_info["classes"].append({
-                    "name": node.name,
-                    "line": node.lineno,
-                    "methods": [n.name for n in node.body if isinstance(n, ast.FunctionDef)]
-                })
+                module_info["classes"].append(
+                    {
+                        "name": node.name,
+                        "line": node.lineno,
+                        "methods": [
+                            n.name for n in node.body if isinstance(n, ast.FunctionDef)
+                        ],
+                    }
+                )
             elif isinstance(node, ast.FunctionDef):
-                module_info["functions"].append({
-                    "name": node.name,
-                    "line": node.lineno,
-                    "args": len(node.args.args)
-                })
+                module_info["functions"].append(
+                    {
+                        "name": node.name,
+                        "line": node.lineno,
+                        "args": len(node.args.args),
+                    }
+                )
             elif isinstance(node, ast.Import):
                 module_info["imports"].extend([alias.name for alias in node.names])
             elif isinstance(node, ast.ImportFrom):
@@ -165,11 +173,7 @@ class DocumentationGenerator:
 
     def generate_api_docs(self) -> Dict[str, Any]:
         """Generate API documentation from docstrings."""
-        api_docs = {
-            "modules": {},
-            "classes": {},
-            "functions": {}
-        }
+        api_docs = {"modules": {}, "classes": {}, "functions": {}}
 
         # Import and analyze main modules
         main_modules = [
@@ -177,12 +181,12 @@ class DocumentationGenerator:
             "pinak.memory.manager",
             "pinak.context.broker.broker",
             "pinak.security.auditor",
-            "pinak.file_quarantine"
+            "pinak.file_quarantine",
         ]
 
         for module_name in main_modules:
             try:
-                module = __import__(module_name, fromlist=[''])
+                module = __import__(module_name, fromlist=[""])
                 api_docs["modules"][module_name] = self._extract_module_docs(module)
             except ImportError as e:
                 print(f"Warning: Could not import {module_name}: {e}")
@@ -191,11 +195,7 @@ class DocumentationGenerator:
 
     def _extract_module_docs(self, module) -> Dict[str, Any]:
         """Extract documentation from a module."""
-        docs = {
-            "docstring": module.__doc__ or "",
-            "classes": {},
-            "functions": {}
-        }
+        docs = {"docstring": module.__doc__ or "", "classes": {}, "functions": {}}
 
         for name, obj in inspect.getmembers(module):
             if inspect.isclass(obj) and obj.__module__ == module.__name__:
@@ -207,13 +207,10 @@ class DocumentationGenerator:
 
     def _extract_class_docs(self, cls) -> Dict[str, Any]:
         """Extract documentation from a class."""
-        docs = {
-            "docstring": cls.__doc__ or "",
-            "methods": {}
-        }
+        docs = {"docstring": cls.__doc__ or "", "methods": {}}
 
         for name, method in inspect.getmembers(cls, predicate=inspect.isfunction):
-            if not name.startswith('_'):
+            if not name.startswith("_"):
                 docs["methods"][name] = self._extract_function_docs(method)
 
         return docs
@@ -226,14 +223,18 @@ class DocumentationGenerator:
                 "docstring": func.__doc__ or "",
                 "signature": str(sig),
                 "parameters": list(sig.parameters.keys()),
-                "return_type": str(sig.return_annotation) if sig.return_annotation != inspect.Signature.empty else None
+                "return_type": (
+                    str(sig.return_annotation)
+                    if sig.return_annotation != inspect.Signature.empty
+                    else None
+                ),
             }
         except Exception:
             return {
                 "docstring": func.__doc__ or "",
                 "signature": "Unknown",
                 "parameters": [],
-                "return_type": None
+                "return_type": None,
             }
 
     def generate_architecture_docs(self) -> Dict[str, Any]:
@@ -242,7 +243,7 @@ class DocumentationGenerator:
             "components": {},
             "data_flow": {},
             "dependencies": {},
-            "design_patterns": []
+            "design_patterns": [],
         }
 
         # Analyze main components
@@ -251,20 +252,38 @@ class DocumentationGenerator:
             "Memory Service": "pinak.memory.manager",
             "Context Broker": "pinak.context.broker.broker",
             "Security Auditor": "pinak.security.auditor",
-            "File Quarantine": "pinak.file_quarantine"
+            "File Quarantine": "pinak.file_quarantine",
         }
 
         for name, module in components.items():
             try:
-                mod = __import__(module, fromlist=[''])
+                mod = __import__(module, fromlist=[""])
                 architecture["components"][name] = {
                     "module": module,
-                    "description": mod.__doc__.split('.')[0] if mod.__doc__ else "No description",
-                    "classes": len([c for c in dir(mod) if not c.startswith('_') and inspect.isclass(getattr(mod, c))]),
-                    "functions": len([f for f in dir(mod) if not f.startswith('_') and inspect.isfunction(getattr(mod, f))])
+                    "description": (
+                        mod.__doc__.split(".")[0] if mod.__doc__ else "No description"
+                    ),
+                    "classes": len(
+                        [
+                            c
+                            for c in dir(mod)
+                            if not c.startswith("_")
+                            and inspect.isclass(getattr(mod, c))
+                        ]
+                    ),
+                    "functions": len(
+                        [
+                            f
+                            for f in dir(mod)
+                            if not f.startswith("_")
+                            and inspect.isfunction(getattr(mod, f))
+                        ]
+                    ),
                 }
             except ImportError:
-                architecture["components"][name] = {"error": f"Could not import {module}"}
+                architecture["components"][name] = {
+                    "error": f"Could not import {module}"
+                }
 
         return architecture
 
@@ -278,14 +297,14 @@ class DocumentationGenerator:
                 "integration": 0,
                 "tdd": 0,
                 "world_beating": 0,
-                "governance": 0
-            }
+                "governance": 0,
+            },
         }
 
         # Analyze test files
         for test_file in self.test_dir.rglob("test_*.py"):
             try:
-                with open(test_file, 'r', encoding='utf-8') as f:
+                with open(test_file, "r", encoding="utf-8") as f:
                     content = f.read()
 
                 # Extract test functions
@@ -294,20 +313,24 @@ class DocumentationGenerator:
                 markers = []
 
                 for node in ast.walk(tree):
-                    if isinstance(node, ast.FunctionDef) and node.name.startswith('test_'):
+                    if isinstance(node, ast.FunctionDef) and node.name.startswith(
+                        "test_"
+                    ):
                         tests.append(node.name)
 
                         # Check for markers in decorators
                         for decorator in node.decorator_list:
-                            if hasattr(decorator, 'attr'):
+                            if hasattr(decorator, "attr"):
                                 markers.append(decorator.attr)
 
-                test_docs["test_files"].append({
-                    "file": str(test_file.relative_to(self.project_root)),
-                    "tests": tests,
-                    "markers": list(set(markers)),
-                    "test_count": len(tests)
-                })
+                test_docs["test_files"].append(
+                    {
+                        "file": str(test_file.relative_to(self.project_root)),
+                        "tests": tests,
+                        "markers": list(set(markers)),
+                        "test_count": len(tests),
+                    }
+                )
 
                 # Count test types by markers
                 for marker in markers:
@@ -325,7 +348,7 @@ class DocumentationGenerator:
             "overall_coverage": 0,
             "file_coverage": {},
             "missing_lines": {},
-            "recommendations": []
+            "recommendations": [],
         }
 
         # Try to read coverage data if available
@@ -333,13 +356,15 @@ class DocumentationGenerator:
         if coverage_file.exists():
             try:
                 # Parse coverage XML (simplified)
-                with open(coverage_file, 'r') as f:
+                with open(coverage_file, "r") as f:
                     content = f.read()
 
                 # Extract basic coverage info (simplified parsing)
                 coverage_match = re.search(r'line-rate="([0-9.]+)"', content)
                 if coverage_match:
-                    coverage_docs["overall_coverage"] = float(coverage_match.group(1)) * 100
+                    coverage_docs["overall_coverage"] = (
+                        float(coverage_match.group(1)) * 100
+                    )
 
             except Exception as e:
                 print(f"Warning: Could not parse coverage data: {e}")
@@ -351,18 +376,18 @@ class DocumentationGenerator:
         deps = {
             "python_packages": {},
             "system_dependencies": [],
-            "optional_dependencies": {}
+            "optional_dependencies": {},
         }
 
         # Read requirements.txt
         req_file = self.project_root / "requirements.txt"
         if req_file.exists():
             try:
-                with open(req_file, 'r') as f:
+                with open(req_file, "r") as f:
                     for line in f:
                         line = line.strip()
-                        if line and not line.startswith('#'):
-                            if '>=' in line or '==' in line:
+                        if line and not line.startswith("#"):
+                            if ">=" in line or "==" in line:
                                 pkg = line.split()[0]
                                 deps["python_packages"][pkg] = line
                             else:
@@ -374,26 +399,21 @@ class DocumentationGenerator:
 
     def generate_cicd_docs(self) -> Dict[str, Any]:
         """Generate CI/CD documentation."""
-        cicd_docs = {
-            "workflows": {},
-            "jobs": {},
-            "triggers": [],
-            "status": "unknown"
-        }
+        cicd_docs = {"workflows": {}, "jobs": {}, "triggers": [], "status": "unknown"}
 
         # Analyze GitHub Actions workflows
         workflows_dir = self.project_root / ".github" / "workflows"
         if workflows_dir.exists():
             for workflow_file in workflows_dir.glob("*.yml"):
                 try:
-                    with open(workflow_file, 'r') as f:
+                    with open(workflow_file, "r") as f:
                         content = f.read()
 
                     workflow_name = workflow_file.stem
                     cicd_docs["workflows"][workflow_name] = {
                         "file": str(workflow_file.relative_to(self.project_root)),
                         "triggers": self._extract_workflow_triggers(content),
-                        "jobs": self._extract_workflow_jobs(content)
+                        "jobs": self._extract_workflow_jobs(content),
                     }
 
                 except Exception as e:
@@ -404,17 +424,17 @@ class DocumentationGenerator:
     def _extract_workflow_triggers(self, content: str) -> List[str]:
         """Extract workflow triggers from YAML content."""
         triggers = []
-        lines = content.split('\n')
+        lines = content.split("\n")
         in_on_section = False
 
         for line in lines:
             line = line.strip()
-            if line.startswith('on:'):
+            if line.startswith("on:"):
                 in_on_section = True
                 continue
-            elif in_on_section and line.startswith('  - ') or line.startswith('    - '):
-                triggers.append(line.strip(' -'))
-            elif in_on_section and not line.startswith(' ') and line.endswith(':'):
+            elif in_on_section and line.startswith("  - ") or line.startswith("    - "):
+                triggers.append(line.strip(" -"))
+            elif in_on_section and not line.startswith(" ") and line.endswith(":"):
                 break
 
         return triggers
@@ -422,10 +442,10 @@ class DocumentationGenerator:
     def _extract_workflow_jobs(self, content: str) -> List[str]:
         """Extract workflow jobs from YAML content."""
         jobs = []
-        if 'jobs:' in content:
+        if "jobs:" in content:
             # Simple extraction - could be improved with proper YAML parsing
-            jobs_section = content.split('jobs:')[1]
-            job_matches = re.findall(r'^  ([a-zA-Z_-]+):', jobs_section, re.MULTILINE)
+            jobs_section = content.split("jobs:")[1]
+            job_matches = re.findall(r"^  ([a-zA-Z_-]+):", jobs_section, re.MULTILINE)
             jobs.extend(job_matches)
 
         return jobs
@@ -438,28 +458,24 @@ class DocumentationGenerator:
             return
 
         try:
-            with open(readme_file, 'r') as f:
+            with open(readme_file, "r") as f:
                 content = f.read()
 
             # Update timestamp
             timestamp = results["timestamp"]
-            content = re.sub(
-                r'Last updated: .*',
-                f'Last updated: {timestamp}',
-                content
-            )
+            content = re.sub(r"Last updated: .*", f"Last updated: {timestamp}", content)
 
             # Update component counts
             if "codebase_analysis" in results["components"]:
                 analysis = results["components"]["codebase_analysis"]
                 content = re.sub(
-                    r'(\d+) Python files',
+                    r"(\d+) Python files",
                     f'{analysis["total_files"]} Python files',
-                    content
+                    content,
                 )
 
             # Write back
-            with open(readme_file, 'w') as f:
+            with open(readme_file, "w") as f:
                 f.write(content)
 
         except Exception as e:
@@ -469,7 +485,7 @@ class DocumentationGenerator:
         """Save generated documentation to files."""
         # Save JSON summary
         summary_file = self.output_dir / "documentation_summary.json"
-        with open(summary_file, 'w') as f:
+        with open(summary_file, "w") as f:
             json.dump(results, f, indent=2, ensure_ascii=False)
 
         # Generate HTML documentation
@@ -512,7 +528,9 @@ class DocumentationGenerator:
 
         # Add architecture components
         if "architecture" in results["components"]:
-            for name, info in results["components"]["architecture"]["components"].items():
+            for name, info in results["components"]["architecture"][
+                "components"
+            ].items():
                 html_content += f"""
                 <div class="module">
                     <h3>{name}</h3>
@@ -541,7 +559,7 @@ class DocumentationGenerator:
         </html>
         """
 
-        with open(html_file, 'w') as f:
+        with open(html_file, "w") as f:
             f.write(html_content)
 
     def _generate_markdown_docs(self, results: Dict[str, Any]):
@@ -563,7 +581,9 @@ Generated on: {results['timestamp']}
 
         # Add architecture components
         if "architecture" in results["components"]:
-            for name, info in results["components"]["architecture"]["components"].items():
+            for name, info in results["components"]["architecture"][
+                "components"
+            ].items():
                 md_content += f"""### {name}
 - **Module:** {info.get('module', 'N/A')}
 - **Description:** {info.get('description', 'No description')}
@@ -586,14 +606,14 @@ Generated on: {results['timestamp']}
 ### Test Files
 """
 
-            for test_file in test_info.get('test_files', []):
+            for test_file in test_info.get("test_files", []):
                 md_content += f"""#### {test_file['file']}
 - **Tests:** {test_file['test_count']}
 - **Markers:** {', '.join(test_file['markers'])}
 
 """
 
-        with open(md_file, 'w') as f:
+        with open(md_file, "w") as f:
             f.write(md_content)
 
 
@@ -603,27 +623,23 @@ def main():
 
     parser = argparse.ArgumentParser(description="Generate Pinak documentation")
     parser.add_argument(
-        "--output-dir", type=Path,
-        help="Output directory for generated documentation"
+        "--output-dir", type=Path, help="Output directory for generated documentation"
     )
     parser.add_argument(
-        "--include-tests", action="store_true",
-        help="Include test documentation"
+        "--include-tests", action="store_true", help="Include test documentation"
     )
     parser.add_argument(
-        "--include-coverage", action="store_true",
-        help="Include coverage reports"
+        "--include-coverage", action="store_true", help="Include coverage reports"
     )
-    parser.add_argument(
-        "--verbose", "-v", action="store_true",
-        help="Verbose output"
-    )
+    parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
 
     args = parser.parse_args()
 
     # Find project root
     project_root = Path.cwd()
-    while not (project_root / "setup.py").exists() and project_root != project_root.parent:
+    while (
+        not (project_root / "setup.py").exists() and project_root != project_root.parent
+    ):
         project_root = project_root.parent
 
     if not (project_root / "setup.py").exists():
@@ -652,6 +668,7 @@ def main():
         print(f"❌ Error generating documentation: {e}")
         if args.verbose:
             import traceback
+
             traceback.print_exc()
         sys.exit(1)
 

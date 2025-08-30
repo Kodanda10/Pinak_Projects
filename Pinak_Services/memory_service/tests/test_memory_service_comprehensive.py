@@ -5,26 +5,25 @@ This ensures TDD compliance while working around current FastAPI configuration i
 """
 
 import os
-import pytest
-import tempfile
 import shutil
+import tempfile
 from datetime import datetime, timedelta
-from typing import Dict, Any, List
+from typing import Any, Dict, List
+
+import pytest
 
 # Set mock embeddings to avoid FAISS dependencies in tests
-os.environ.setdefault('USE_MOCK_EMBEDDINGS', 'true')
+os.environ.setdefault("USE_MOCK_EMBEDDINGS", "true")
 
-from app.services.memory_service import (
-    MemoryService,
-    add_episodic as svc_add_episodic,
-    list_episodic as svc_list_episodic,
-    add_procedural as svc_add_procedural,
-    list_procedural as svc_list_procedural,
-    add_rag as svc_add_rag,
-    list_rag as svc_list_rag,
-    search_v2 as svc_search_v2,
-)
 from app.core.schemas import MemoryCreate
+from app.services.memory_service import MemoryService
+from app.services.memory_service import add_episodic as svc_add_episodic
+from app.services.memory_service import add_procedural as svc_add_procedural
+from app.services.memory_service import add_rag as svc_add_rag
+from app.services.memory_service import list_episodic as svc_list_episodic
+from app.services.memory_service import list_procedural as svc_list_procedural
+from app.services.memory_service import list_rag as svc_list_rag
+from app.services.memory_service import search_v2 as svc_search_v2
 
 
 class TestMemoryServiceCore:
@@ -42,33 +41,37 @@ class TestMemoryServiceCore:
         """Create MemoryService instance with temporary data directory"""
         # Create config for test service
         config_path = os.path.join(temp_dir, "test_config.json")
-        with open(config_path, 'w') as f:
+        with open(config_path, "w") as f:
             import json
-            json.dump({
-                "metadata_db_url": f"sqlite:///{temp_dir}/test.db",
-                "vector_db_path": f"{temp_dir}/vectors.faiss",
-                "data_dir": temp_dir
-            }, f)
+
+            json.dump(
+                {
+                    "metadata_db_url": f"sqlite:///{temp_dir}/test.db",
+                    "vector_db_path": f"{temp_dir}/vectors.faiss",
+                    "data_dir": temp_dir,
+                },
+                f,
+            )
 
         service = MemoryService(config_path=config_path, data_dir=temp_dir)
-        
+
         # Create database tables
         import asyncio
+
         asyncio.run(service.create_all())
-        
+
         return service
 
     def test_memory_service_initialization(self, memory_service):
         """Test that MemoryService initializes correctly"""
         assert memory_service is not None
-        assert hasattr(memory_service, 'add_memory')
-        assert hasattr(memory_service, 'search_memory')
+        assert hasattr(memory_service, "add_memory")
+        assert hasattr(memory_service, "search_memory")
 
     def test_add_memory_with_pydantic_model(self, memory_service):
         """Test adding memory using Pydantic model"""
         memory_data = MemoryCreate(
-            content="Test memory content",
-            tags=["test", "memory"]
+            content="Test memory content", tags=["test", "memory"]
         )
 
         result = memory_service.add_memory(memory_data)
@@ -83,14 +86,19 @@ class TestMemoryServiceCore:
         """Test searching memories"""
         # Add test memories with database session
         with memory_service.Session() as db:
-            result1 = memory_service.add_memory(MemoryCreate(
-                content="The sky is blue on clear days",
-                tags=["weather", "sky"]
-            ), db=db)
-            result2 = memory_service.add_memory(MemoryCreate(
-                content="Python is a programming language",
-                tags=["programming", "python"]
-            ), db=db)
+            result1 = memory_service.add_memory(
+                MemoryCreate(
+                    content="The sky is blue on clear days", tags=["weather", "sky"]
+                ),
+                db=db,
+            )
+            result2 = memory_service.add_memory(
+                MemoryCreate(
+                    content="Python is a programming language",
+                    tags=["programming", "python"],
+                ),
+                db=db,
+            )
 
         print(f"Added memory 1: {result1.id}, content: {result1.content}")
         print(f"Added memory 2: {result2.id}, content: {result2.content}")
@@ -102,10 +110,13 @@ class TestMemoryServiceCore:
 
             # Check database contents
             from app.db.models import Memory
+
             memories_in_db = db.query(Memory).all()
             print(f"Memories in database: {len(memories_in_db)}")
             for mem in memories_in_db:
-                print(f"  DB Memory: id={mem.id}, faiss_id={mem.faiss_id}, content={mem.content[:50]}...")
+                print(
+                    f"  DB Memory: id={mem.id}, faiss_id={mem.faiss_id}, content={mem.content[:50]}..."
+                )
 
         # Search for content with database session
         with memory_service.Session() as db:
@@ -121,12 +132,17 @@ class TestMemoryServiceCore:
         # Just verify that the search doesn't crash and returns a proper structure
         if len(results) > 0:
             # Should find at least one memory if search works
-            found_any = any("sky" in item.content.lower() or "python" in item.content.lower() for item in results)
+            found_any = any(
+                "sky" in item.content.lower() or "python" in item.content.lower()
+                for item in results
+            )
             if found_any:
                 print("Found relevant memories in search results")
             else:
-                print("Search returned results but not the expected ones - this is OK with mock embeddings")
-        
+                print(
+                    "Search returned results but not the expected ones - this is OK with mock embeddings"
+                )
+
         # The main test is that the search infrastructure works without errors
         print("Search infrastructure test passed - no exceptions thrown")
 
@@ -154,9 +170,7 @@ class TestEpisodicMemory:
         content = "User logged into the system"
         salience = 7
 
-        result = svc_add_episodic(
-            memory_service, tenant, project_id, content, salience
-        )
+        result = svc_add_episodic(memory_service, tenant, project_id, content, salience)
 
         assert result is not None
         assert result["content"] == content
@@ -221,9 +235,7 @@ class TestProceduralMemory:
         skill_id = "login_skill"
         steps = ["Enter username", "Enter password", "Click login"]
 
-        result = svc_add_procedural(
-            memory_service, tenant, project_id, skill_id, steps
-        )
+        result = svc_add_procedural(memory_service, tenant, project_id, skill_id, steps)
 
         assert result is not None
         assert result["skill_id"] == skill_id
@@ -237,8 +249,12 @@ class TestProceduralMemory:
         project_id = "test_project"
 
         # Add multiple procedural memories
-        svc_add_procedural(memory_service, tenant, project_id, "skill1", ["step1", "step2"])
-        svc_add_procedural(memory_service, tenant, project_id, "skill2", ["step3", "step4"])
+        svc_add_procedural(
+            memory_service, tenant, project_id, "skill1", ["step1", "step2"]
+        )
+        svc_add_procedural(
+            memory_service, tenant, project_id, "skill2", ["step3", "step4"]
+        )
 
         memories = svc_list_procedural(memory_service, tenant, project_id)
 
@@ -271,9 +287,7 @@ class TestRAGMemory:
         query = "What is machine learning?"
         external_source = "wikipedia"
 
-        result = svc_add_rag(
-            memory_service, tenant, project_id, query, external_source
-        )
+        result = svc_add_rag(memory_service, tenant, project_id, query, external_source)
 
         assert result is not None
         assert result["query"] == query
@@ -317,12 +331,18 @@ class TestSearchV2:
 
         # Add memories to different layers
         svc_add_episodic(memory_service, tenant, project_id, "User performed login", 5)
-        svc_add_procedural(memory_service, tenant, project_id, "login", ["enter credentials"])
+        svc_add_procedural(
+            memory_service, tenant, project_id, "login", ["enter credentials"]
+        )
         svc_add_rag(memory_service, tenant, project_id, "login security", "docs")
 
         # Search across all layers
         results = svc_search_v2(
-            memory_service, tenant, project_id, "login", ["episodic", "procedural", "rag"]
+            memory_service,
+            tenant,
+            project_id,
+            "login",
+            ["episodic", "procedural", "rag"],
         )
 
         assert isinstance(results, dict)
@@ -382,20 +402,31 @@ class TestMemoryServiceIntegration:
 
         # 2. Add procedural memory
         procedural = svc_add_procedural(
-            memory_service, tenant, project_id, "session_management",
-            ["create_session", "validate_user", "set_permissions"]
+            memory_service,
+            tenant,
+            project_id,
+            "session_management",
+            ["create_session", "validate_user", "set_permissions"],
         )
         assert procedural is not None
 
         # 3. Add RAG memory
         rag = svc_add_rag(
-            memory_service, tenant, project_id, "session security best practices", "security_docs"
+            memory_service,
+            tenant,
+            project_id,
+            "session security best practices",
+            "security_docs",
         )
         assert rag is not None
 
         # 4. Search across all layers
         search_results = svc_search_v2(
-            memory_service, tenant, project_id, "session", ["episodic", "procedural", "rag"]
+            memory_service,
+            tenant,
+            project_id,
+            "session",
+            ["episodic", "procedural", "rag"],
         )
 
         assert len(search_results["episodic"]) > 0
@@ -494,7 +525,9 @@ class TestMemoryServiceRobustness:
         project_id = "test_project"
         content_with_special_chars = "Content with émojis 🎉 and spëcial chärs"
 
-        result = svc_add_episodic(memory_service, tenant, project_id, content_with_special_chars, 5)
+        result = svc_add_episodic(
+            memory_service, tenant, project_id, content_with_special_chars, 5
+        )
         assert result is not None
         assert result["content"] == content_with_special_chars
 
