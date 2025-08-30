@@ -5,8 +5,6 @@ Following TDD principles: Write tests first, then implement features.
 Tests cover all 6 stages of the world-beating retrieval pipeline.
 """
 
-import asyncio
-import time
 from typing import Any, Dict, List
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -15,10 +13,8 @@ import pytest
 from pinak.context.broker.broker import (ContextBroker, HybridScore,
                                          RetrievalResult)
 from pinak.context.broker.graph_expansion import GraphBasedExpander
-from pinak.context.broker.neural_reranker import NeuralReranker
 from pinak.context.broker.rl_optimizer import (AdaptiveLearningEngine,
                                                QLearningOptimizer)
-from pinak.context.broker.world_beating_retrieval import WorldBeatingRetrieval
 from pinak.context.core.models import (ContextItem, ContextLayer,
                                        ContextPriority, ContextQuery,
                                        ContextResponse, IContextStore,
@@ -594,7 +590,6 @@ class TestErrorHandling:
             )
 
             # Should complete within reasonable time
-            import time
 
             start_time = time.time()
             response = await context_broker.get_context(query)

@@ -5,14 +5,10 @@ Implements dynamic knowledge graph construction, entity relationship mining,
 and contextual path finding with relevance weighting.
 """
 
-from __future__ import annotations
 
-import asyncio
-import heapq
 import logging
 from collections import defaultdict, deque
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 import networkx as nx

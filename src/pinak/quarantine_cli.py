@@ -6,8 +6,6 @@ and monitoring the quarantine system.
 """
 
 import argparse
-import json
-import sys
 from pathlib import Path
 from typing import Any, Dict, List
 

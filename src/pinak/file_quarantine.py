@@ -12,12 +12,8 @@ Key Features:
 - Integration with Git for tracking
 """
 
-import datetime
 import hashlib
-import json
 import logging
-import os
-import shutil
 import tempfile
 from dataclasses import asdict, dataclass
 from enum import Enum
@@ -468,7 +464,6 @@ class FileQuarantineManager:
         git_info = {}
 
         try:
-            import subprocess
 
             # Get last commit info for the file
             result = subprocess.run(
@@ -622,7 +617,6 @@ def safe_move(
 # Monkey patch common deletion functions for safety
 def patch_file_operations():
     """Patch common file operations to use quarantine system."""
-    import builtins
 
     # Store original functions
     original_remove = os.remove

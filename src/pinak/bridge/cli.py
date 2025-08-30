@@ -1,9 +1,5 @@
-from __future__ import annotations
 
 import argparse
-import json
-import os
-import subprocess
 from pathlib import Path
 from typing import Optional
 
@@ -105,13 +101,11 @@ def cmd_verify(args: argparse.Namespace) -> int:
     try:
         if tok:
             try:
-                from jose import jwt
 
                 claims = jwt.get_unverified_claims(tok)  # type: ignore[attr-defined]
                 exp = int(claims.get("exp")) if claims.get("exp") is not None else None
             except Exception:
                 exp = None
-            import time
 
             now = int(time.time())
             if exp is not None:
@@ -190,7 +184,7 @@ def cmd_token_rotate(args: argparse.Namespace) -> int:
         print(tok)
         return 0
     except Exception as e:
-        print(f"Rotation failed: {e}", file=sys.stderr)
+        print(f"Rotation failed: {e}")
         return 2
 
 

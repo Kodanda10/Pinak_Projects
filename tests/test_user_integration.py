@@ -13,13 +13,7 @@ Test Scenario:
 - User should be able to start using memory features immediately
 """
 
-import json
-import os
-import shutil
-import subprocess
-import sys
 import tempfile
-import time
 from pathlib import Path
 
 import pytest
@@ -228,8 +222,6 @@ async def read_root():
         setup_script.write_text(
             """
 # One-click Pinak setup
-import os
-import json
 
 def setup_pinak():
     config = {
@@ -266,8 +258,6 @@ if __name__ == "__main__":
             integration_script = project_dir / "test_integration.py"
             integration_script.write_text(
                 f"""
-import json
-import time
 
 # Load config
 with open('pinak_config.json', 'r') as f:

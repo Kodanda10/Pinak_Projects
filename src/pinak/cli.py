@@ -1,12 +1,6 @@
-from __future__ import annotations
 
 import argparse
-import os
-import shutil
 import socket
-import subprocess
-import sys
-import time
 from pathlib import Path
 from typing import Optional
 
@@ -341,7 +335,6 @@ def cmd_memory(args: argparse.Namespace) -> int:
 
 def cmd_governance(args: argparse.Namespace) -> int:
     # Simple passthrough using httpx to the gateway
-    import json
 
     import httpx
 
@@ -385,7 +378,6 @@ def cmd_governance(args: argparse.Namespace) -> int:
 def cmd_token(args: argparse.Namespace) -> int:
     # Mint a JWT with pid bound to current project and optional role, then optionally store
     try:
-        from jose import jwt
     except Exception:
         print("Please install 'python-jose' to use token minting", file=sys.stderr)
         return 2
@@ -404,8 +396,6 @@ def cmd_token(args: argparse.Namespace) -> int:
             "No project identity found. Run 'pinak bridge init' first.", file=sys.stderr
         )
         return 2
-    import datetime
-    import time
 
     claims = {"sub": args.sub or "analyst", "pid": pid}
     if args.role:

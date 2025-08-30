@@ -4,20 +4,12 @@ Ultra-advanced hybrid retrieval engine surpassing Claude, ChatGPT, and Grok.
 Implements cutting-edge techniques for superior context retrieval and understanding.
 """
 
-from __future__ import annotations
 
-import asyncio
 import hashlib
-import heapq
-import json
 import logging
 import math
-import re
-import time
 from collections import Counter, defaultdict
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
 from typing import Any, AsyncIterator, Dict, List, Optional, Set, Tuple, Union
 
 from ..core.models import (ContextItem, ContextLayer, ContextPriority,

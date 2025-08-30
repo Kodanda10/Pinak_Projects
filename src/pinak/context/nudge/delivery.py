@@ -4,15 +4,10 @@ Enterprise-grade delivery channel implementations for the Nudge Engine.
 Supports multiple delivery mechanisms with intelligent routing.
 """
 
-from __future__ import annotations
 
-import asyncio
-import json
 import logging
-from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from ..core.models import SecurityClassification
 from .models import INudgeDelivery, Nudge, NudgeDeliveryResult
 
 logger = logging.getLogger(__name__)
@@ -157,7 +152,6 @@ class CLINudgeDelivery(INudgeDelivery):
         """Check if CLI delivery is available."""
         try:
             # Check if we can write to stdout
-            import sys
 
             return sys.stdout.isatty()
         except:
@@ -358,7 +352,6 @@ class NotificationNudgeDelivery(INudgeDelivery):
     async def _send_macos_notification(self, nudge: Nudge) -> bool:
         """Send notification on macOS."""
         import shlex
-        import subprocess
 
         title = shlex.quote(f"Pinakontext: {nudge.title}")
         message = shlex.quote(nudge.message[:200])  # Limit message length
@@ -371,7 +364,6 @@ class NotificationNudgeDelivery(INudgeDelivery):
     async def _send_linux_notification(self, nudge: Nudge) -> bool:
         """Send notification on Linux."""
         import shlex
-        import subprocess
 
         title = shlex.quote(f"Pinakontext: {nudge.title}")
         message = shlex.quote(nudge.message[:200])
@@ -398,7 +390,6 @@ class NotificationNudgeDelivery(INudgeDelivery):
     async def _send_terminal_notifier(self, nudge: Nudge) -> bool:
         """Send notification using terminal-notifier (macOS)."""
         import shlex
-        import subprocess
 
         title = shlex.quote(f"Pinakontext: {nudge.title}")
         message = shlex.quote(nudge.message[:200])
@@ -411,7 +402,6 @@ class NotificationNudgeDelivery(INudgeDelivery):
     async def _send_notify_send(self, nudge: Nudge) -> bool:
         """Send notification using notify-send (Linux)."""
         import shlex
-        import subprocess
 
         title = shlex.quote(f"Pinakontext: {nudge.title}")
         message = shlex.quote(nudge.message[:200])

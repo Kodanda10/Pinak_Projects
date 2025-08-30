@@ -1,9 +1,4 @@
 import importlib
-import json
-import os
-import sys
-import time
-import types
 
 sys.path.insert(0, os.getcwd())
 # Add the src path for module imports
@@ -19,7 +14,6 @@ def MM():
 
 
 def test_health():
-    import requests
 
     r = requests.get("http://127.0.0.1:8000/api/v1/memory/health", timeout=3)
     assert r.ok and r.json().get("ok") is True

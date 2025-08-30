@@ -5,10 +5,6 @@ This module provides shared fixtures, utilities, and configuration for all tests
 Following TDD principles: tests first, then implementation.
 """
 
-import asyncio
-import os
-import shutil
-import sys
 import tempfile
 from contextlib import contextmanager
 from multiprocessing import Process
@@ -148,7 +144,6 @@ def mock_server_process(mock_server_url) -> Generator[Process, None, None]:
                     break
         except Exception:
             pass
-        import time
 
         time.sleep(0.5)
     else:
@@ -275,7 +270,6 @@ def wait_for_condition():
     """Provide utility for waiting for async conditions."""
 
     async def _wait_for_condition(condition_func, timeout=10.0, interval=0.1):
-        import time
 
         start_time = time.time()
         while time.time() - start_time < timeout:
@@ -329,7 +323,6 @@ def pytest_collection_modifyitems(config, items):
 @pytest.fixture
 def performance_monitor():
     """Provide performance monitoring utility."""
-    import time
     from contextlib import contextmanager
 
     @contextmanager

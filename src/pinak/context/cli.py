@@ -5,15 +5,10 @@ Includes enterprise-grade security with content redaction.
 """
 
 import argparse
-import asyncio
-import json
-import os
-import sys
 from typing import Any, Dict, List
 
 # Import existing components
 from pinak.context.broker.broker import ContextBroker
-from pinak.context.core.models import ContextLayer, IContextStore
 from pinak.context.nudge.engine import NudgeEngine
 
 
@@ -33,7 +28,6 @@ class DemoStore(IContextStore):
         self.layer = layer
 
     async def retrieve(self, query):
-        from datetime import datetime, timezone
 
         from pinak.context.core.models import (ContextItem, ContextLayer,
                                                ContextPriority,
@@ -75,7 +69,6 @@ class DemoStore(IContextStore):
         return ContextResponse(items=demo_items)
 
     async def search_similar(self, content, limit=10):
-        from datetime import datetime, timezone
 
         from pinak.context.core.models import (ContextItem, ContextLayer,
                                                ContextPriority,
@@ -159,7 +152,6 @@ async def async_run_recipe(path: str, args: list) -> Dict[str, Any]:
 
 def redact_sensitive_content(text: str) -> str:
     """Redact sensitive information from text."""
-    import re
 
     # Patterns for sensitive information
     sensitive_patterns = [

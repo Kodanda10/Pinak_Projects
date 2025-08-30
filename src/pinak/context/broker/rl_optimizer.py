@@ -4,14 +4,11 @@ Reinforcement Learning-based query optimization for adaptive retrieval performan
 Implements continuous learning from retrieval outcomes to optimize pipeline parameters.
 """
 
-from __future__ import annotations
 
-import asyncio
 import logging
 import random
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np

@@ -4,15 +4,9 @@ Enterprise-grade context broker implementing hybrid retrieval with semantic and 
 Features FANG-level performance, scalability, and reliability.
 """
 
-from __future__ import annotations
 
-import asyncio
-import heapq
 import logging
-import time
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from typing import Any, AsyncIterator, Dict, List, Optional, Set
 
 from ..core.models import (ContextItem, ContextLayer, ContextPriority,
@@ -408,7 +402,6 @@ class ContextBroker:
             "user_clearance": query.user_clearance.value,
         }
         import hashlib
-        import json
 
         key_str = json.dumps(key_data, sort_keys=True)
         return hashlib.md5(key_str.encode()).hexdigest()

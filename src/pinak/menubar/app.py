@@ -1,14 +1,7 @@
-from __future__ import annotations
 
-import os
-import subprocess
-import sys
-import threading
-import time
 from typing import Optional
 
 try:
-    import rumps  # type: ignore
 except Exception:
     rumps = None  # type: ignore
 
@@ -22,7 +15,6 @@ ICON_WARN = ICON_OK
 
 def check_health() -> dict:
     try:
-        from pinak.memory.manager import MemoryManager  # type: ignore
 
         mm = MemoryManager()
         mem_ok = mm.health()
@@ -31,9 +23,7 @@ def check_health() -> dict:
     token_expired = None
     token_expires_in = None
     try:
-        from jose import jwt  # type: ignore
 
-        from pinak.bridge.context import ProjectContext  # type: ignore
 
         ctx = ProjectContext.find()
         tok = ctx.get_token() if ctx else None
@@ -68,7 +58,6 @@ def try_self_heal(log_cb=None) -> dict:
     changed = False
     if info.get("token_expired") is True:
         try:
-            from pinak.bridge.context import ProjectContext  # type: ignore
 
             ctx = ProjectContext.find()
             if ctx:
@@ -80,7 +69,6 @@ def try_self_heal(log_cb=None) -> dict:
             log("Token rotation failed")
     if not info.get("memory_api_ok"):
         try:
-            from pinak.cli import cmd_up  # type: ignore
 
             rc = cmd_up(type("NS", (), {})())
             log(f"pinak up: rc={rc}")
@@ -138,7 +126,6 @@ class PinakStatusApp(rumps.App):
 
     def on_rotate(self, _):
         try:
-            from pinak.bridge.context import ProjectContext  # type: ignore
 
             ctx = ProjectContext.find()
             if ctx:
@@ -151,7 +138,6 @@ class PinakStatusApp(rumps.App):
 
     def on_stop(self, _):
         try:
-            from pinak.cli import cmd_down  # type: ignore
 
             cmd_down(type("NS", (), {})())
         except Exception:
