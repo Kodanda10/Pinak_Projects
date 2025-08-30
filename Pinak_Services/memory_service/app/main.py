@@ -203,7 +203,7 @@ async def add_request_id(request: Request, call_next):
         REQUEST_COUNT.labels(
             method=request.method,
             endpoint=request.url.path,
-            status=response.status_code
+            status_code=response.status_code
         ).inc()
 
         REQUEST_LATENCY.labels(
