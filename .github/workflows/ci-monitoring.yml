@@ -262,8 +262,8 @@ jobs:
               ISSUE_BODY="## 🚨 Critical CI Alert
 
               **Alert Level:** $ALERT_LEVEL
-**Message:** $ALERT_MESSAGE
-**Timestamp:** $(date -Iseconds)
+              **Message:** $ALERT_MESSAGE
+              **Timestamp:** $(date -Iseconds)
 
 ### Details
 - Failure Rate: ${FAILURE_RATE:-0}%
