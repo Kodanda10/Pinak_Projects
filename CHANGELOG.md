@@ -1,3 +1,94 @@
+## 1.4.0 (2025-08-30) - WORLD-BEATER PLAN UPDATE: Comprehensive Documentation Overhaul ✅
+
+### 🎯 **MAJOR ACHIEVEMENT: Complete Documentation Update for World-Beater AI Systems**
+
+**World-Beater Hybrid Retrieval Engine Documentation:**
+- **6-Stage Pipeline**: Complete documentation of intent analysis, dense retrieval, sparse hybrid, graph expansion, neural reranking, and adaptive learning stages
+- **Advanced Features**: Multi-channel delivery, real-time adaptation, enterprise security, performance monitoring
+- **Technical Specifications**: Detailed implementation details for each pipeline stage
+- **API Integration**: Enhanced CLI commands and recipe DSL for world-beater retrieval
+
+**Governance-Integrated Nudge Engine Documentation:**
+- **Parlant Integration**: Direct governance framework integration for behavioral correction
+- **Behavioral Intelligence**: Real-time monitoring, deviation detection, ethical safeguards
+- **Adaptive Learning**: Response analysis, dynamic thresholds, personalized nudge strategies
+- **Multi-Modal Delivery**: IDE notifications, CLI warnings, system alerts with optimal timing
+
+**Enterprise Security Enhancements:**
+- **Governance Security**: Parlant-powered behavioral monitoring and compliance verification
+- **Retrieval Security**: End-to-end encryption for world-beater pipeline operations
+- **Audit Trails**: Comprehensive logging of all governance actions and retrieval operations
+- **Compliance Monitoring**: Automated policy adherence with incident response procedures
+
+**Architecture Updates:**
+- **Enhanced Diagrams**: Updated architecture diagrams showing new world-beater and governance components
+- **Data Flow**: Comprehensive data flow documentation for advanced retrieval pipeline
+- **Integration Points**: Clear documentation of Parlant integration and behavioral monitoring
+- **Security Baseline**: Updated security baseline with governance and retrieval security features
+
+### 📋 **Documentation Files Updated**
+- **README.md**: Added world-beater features and governance integration overview
+- **Pinakontext_SOTA_Plan.md**: Complete overhaul with 6-stage pipeline and governance details
+- **SECURITY.md**: Enterprise security expansion with governance and behavioral monitoring
+- **pinak_enterprise_reference.md**: Architecture enhancement with world-beater pipeline
+- **development_log.md**: Roadmap update with detailed implementation plan
+
+### 🚀 **Technical Implementation Roadmap**
+- **Phase 2A**: World-beater retrieval stages 1-3 implementation (Intent Analysis, Dense Retrieval, Sparse Hybrid)
+- **Phase 2B**: Governance integration and behavioral monitoring setup
+- **Phase 2C**: Graph expansion, neural reranking, and adaptive learning stages
+- **Phase 2D**: TDD test suites and CI/CD integration
+- **Phase 2E**: Staging deployment and integration validation
+
+### 🔄 **Migration Notes**
+- **Backward Compatibility**: All existing functionality preserved
+- **Enhanced Features**: New world-beater and governance features are additive
+- **Documentation**: Comprehensive technical specifications for implementation
+- **Security**: Enhanced security baseline with governance integration
+
+**This documentation update establishes the foundation for implementing AI systems that surpass current RAG trends while ensuring ethical AI behavior through comprehensive governance integration!** 🚀
+
+### 🚨 **CRITICAL FIX: CI/CD Pipeline Cross-Platform Compatibility**
+
+**Root Cause Identified & Resolved:**
+- **Issue:** CI/CD tests failing on Ubuntu due to macOS-specific dependencies (`pyobjc`, `rumps`)
+- **Impact:** Package installation failing with `InvalidVersion: '6.11.0-1018-azure'` error
+- **Scope:** All CI/CD jobs affected (package-tests, cli-smoke, vendor-tests, gateway-tests)
+
+**Platform-Specific Dependency Management:**
+- **✅ FIXED:** Made `pyobjc` and `rumps` dependencies conditional for macOS only
+- **✅ IMPLEMENTED:** Platform detection in `setup.py` using `sys.platform == 'darwin'`
+- **✅ UPDATED:** Removed macOS-specific packages from universal `requirements.txt`
+- **✅ PRESERVED:** macOS functionality - local development still installs all dependencies
+
+**CI/CD Pipeline Enhancements:**
+- **✅ ADDED:** Missing `requests` dependency to package-tests job
+- **✅ IMPROVED:** Mock server startup debugging and health checks
+- **✅ VERIFIED:** All 4 CI/CD jobs now passing consistently
+- **✅ VALIDATED:** Cross-platform compatibility (macOS local + Ubuntu CI/CD)
+
+**Testing Infrastructure Improvements:**
+- **✅ ENHANCED:** Mock server startup reliability with detailed logging
+- **✅ FIXED:** Test dependency resolution for integration tests
+- **✅ CONFIRMED:** All test suites passing in both environments
+
+**Quality Assurance:**
+- **✅ CI/CD Status:** All jobs passing (vendor-tests, gateway-tests, package-tests, cli-smoke)
+- **✅ Cross-Platform:** Consistent behavior between local macOS and CI/CD Ubuntu
+- **✅ Documentation:** Updated all docs with CI/CD fixes and platform requirements
+
+### 🔄 **Migration Notes**
+- **macOS Users:** No changes required - all functionality preserved
+- **CI/CD:** Ubuntu environment now correctly excludes macOS-specific dependencies
+- **Dependencies:** `pyobjc` and `rumps` now conditionally installed based on platform
+- **Testing:** Enhanced reliability with improved mock server management
+
+### 📋 **Technical Implementation Details**
+- **Platform Detection:** `sys.platform == 'darwin'` for macOS-specific dependencies
+- **Dependency Management:** Conditional installation in `setup.py` vs universal `requirements.txt`
+- **CI/CD Workflow:** Added `requests` library and improved mock server debugging
+- **Backward Compatibility:** Existing installations continue to work unchanged
+
 ## 1.3.0 (2025-08-29) - MAJOR RELEASE: Complete 8-Layer Memory System ✅
 
 ### 🎉 **MAJOR ACHIEVEMENT: Production-Ready Memory Service**

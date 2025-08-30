@@ -1,6 +1,6 @@
 # 🏹 Pinak — Enterprise-grade Reference Architecture (Local-First, SOTA Secure)
 
-This document captures the **enterprise-grade reference architecture** for **Pinak**, 
+This document captures the **enterprise-grade reference architecture** for **Pinak**,
 including **SOTA security baseline** and **code patch examples** for practical integration.
 
 ---
@@ -12,36 +12,40 @@ graph TD
   subgraph DevHost[Developer Machine / Local Node]
     A[Agent / App<br/>SDK + MemoryManager] --> B[Pinak Bridge<br/>(Context + Keyring + Token Flow)]
     B -->|OIDC (optional) or Dev JWT| C[Token Service<br/>(Local OIDC/Dev Issuer)]
-    B -->|AuthZ headers| D[Governance Gateway (optional)]
+    B -->|AuthZ headers| D[Governance Gateway (Parlant Integration)]
     A -->|/api/v1/memory/*| E[Memory API]
+    A -->|6-Stage World-Beater Retrieval| F[Context Broker<br/>(Advanced Retrieval Pipeline)]
+    A -->|Behavioral Correction| G[Governance Nudge Engine]
 
     subgraph Storage[Local Persistence (Project & Tenant Scoped)]
-      F[Semantic Index<br/>FAISS + metadata.json] 
-      G[Episodic.jsonl (time-partitioned)]
-      H[Procedural.jsonl (time-partitioned)]
-      I[RAG.jsonl (time-partitioned)]
-      J[Session_*.jsonl]
-      K[Working.jsonl]
-      L[Events.jsonl (hash-chained)]
-      M[Changelog.jsonl (hash-chained)]
+      H[Semantic Index<br/>FAISS + Graph DB + metadata.json]
+      I[Episodic.jsonl (time-partitioned)]
+      J[Procedural.jsonl (time-partitioned)]
+      K[RAG.jsonl (time-partitioned)]
+      L[Session_*.jsonl]
+      M[Working.jsonl]
+      N[Events.jsonl (hash-chained)]
+      O[Changelog.jsonl (hash-chained)]
     end
-    E --- F
-    E --- G
     E --- H
     E --- I
     E --- J
     E --- K
     E --- L
     E --- M
+    E --- N
+    E --- O
 
     subgraph Obs[Observability]
-      N[OTEL Traces/Logs<br/>(project_id, tenant, layer)]
-      O[Prometheus /metrics]
+      P[OTEL Traces/Logs<br/>(project_id, tenant, layer)]
+      Q[Prometheus /metrics]
     end
 
-    E --> N
-    E --> O
-    D --> N
+    E --> P
+    E --> Q
+    D --> P
+    F --> P
+    G --> P
   end
 
   style Storage fill:#0b1220,stroke:#6aa,stroke-width:1px,color:#dff
@@ -50,12 +54,81 @@ graph TD
 
 ---
 
-## 2) Data Layout (Partitioned JSONL)
+## 2) World-Beater Hybrid Retrieval Pipeline
+
+### 6-Stage Advanced Retrieval Architecture
+
+**Stage 1: Intent Analysis & Query Expansion**
+- Multi-modal intent detection using transformer models
+- Dynamic query expansion with knowledge graph traversal
+- Context-aware query reformulation for optimal retrieval
+- User intent learning and personalization algorithms
+
+**Stage 2: Dense Retrieval Pipeline**
+- Multi-vector dense retrieval with specialized sentence encoders
+- Hybrid semantic + lexical matching with adaptive algorithms
+- Real-time index updates with incremental learning
+- Cross-modal embedding fusion techniques
+
+**Stage 3: Sparse Hybrid Integration**
+- BM25 + semantic fusion with dynamic weighting
+- Cross-encoder reranking for precision optimization
+- Multi-stage filtering with confidence scoring
+- Query-dependent feature weighting optimization
+
+**Stage 4: Graph-Based Knowledge Expansion**
+- Dynamic knowledge graph construction using Neo4j/GraphDB
+- Entity relationship mining and expansion algorithms
+- Contextual path finding with relevance weighting
+- Temporal knowledge evolution tracking
+
+**Stage 5: Neural Reranking & Personalization**
+- Transformer-based cross-encoder reranking models
+- User behavior learning and personalization engines
+- Multi-objective optimization (relevance, diversity, recency)
+- Adaptive threshold calibration systems
+
+**Stage 6: Adaptive Learning & Optimization**
+- Real-time performance monitoring and feedback loops
+- Adaptive weight adjustment based on success metrics
+- Continuous model improvement through reinforcement learning
+- A/B testing framework for pipeline optimization
+
+---
+
+## 3) Governance-Integrated Nudge Engine
+
+### Behavioral Intelligence & Correction
+
+**Core Intelligence:**
+- **Deviation Detection:** Real-time monitoring of agent behavior patterns using ML
+- **Contextual Analysis:** Situation-aware assessment of behavioral appropriateness
+- **Ethical Safeguards:** Built-in safety mechanisms and override controls
+
+**Parlant Integration:**
+- **Policy Engine:** Direct integration with Parlant governance frameworks
+- **Compliance Monitoring:** Automated policy adherence verification
+- **Behavioral Correction:** Proactive guidance for policy violations
+
+**Adaptive Learning:**
+- **Response Analysis:** Learning from nudge effectiveness and user feedback
+- **Dynamic Thresholds:** Adaptive sensitivity based on context and user preferences
+- **Personalization:** Individualized nudge strategies for optimal impact
+
+**Multi-Modal Delivery:**
+- **Communication Channels:** IDE notifications, CLI warnings, system alerts
+- **Format Optimization:** Text, visual, and interactive nudge formats
+- **Timing Intelligence:** Optimal delivery timing based on user context
+
+---
+
+## 4) Data Layout (Partitioned JSONL)
 
 ```
 Pinak_Services/memory_service/data/
   memory.faiss
   metadata.json
+  knowledge_graph.db
 
   tenants/<tenant>/<project>/
     episodic/episodic_YYYY-MM-DD.jsonl
@@ -65,11 +138,12 @@ Pinak_Services/memory_service/data/
     working/working.jsonl
     events/events_YYYY-MM-DD.jsonl
     changelog/changes_YYYY-MM-DD.jsonl
+    governance/governance_YYYY-MM-DD.jsonl
 ```
 
 ---
 
-## 3) SOTA Security Baseline
+## 5) SOTA Security Baseline
 
 - **Identity & Auth**: short-lived JWTs, refresh, OIDC optional
 - **Storage**: JSONL is time-partitioned, append-only, file-locked
@@ -77,8 +151,8 @@ Pinak_Services/memory_service/data/
 - **Observability**: OTEL traces, Prometheus metrics
 - **Secrets**: OS keyring, fallback with 0600 perms only
 - **Transport**: TLS/mTLS with pinned certs
-
----
+- **Governance**: Parlant integration for behavioral monitoring
+- **Retrieval**: End-to-end encryption for world-beater pipeline---
 
 ## 4) Code Patches
 

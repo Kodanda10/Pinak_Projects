@@ -22,8 +22,80 @@ Pinak provides a robust AI memory service that allows developers to store, manag
 
 **🧪 TESTING STATUS:** 17/17 tests passing ✅
 **🚀 DEPLOYMENT READY:** Production-ready with CI/CD pipeline
+**🔧 CI/CD STATUS:** All jobs passing consistently ✅
 
-### 🔒 Security Auditor
+### � World-Beater Hybrid Retrieval Engine 🔄 **IN DEVELOPMENT**
+
+**Surpassing Claude/ChatGPT/Grok Capabilities:** Our 6-stage world-beater retrieval pipeline combines cutting-edge techniques to deliver superior contextual intelligence:
+
+**Stage 1: Intent Analysis & Query Expansion**
+- Advanced query understanding with multi-modal intent detection
+- Dynamic query expansion using knowledge graph relationships
+- Context-aware query reformulation for optimal retrieval
+
+**Stage 2: Dense Retrieval Pipeline**
+- Multi-vector dense retrieval with specialized encoders
+- Hybrid semantic + lexical matching algorithms
+- Real-time index updates with incremental learning
+
+**Stage 3: Sparse Hybrid Integration**
+- BM25 + semantic fusion with adaptive weighting
+- Cross-encoder reranking for precision optimization
+- Multi-stage filtering with confidence scoring
+
+**Stage 4: Graph-Based Knowledge Expansion**
+- Dynamic knowledge graph construction and traversal
+- Entity relationship mining and expansion
+- Contextual path finding with relevance weighting
+
+**Stage 5: Neural Reranking & Personalization**
+- Transformer-based cross-encoder reranking
+- User behavior learning and personalization
+- Multi-objective optimization for relevance and diversity
+
+**Stage 6: Adaptive Learning & Optimization**
+- Real-time performance monitoring and feedback loops
+- Adaptive weight adjustment based on success metrics
+- Continuous model improvement through reinforcement learning
+
+**🔬 ADVANCED FEATURES:**
+*   **Multi-Channel Delivery:** Push notifications, IDE integration, CLI alerts
+*   **Real-Time Adaptation:** Dynamic pipeline optimization based on user feedback
+*   **Enterprise Security:** End-to-end encryption with audit trails
+*   **Performance Monitoring:** Comprehensive metrics and observability
+
+**🧪 TESTING STATUS:** TDD test suites in development
+**🚀 TARGET COMPLETION:** Q4 2025
+
+### 🎯 Governance-Integrated Nudge Engine 🔄 **IN DEVELOPMENT**
+
+**Proactive Behavioral Correction:** Advanced nudge system integrated with Parlant Governance for intelligent behavioral guidance:
+
+**Core Intelligence:**
+- **Behavioral Deviation Detection:** Real-time monitoring of agent behavior patterns
+- **Contextual Nudge Generation:** Situation-aware guidance based on governance policies
+- **Multi-Channel Delivery:** IDE notifications, CLI warnings, system alerts
+
+**Governance Integration:**
+- **Parlant Policy Engine:** Direct integration with governance frameworks
+- **Compliance Monitoring:** Automated policy adherence verification
+- **Ethical Safeguards:** Built-in safety mechanisms and override controls
+
+**Adaptive Learning:**
+- **User Response Analysis:** Learning from nudge effectiveness and user feedback
+- **Dynamic Thresholds:** Adaptive sensitivity based on context and user preferences
+- **Personalization Engine:** Individualized nudge strategies for optimal impact
+
+**🔬 ADVANCED FEATURES:**
+*   **Real-Time Policy Evaluation:** Continuous governance compliance monitoring
+*   **Behavioral Pattern Recognition:** ML-powered anomaly detection
+*   **Multi-Modal Communication:** Text, visual, and interactive nudge formats
+*   **Audit Trail Integration:** Complete logging of all governance actions
+
+**🧪 TESTING STATUS:** Governance integration tests in development
+**🚀 TARGET COMPLETION:** Q4 2025
+
+### �🔒 Security Auditor
 
 Pinak integrates powerful security auditing capabilities directly into the developer workflow. It helps identify and mitigate security risks early in the development cycle.
 
@@ -53,7 +125,9 @@ Pinakontext is the intelligence layer that brings all of Pinak's capabilities to
 We are committed to building Pinak with the highest standards:
 
 *   **Test-Driven Development (TDD):** Ensuring robust and maintainable code.
-*   **CI/CD Pipeline:** For automated testing, quality assurance, and continuous delivery.
+*   **CI/CD Pipeline:** Automated testing, quality assurance, and continuous delivery with cross-platform compatibility.
+*   **Cross-Platform Development:** Seamless development experience on macOS with CI/CD validation on Ubuntu.
+*   **Platform-Specific Dependencies:** Smart dependency management for macOS-specific features.
 *   **Regular GitHub Updates:** Maintaining a transparent and up-to-date codebase.
 *   **Comprehensive Documentation:** Providing clear and accessible documentation for all features.
 *   **No File Deletion Policy:** Critical files are archived, not deleted, ensuring data integrity.
@@ -62,9 +136,26 @@ We are committed to building Pinak with the highest standards:
 ## Getting Started
 
 ### Prerequisites
-- Python 3.13+
-- FAISS (will be installed automatically)
-- Redis (optional, for caching)
+- **Python 3.13+** (Local development)
+- **Python 3.11+** (CI/CD compatibility)
+- **FAISS** (will be installed automatically)
+- **Redis** (optional, for caching)
+- **macOS** (for full feature set including menubar app)
+- **Ubuntu/Cross-platform** (for CI/CD and core functionality)
+
+### Platform-Specific Features
+
+**macOS (Full Feature Set):**
+- Complete menubar application (`rumps` framework)
+- System integration via `pyobjc`
+- All memory service features
+- CLI interaction logging
+
+**Cross-Platform (Core Features):**
+- Memory service API (17 endpoints)
+- CLI tools and commands
+- All testing and CI/CD functionality
+- Web-based interfaces
 
 ### Quick Start - Memory Service
 

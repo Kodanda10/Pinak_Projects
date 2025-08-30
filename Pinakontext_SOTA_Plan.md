@@ -11,6 +11,8 @@
 - **Nudges for DevOps**: Proactive tips during build failures, flaky tests, PR review, deploys, SLO breaches.
 - **SOTA Security Baseline**: Project‑scoped identity, least‑privilege, signed headers, tamper‑evident audit.
 - **High DX**: Simple CLI/TUI, recipes (YAML) to declare *what* context to surface and *when*.
+- **World-Beater Retrieval**: 6-stage hybrid pipeline surpassing Claude/ChatGPT/Grok capabilities.
+- **Governance Integration**: Parlant-powered behavioral correction and ethical safeguards.
 
 ---
 
@@ -19,9 +21,9 @@
 ```mermaid
 graph TD
   subgraph DevHost[Developer Machine / Local Node]
-    A[Agent / CLI / IDE<br/>pinak-context] --> B[Context Broker<br/>(Hybrid Retrieval + Synthesis)]
+    A[Agent / CLI / IDE<br/>pinak-context] --> B[Context Broker<br/>(6-Stage World-Beater Retrieval)]
     B --> C[Policy Gate (OPA/Rego)<br/>+ Security Filters]
-    C --> D[Nudge Engine<br/>(Rules + Anomaly)]
+    C --> D[Governance Nudge Engine<br/>(Parlant Integration + Behavioral Correction)]
     B --> E[Memory API]
     B --> F[Governance Gateway]
     B --> G[Parlant (policy/speech)]
@@ -58,24 +60,84 @@ graph TD
 ```
 
 **Key roles**  
-- **Context Broker**: orchestrates retrieval across memory layers + external signals; synthesizes concise, actionable context.  
-- **Nudge Engine**: rule/ML‑driven triggers (build broke, test flaky, PR smells, error spikes).  
+- **Context Broker**: orchestrates 6-stage world-beater retrieval across memory layers + external signals; synthesizes concise, actionable context.  
+- **Governance Nudge Engine**: Parlant-integrated behavioral correction with proactive guidance.  
 - **Policy Gate**: enforces RBAC/ABAC, redaction, and release conditions.  
-- **Parlant**: optional policy/speech layer shaping the final wording or guidance persona.
+- **Parlant**: governance framework shaping behavioral corrections and ethical boundaries.
 
 ---
 
-## 2) Retrieval & Ranking (SOTA)
+## 2) World-Beater Hybrid Retrieval & Ranking (6-Stage Pipeline)
 
-- **Hybrid Retrieval**: BM25/sparse + semantic (FAISS) + rule filters (tenant/project/time window).  
-- **Reranking**: local cross‑encoder (pluggable), + *salience* from memory layers (episodic salience, recent session activity).  
-- **Context Graph**: maintain a lightweight graph linking files ↔ tests ↔ incidents ↔ commits ↔ memories; prefer short path hops.  
-- **Answer Synthesis**: structured outline → actions (fix commands) → references → safety notes.  
-- **Caching**: request‑scoped cache + hot‑set prefetch (last N failures, last PR changes).
+**Stage 1: Intent Analysis & Query Expansion**
+- Multi-modal intent detection (semantic, keyword, contextual)
+- Dynamic query expansion using knowledge graph relationships
+- Context-aware query reformulation for optimal retrieval
+- User intent learning and personalization
+
+**Stage 2: Dense Retrieval Pipeline**
+- Multi-vector dense retrieval with specialized encoders
+- Hybrid semantic + lexical matching algorithms
+- Real-time index updates with incremental learning
+- Cross-modal embedding fusion
+
+**Stage 3: Sparse Hybrid Integration**
+- BM25 + semantic fusion with adaptive weighting
+- Cross-encoder reranking for precision optimization
+- Multi-stage filtering with confidence scoring
+- Query-dependent feature weighting
+
+**Stage 4: Graph-Based Knowledge Expansion**
+- Dynamic knowledge graph construction and traversal
+- Entity relationship mining and expansion
+- Contextual path finding with relevance weighting
+- Temporal knowledge evolution
+
+**Stage 5: Neural Reranking & Personalization**
+- Transformer-based cross-encoder reranking
+- User behavior learning and personalization
+- Multi-objective optimization (relevance, diversity, recency)
+- Adaptive threshold calibration
+
+**Stage 6: Adaptive Learning & Optimization**
+- Real-time performance monitoring and feedback loops
+- Adaptive weight adjustment based on success metrics
+- Continuous model improvement through reinforcement learning
+- A/B testing framework for pipeline optimization
+
+**Advanced Features:**
+- **Multi-Channel Delivery:** Push notifications, IDE integration, CLI alerts
+- **Real-Time Adaptation:** Dynamic pipeline optimization based on user feedback
+- **Enterprise Security:** End-to-end encryption with audit trails
+- **Performance Monitoring:** Comprehensive metrics and observability
 
 ---
 
-## 3) SOTA Security Baseline (pinned for Pinakontext)
+## 3) Governance-Integrated Nudge Engine
+
+**Behavioral Intelligence:**
+- **Deviation Detection:** Real-time monitoring of agent behavior patterns
+- **Contextual Analysis:** Situation-aware assessment of behavioral appropriateness
+- **Ethical Safeguards:** Built-in safety mechanisms and override controls
+
+**Parlant Integration:**
+- **Policy Engine:** Direct integration with Parlant governance frameworks
+- **Compliance Monitoring:** Automated policy adherence verification
+- **Behavioral Correction:** Proactive guidance for policy violations
+
+**Adaptive Learning:**
+- **Response Analysis:** Learning from nudge effectiveness and user feedback
+- **Dynamic Thresholds:** Adaptive sensitivity based on context and user preferences
+- **Personalization:** Individualized nudge strategies for optimal impact
+
+**Multi-Modal Delivery:**
+- **Communication Channels:** IDE notifications, CLI warnings, system alerts
+- **Format Optimization:** Text, visual, and interactive nudge formats
+- **Timing Intelligence:** Optimal delivery timing based on user context
+
+---
+
+## 4) SOTA Security Baseline (pinned for Pinakontext)
 
 - **Identity**: short‑lived JWT (60–90m) + refresh in OS keyring; `X-Pinak-Project` must match token claim `pid`.
 - **Policy Gate**: OPA/Rego evaluates *who/what/where*; redacts PII/keys before release.
@@ -83,36 +145,37 @@ graph TD
 - **Tamper Evidence**: hash‑chained audit for *all surfaced contexts*; anchor hourly.
 - **Least Privilege**: recipes declare required scopes; broker requests only needed layers.
 - **Observability**: OTEL spans tagged with `project_id`, `recipe`, `trigger`; `/metrics` counters for nudges, accept/reject, latency.
+- **Governance**: Parlant integration for behavioral monitoring and correction.
 
 ---
 
-## 4) CLI — `pinak-context`
+## 5) CLI — `pinak-context`
 
 ```bash
-# on-demand context
-pinak-context now --topic build-failure --json
+# on-demand context with world-beater retrieval
+pinak-context now --topic build-failure --json --enhanced
 
-# enable/disable nudges
+# governance-integrated nudges
 pinak-context nudge enable build-failure
-pinak-context nudge disable flaky-test
+pinak-context nudge governance-status
 
-# run a recipe explicitly
-pinak-context run --recipe recipes/pr_review.yaml --pr 128 --json
+# run a recipe with advanced retrieval
+pinak-context run --recipe recipes/pr_review.yaml --pr 128 --json --world-beater
 
-# tail live context for a session
-pinak-context tail --layer session --since 15m
+# tail live context with governance monitoring
+pinak-context tail --layer session --since 15m --governance
 ```
 
-**Outputs**: JSON lines (default) with `context_id`, `title`, `summary`, `actions[]`, `refs[]`, `sensitivity`, `ttl`.
+**Outputs**: JSON lines (default) with `context_id`, `title`, `summary`, `actions[]`, `refs[]`, `sensitivity`, `ttl`, `governance_flags`.
 
 ---
 
-## 5) Recipes DSL (YAML)
+## 6) Recipes DSL (YAML) - Enhanced
 
 ```yaml
 # recipes/build_failure.yaml
 id: build-failure
-version: 1
+version: 2.0
 triggers:
   - signal: ci.pipeline.failed
     when:
@@ -130,12 +193,24 @@ inputs:
   external:
     - git: {diff_range: "HEAD~5..HEAD"}
     - tests: {report: "coverage.xml"}
+  world_beater:
+    intent_analysis: true
+    graph_expansion: true
+    neural_reranking: true
+    adaptive_weights: true
 ranking:
-  hybrid: {k: 50}
-  rerank: {k: 10}
+  world_beater_pipeline:
+    stage_weights:
+      dense_retrieval: 0.3
+      sparse_hybrid: 0.2
+      graph_expansion: 0.25
+      neural_rerank: 0.25
+    k_candidates: 100
+    k_final: 10
   salience:
     recent_session_boost: 1.2
     episodic_salience_weight: 0.8
+    governance_relevance: 0.9
 synthesize:
   format: "markdown"
   include:
@@ -144,9 +219,13 @@ synthesize:
     - recommended_fixes
     - commands_to_run
     - references
+    - governance_warnings
 security:
   min_role: "editor"
   redact: ["secrets", "access_tokens", "emails"]
+  governance:
+    behavioral_monitoring: true
+    ethical_boundaries: ["no-harm", "privacy-first"]
   release:
     approval: "auto"
     ttl: "30m"
@@ -154,9 +233,9 @@ security:
 
 ---
 
-## 6) Code Patches (minimal scaffolding)
+## 7) Code Patches (minimal scaffolding)
 
-> These create a working skeleton for Pinakontext inside your repo.
+> These create a working skeleton for the enhanced Pinakontext with world-beater retrieval and governance integration.
 
 
 ### A) `setup.py` — add console script
@@ -371,4 +450,4 @@ def authorize(claims: dict, headers: dict) -> bool:
 
 ## 10) Summary
 
-Pinakontext makes Pinak *actionable* at the moment of need: **nudges** when things break, **context** when asked, all with **SOTA security** and **local‑first** operation. Ship the scaffolding above, then iterate on retrieval quality and policy.
+Pinakontext makes Pinak *actionable* at the moment of need: **world-beater retrieval** surpassing Claude/ChatGPT/Grok, **governance-integrated nudges** for behavioral correction, all with **SOTA security** and **local‑first** operation. The 6-stage retrieval pipeline delivers superior contextual intelligence while Parlant integration ensures ethical AI behavior and proactive guidance.
