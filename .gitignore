@@ -15,6 +15,13 @@ security-baseline/reports/
 Pinak_Services/memory_service/data/
 **/data/
 
+# Memory service logs
+Pinak_Services/memory_service/logs/
+
+# Temporary data directories
+**/temp_data_*/
+temp_data_*/
+
 # OS-specific files
 .DS_Store
 

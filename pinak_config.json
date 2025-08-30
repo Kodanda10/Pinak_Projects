@@ -1,0 +1,12 @@
+{
+  "memory_service_url": "http://localhost:8000",
+  "api_key": "your_api_key_here",
+  "default_project": "Pinak_Package",
+  "auto_initialize": true,
+  "enable_caching": true,
+  "default_layers": [
+    "episodic",
+    "working",
+    "session"
+  ]
+}
