@@ -1289,6 +1289,9 @@ class WorldBeatingRetrievalEngine:
 
     def get_advanced_metrics(self) -> Dict[str, Any]:
         """Get comprehensive performance metrics."""
+        total_cache_requests = self._metrics['cache_hits'] + self._metrics['semantic_cache_hits'] + self._metrics['total_queries']
+        cache_hit_rate = (self._metrics['cache_hits'] + self._metrics['semantic_cache_hits']) / max(1, total_cache_requests)
+
         return {
             **self._metrics,
             'semantic_cache_size': len(self._semantic_cache),
@@ -1299,6 +1302,9 @@ class WorldBeatingRetrievalEngine:
             'neural_reranking_enabled': self.enable_neural_reranking,
             'query_expansion_enabled': self.enable_query_expansion,
             'memory_augmentation_enabled': self.enable_memory_augmentation,
+            'cache_hit_rate': cache_hit_rate,
+            'embedding_dimensions': 768,  # Standard embedding dimension
+            'total_cache_requests': total_cache_requests,
         }
 
     async def health_check(self) -> Dict[str, Any]:

@@ -68,7 +68,7 @@ class MockAdvancedStore(IContextStore):
                 project_id="test-project",
                 tenant_id="test-tenant",
                 created_by="test-user",
-                classification=SecurityClassification.PUBLIC,
+                classification=SecurityClassification.INTERNAL,
                 priority=ContextPriority.MEDIUM,
                 tags=["mock"],
                 relevance_score=0.9,
