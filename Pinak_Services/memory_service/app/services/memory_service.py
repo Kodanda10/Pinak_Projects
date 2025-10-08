@@ -124,8 +124,30 @@ class MemoryService:
             json.dump(record, f)
             f.write('\n')
 
-# Singleton instance
-memory_service = MemoryService()
+    def _read_jsonl_file(self, file_path: str) -> List[dict]:
+        """Reads a single JSONL file."""
+        records = []
+        if not os.path.exists(file_path):
+            return records
+        with open(file_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                try:
+                    records.append(json.loads(line))
+                except json.JSONDecodeError:
+                    # Log or handle corrupted lines if necessary
+                    pass
+        return records
+
+    def _read_jsonl_from_directory(self, directory: str, file_prefix: str) -> List[dict]:
+        """Reads all JSONL files from a directory that match a prefix."""
+        records = []
+        if not os.path.exists(directory):
+            return records
+
+        import glob
+        for file_path in sorted(glob.glob(os.path.join(directory, f'{file_prefix}_*.jsonl'))):
+            records.extend(self._read_jsonl_file(file_path))
+        return records
 
 # Layer-specific service functions
 
@@ -145,19 +167,8 @@ def add_episodic(memory_service: MemoryService, tenant: str, project_id: str, co
 def list_episodic(memory_service: MemoryService, tenant: str, project_id: str) -> list:
     """List episodic memories."""
     base = memory_service._store_dir(tenant, project_id)
-    out = []
-    import glob
     folder = os.path.join(base, 'episodic')
-    for fp in sorted(glob.glob(os.path.join(folder, 'episodic_*.jsonl'))):
-        if os.path.exists(fp):
-            with open(fp, 'r') as f:
-                for line in f:
-                    try:
-                        obj = json.loads(line)
-                        out.append(obj)
-                    except:
-                        pass
-    return out
+    return memory_service._read_jsonl_from_directory(folder, 'episodic')
 
 def add_procedural(memory_service: MemoryService, tenant: str, project_id: str, skill_id: str, steps: list) -> dict:
     """Add procedural memory."""
@@ -175,19 +186,8 @@ def add_procedural(memory_service: MemoryService, tenant: str, project_id: str, 
 def list_procedural(memory_service: MemoryService, tenant: str, project_id: str) -> list:
     """List procedural memories."""
     base = memory_service._store_dir(tenant, project_id)
-    out = []
-    import glob
     folder = os.path.join(base, 'procedural')
-    for fp in sorted(glob.glob(os.path.join(folder, 'procedural_*.jsonl'))):
-        if os.path.exists(fp):
-            with open(fp, 'r') as f:
-                for line in f:
-                    try:
-                        obj = json.loads(line)
-                        out.append(obj)
-                    except:
-                        pass
-    return out
+    return memory_service._read_jsonl_from_directory(folder, 'procedural')
 
 def add_rag(memory_service: MemoryService, tenant: str, project_id: str, query: str, external_source: str) -> dict:
     """Add RAG memory."""
@@ -205,19 +205,29 @@ def add_rag(memory_service: MemoryService, tenant: str, project_id: str, query: 
 def list_rag(memory_service: MemoryService, tenant: str, project_id: str) -> list:
     """List RAG memories."""
     base = memory_service._store_dir(tenant, project_id)
-    out = []
-    import glob
     folder = os.path.join(base, 'rag')
-    for fp in sorted(glob.glob(os.path.join(folder, 'rag_*.jsonl'))):
-        if os.path.exists(fp):
-            with open(fp, 'r') as f:
-                for line in f:
-                    try:
-                        obj = json.loads(line)
-                        out.append(obj)
-                    except:
-                        pass
-    return out
+    return memory_service._read_jsonl_from_directory(folder, 'rag')
+
+def add_changelog(memory_service: MemoryService, tenant: str, project_id: str, entity_id: str, layer: str, old_value: dict, new_value: dict) -> dict:
+    """Add a changelog entry."""
+    base = memory_service._store_dir(tenant, project_id)
+    path = memory_service._dated_file(base, 'changelog', 'changelog')
+    rec = {
+        'entity_id': entity_id,
+        'layer': layer,
+        'old_value': old_value,
+        'new_value': new_value,
+        'project_id': project_id,
+        'ts': datetime.datetime.utcnow().isoformat(),
+    }
+    memory_service._append_jsonl(path, rec)
+    return rec
+
+def list_changelog(memory_service: MemoryService, tenant: str, project_id: str) -> list:
+    """List changelog entries."""
+    base = memory_service._store_dir(tenant, project_id)
+    folder = os.path.join(base, 'changelog')
+    return memory_service._read_jsonl_from_directory(folder, 'changelog')
 
 def search_v2(memory_service: MemoryService, tenant: str, project_id: str, query: str, layer_list: list) -> dict:
     """Search across multiple layers."""
@@ -231,4 +241,7 @@ def search_v2(memory_service: MemoryService, tenant: str, project_id: str, query
     if 'rag' in layer_list:
         rag_results = list_rag(memory_service, tenant, project_id)
         results['rag'] = [r for r in rag_results if query.lower() in r.get('query', '').lower()][:5]
+    if 'changelog' in layer_list:
+        changelog_results = list_changelog(memory_service, tenant, project_id)
+        results['changelog'] = [r for r in changelog_results if query.lower() in json.dumps(r).lower()][:5]
     return results

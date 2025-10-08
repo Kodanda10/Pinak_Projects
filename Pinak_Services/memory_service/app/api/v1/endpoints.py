@@ -13,11 +13,10 @@ from app.services.memory_service import (
     add_rag as svc_add_rag,
     list_rag as svc_list_rag,
     search_v2 as svc_search_v2,
+    add_changelog as svc_add_changelog,
+    list_changelog as svc_list_changelog,
 )
-
-def get_memory_service():
-    """Dependency that provides a MemoryService instance."""
-    return MemoryService()
+from app.dependencies import get_memory_service
 
 from typing import List, Dict, Any, Optional, Union
 
@@ -91,33 +90,49 @@ def list_events(q: Optional[str] = None, since: Optional[str] = None, until: Opt
     import json, os, datetime
     tenant = "default"
     base = memory_service._store_dir(tenant, project_id or "default")
-    out=[]
+    folder = os.path.join(base, 'events')
+    all_events = memory_service._read_jsonl_from_directory(folder, 'events')
+
+    out = []
     def parse_ts(ts: str):
         try:
             return datetime.datetime.fromisoformat(ts.replace('Z','+00:00'))
         except Exception:
             return None
+
     t_since = parse_ts(since) if since else None
     t_until = parse_ts(until) if until else None
-    import glob
-    folder = os.path.join(base, 'events')
-    for fp in sorted(glob.glob(os.path.join(folder, 'events_*.jsonl'))):
-        if os.path.exists(fp):
-            with open(fp,'r',encoding='utf-8') as fh:
-                for line in fh:
-                    try:
-                        obj = json.loads(line)
-                        if q and q not in json.dumps(obj):
-                            continue
-                        ts = parse_ts(obj.get('ts',''))
-                        if t_since and ts and ts < t_since:
-                            continue
-                        if t_until and ts and ts > t_until:
-                            continue
-                        out.append(obj)
-                    except Exception:
-                        pass
+
+    for obj in all_events:
+        if q and q not in json.dumps(obj):
+            continue
+        ts = parse_ts(obj.get('ts',''))
+        if t_since and ts and ts < t_since:
+            continue
+        if t_until and ts and ts > t_until:
+            continue
+        out.append(obj)
+
     return out[offset:offset+limit]
+
+@router.post("/changelog/add", status_code=status.HTTP_201_CREATED)
+def add_changelog(payload: Dict[str, Any] = Body(...), project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project"), memory_service: MemoryService = Depends(get_memory_service)) -> Dict[str, Any]:
+    tenant = "default"  # Simplified
+    rec = svc_add_changelog(
+        memory_service,
+        tenant,
+        project_id or "default",
+        payload.get('entity_id'),
+        payload.get('layer'),
+        payload.get('old_value'),
+        payload.get('new_value'),
+    )
+    return rec
+
+@router.get("/changelog/list", status_code=status.HTTP_200_OK)
+def list_changelog(project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project"), memory_service: MemoryService = Depends(get_memory_service)) -> list[Dict[str, Any]]:
+    tenant = "default"  # Simplified
+    return svc_list_changelog(memory_service, tenant, project_id or "default")
 
 @router.post("/session/add", status_code=status.HTTP_201_CREATED, response_model=None)
 def session_add(payload: Dict[str, Any] = Body(...), project_id: Optional[str] = Header(default=None, alias="X-Pinak-Project"), memory_service: MemoryService = Depends(get_memory_service)) -> Dict[str, Any]:
@@ -150,6 +165,9 @@ def session_list(session_id: str, limit: int = 100, offset: int = 0, since: Opti
         legacy = os.path.join(base, f'session_{session_id}.jsonl')
         if os.path.exists(legacy):
             path = legacy
+
+    all_sessions = memory_service._read_jsonl_file(path)
+
     out=[]
     def parse_ts(ts: str):
         try:
@@ -158,26 +176,21 @@ def session_list(session_id: str, limit: int = 100, offset: int = 0, since: Opti
             return None
     t_since = parse_ts(since) if since else None
     t_until = parse_ts(until) if until else None
-    if os.path.exists(path):
-        with open(path,'r',encoding='utf-8') as fh:
-            for line in fh:
-                try:
-                    obj = json.loads(line)
-                    exp = obj.get('expires_at')
-                    if exp:
-                        try:
-                            if datetime.datetime.fromisoformat(exp) < datetime.datetime.utcnow():
-                                continue
-                        except Exception:
-                            pass
-                    ts = parse_ts(obj.get('ts',''))
-                    if t_since and ts and ts < t_since:
-                        continue
-                    if t_until and ts and ts > t_until:
-                        continue
-                    out.append(obj)
-                except Exception:
-                    pass
+
+    for obj in all_sessions:
+        exp = obj.get('expires_at')
+        if exp:
+            try:
+                if datetime.datetime.fromisoformat(exp) < datetime.datetime.utcnow():
+                    continue
+            except Exception:
+                pass
+        ts = parse_ts(obj.get('ts',''))
+        if t_since and ts and ts < t_since:
+            continue
+        if t_until and ts and ts > t_until:
+            continue
+        out.append(obj)
     return out[offset:offset+limit]
 
 @router.post("/working/add", status_code=status.HTTP_201_CREATED, response_model=None)
@@ -204,8 +217,10 @@ def working_list(limit: int = 100, offset: int = 0, since: Optional[str] = None,
     import os, json, datetime
     tenant = "default"
     base = memory_service._store_dir(tenant, project_id or "default")
-    path = memory_service._working_file(base)
-    out=[]
+    folder = os.path.join(base, 'working')
+    all_working = memory_service._read_jsonl_from_directory(folder, 'working')
+
+    out = []
     def parse_ts(ts: str):
         try:
             return datetime.datetime.fromisoformat(ts.replace('Z','+00:00'))
@@ -213,24 +228,20 @@ def working_list(limit: int = 100, offset: int = 0, since: Optional[str] = None,
             return None
     t_since = parse_ts(since) if since else None
     t_until = parse_ts(until) if until else None
-    if os.path.exists(path):
-        with open(path,'r',encoding='utf-8') as fh:
-            for line in fh:
-                try:
-                    obj = json.loads(line)
-                    exp = obj.get('expires_at')
-                    if exp:
-                        try:
-                            if datetime.datetime.fromisoformat(exp) < datetime.datetime.utcnow():
-                                continue
-                        except Exception:
-                            pass
-                    ts = parse_ts(obj.get('ts',''))
-                    if t_since and ts and ts < t_since:
-                        continue
-                    if t_until and ts and ts > t_until:
-                        continue
-                    out.append(obj)
-                except Exception:
-                    pass
+
+    for obj in all_working:
+        exp = obj.get('expires_at')
+        if exp:
+            try:
+                if datetime.datetime.fromisoformat(exp) < datetime.datetime.utcnow():
+                    continue
+            except Exception:
+                pass
+        ts = parse_ts(obj.get('ts',''))
+        if t_since and ts and ts < t_since:
+            continue
+        if t_until and ts and ts > t_until:
+            continue
+        out.append(obj)
+
     return out[offset:offset+limit]

@@ -1,5 +1,7 @@
 fastapi
 uvicorn[standard]
+PyJWT
+asgi-lifespan
 
 # Original dependencies
 sentence-transformers
