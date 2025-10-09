@@ -1,2 +1,4 @@
 # httpx is a modern, async-capable HTTP client
 httpx
+typer
+pytest

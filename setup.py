@@ -23,6 +23,12 @@ setup(
     # Make config files available to the package
     include_package_data=False, # In a real scenario we'd handle this better
 
+    entry_points={
+        "console_scripts": [
+            "pinak=pinak.cli:app",
+        ]
+    },
+
     classifiers=[
         "Programming Language :: Python :: 3",
         "Operating System :: MacOS :: MacOS X",

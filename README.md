@@ -30,11 +30,12 @@ Pinak is a local-first, enterprise-grade AI assistant designed for developers, p
 git clone https://github.com/Pinak-Setu/Pinak_Projects.git
 cd Pinak_Projects
 
-# Install dependencies
-cd Pinak_Services/memory_service
+# Install Python dependencies for the CLI and tests
 pip install -r requirements.txt
 
-# Run the service
+# (Optional) Run the FastAPI memory service if you want to talk to a live backend
+cd Pinak_Services/memory_service
+pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
@@ -107,15 +108,35 @@ curl "http://localhost:8001/api/v1/memory/search_v2?query=async&layers=semantic,
 ## 🧪 Testing
 
 ```bash
-# Run all tests
+# Run the CLI integration suite
+PYTHONPATH=src pytest tests/test_cli.py -q
+
+# Run the entire test suite
+PYTHONPATH=src pytest
+
+# Legacy service tests are still available under the FastAPI app
 cd Pinak_Services/memory_service
 pytest tests/ -v
+```
 
-# Run with coverage
-pytest tests/ --cov=app --cov-report=html
+### CLI Quick Start
 
-# Run demo script
-python ../../scripts/demo_all_layers.py
+The Typer-based `pinak` CLI persists its configuration in `~/.pinak/config.json` by default.
+
+```bash
+# Log in and persist configuration
+pinak login --service-url http://localhost:8001 --token <TOKEN> --tenant-id <TENANT> --project-id <PROJECT>
+
+# Add a memory and search for it
+pinak memory add "Remember this" --tag cli --tag example
+pinak memory search "Remember" --k 3
+
+# List events and session data
+pinak events list --limit 10
+pinak session list SESSION-ID --limit 10
+
+# Override the configuration location (optional)
+PINAK_CONFIG_PATH=/tmp/pinak-config.json pinak memory search "query"
 ```
 
 ## 🔒 Security
