@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pinak-memory-service"
+version = "0.1.0"
+description = "FastAPI-based memory service for the Pinak project."
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.111",
+    "uvicorn[standard]>=0.30",
+    "sentence-transformers>=2.2",
+    "faiss-cpu>=1.7.4",
+    "redis>=5.0",
+    "numpy>=1.26",
+    "PyJWT>=2.8",
+]
+
+[project.optional-dependencies]
+tests = [
+    "asgi-lifespan>=2.1.0",
+    "httpx>=0.26.0",
+    "pytest>=8.4.2",
+    "pytest-asyncio>=1.2.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["app"]
+include = ["app*"]
+
+[tool.pytest.ini_options]
+addopts = "-ra"
+pythonpath = ["app"]
+
+[dependency-groups]
+tests = [
+    "asgi-lifespan>=2.1.0",
+    "httpx>=0.26.0",
+    "pytest>=8.4.2",
+    "pytest-asyncio>=1.2.0",
+]
+
