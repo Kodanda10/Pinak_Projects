@@ -4,11 +4,11 @@ from unittest.mock import MagicMock, patch
 
 import httpx
 
-from src.pinak.memory.manager import MemoryManager
+from pinak.memory.manager import MemoryManager
 
 
 class MemoryManagerTests(unittest.TestCase):
-    @patch("src.pinak.memory.manager.httpx.Client")
+    @patch("pinak.memory.manager.httpx.Client")
     def test_add_memory_includes_auth_and_context_headers(self, client_cls):
         client = client_cls.return_value
         response = MagicMock()
@@ -36,7 +36,7 @@ class MemoryManagerTests(unittest.TestCase):
         self.assertEqual(params["tenant"], "tenant-a")
         self.assertEqual(params["project_id"], "project-b")
 
-    @patch("src.pinak.memory.manager.httpx.Client")
+    @patch("pinak.memory.manager.httpx.Client")
     def test_env_fallback_for_search(self, client_cls):
         client = client_cls.return_value
         response = MagicMock()
@@ -66,7 +66,7 @@ class MemoryManagerTests(unittest.TestCase):
         self.assertEqual(params["tenant"], "env-tenant")
         self.assertEqual(params["project_id"], "env-project")
 
-    @patch("src.pinak.memory.manager.httpx.Client")
+    @patch("pinak.memory.manager.httpx.Client")
     def test_authorization_prevents_unauthorized_error(self, client_cls):
         client = client_cls.return_value
 
