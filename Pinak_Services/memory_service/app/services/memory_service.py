@@ -21,12 +21,14 @@ class _DeterministicEncoder:
         self.embedding_dimension = dimension
 
     def encode(self, sentences: List[str]) -> np.ndarray:
+        import itertools
         vectors = []
         for sentence in sentences:
             digest = hashlib.sha256(sentence.encode("utf-8")).digest()
             needed_bytes = self.embedding_dimension * 4
             if len(digest) < needed_bytes:
-                digest = (digest * ((needed_bytes // len(digest)) + 1))[:needed_bytes]
+                # Use itertools.cycle for efficient padding
+                digest = bytes(itertools.islice(itertools.cycle(digest), needed_bytes))
             vectors.append(np.frombuffer(digest[:needed_bytes], dtype=np.float32))
         return np.array(vectors, dtype=np.float32)
 
@@ -171,17 +173,37 @@ class MemoryService:
     def _last_audit_record(self, path: str) -> Optional[dict]:
         if not os.path.exists(path):
             return None
-        last_record = None
-        with open(path, 'r', encoding='utf-8') as fh:
-            for line in fh:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    last_record = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-        return last_record
+        try:
+            with open(path, 'rb') as fh:
+                fh.seek(0, os.SEEK_END)
+                position = fh.tell()
+                buffer = b''
+                while position > 0:
+                    read_size = min(4096, position)
+                    position -= read_size
+                    fh.seek(position)
+                    buffer = fh.read(read_size) + buffer
+                    lines = buffer.split(b'\n')
+                    # If we have more than one line, process from the end
+                    for line in reversed(lines):
+                        line = line.strip()
+                        if line:
+                            try:
+                                return json.loads(line.decode('utf-8'))
+                            except (json.JSONDecodeError, UnicodeDecodeError):
+                                continue
+                    # If not enough lines, continue reading backwards
+                    buffer = lines[0]  # keep the partial first line
+                # If we reach here, try the remaining buffer
+                line = buffer.strip()
+                if line:
+                    try:
+                        return json.loads(line.decode('utf-8'))
+                    except (json.JSONDecodeError, UnicodeDecodeError):
+                        pass
+        except Exception:
+            pass
+        return None
 
     def _compute_audit_hash(self, payload: dict) -> str:
         to_hash = {k: v for k, v in payload.items() if k != 'hash'}

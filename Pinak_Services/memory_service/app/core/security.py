@@ -42,8 +42,9 @@ def require_auth_context(
     secret = _get_secret()
     algorithm = os.getenv("PINAK_JWT_ALGORITHM", "HS256")
 
+
     try:
-        payload = jwt.decode(token, secret, algorithms=[algorithm], options={"require": ["tenant", "project_id"]})
+        payload = jwt.decode(token, secret, algorithms=[algorithm])
     except jwt.ExpiredSignatureError as exc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expired") from exc
     except jwt.InvalidTokenError as exc:

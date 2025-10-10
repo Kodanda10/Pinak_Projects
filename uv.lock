@@ -923,14 +923,6 @@ tests = [
     { name = "pytest-asyncio" },
 ]
 
-[package.dev-dependencies]
-tests = [
-    { name = "asgi-lifespan" },
-    { name = "httpx" },
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-]
-
 [package.metadata]
 requires-dist = [
     { name = "asgi-lifespan", marker = "extra == 'tests'", specifier = ">=2.1.0" },
@@ -946,14 +938,6 @@ requires-dist = [
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30" },
 ]
 provides-extras = ["tests"]
-
-[package.metadata.requires-dev]
-tests = [
-    { name = "asgi-lifespan", specifier = ">=2.1.0" },
-    { name = "httpx", specifier = ">=0.26.0" },
-    { name = "pytest", specifier = ">=8.4.2" },
-    { name = "pytest-asyncio", specifier = ">=1.2.0" },
-]
 
 [[package]]
 name = "pinak-project"

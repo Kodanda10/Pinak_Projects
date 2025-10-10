@@ -33,11 +33,5 @@ include = ["app*"]
 addopts = "-ra"
 pythonpath = ["app"]
 
-[dependency-groups]
-tests = [
-    "asgi-lifespan>=2.1.0",
-    "httpx>=0.26.0",
-    "pytest>=8.4.2",
-    "pytest-asyncio>=1.2.0",
-]
+
 

@@ -13,8 +13,9 @@ class MemoryRead(BaseModel):
     project_id: str
     created_at: str
 
-    class Config:
-        from_attributes = True
+    model_config = {
+        "from_attributes": True
+    }
 
 class MemorySearchResult(MemoryRead):
     distance: float
