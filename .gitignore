@@ -13,3 +13,4 @@ security-baseline/reports/
 
 # OS-specific files
 .DS_Store
+.venv/

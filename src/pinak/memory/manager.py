@@ -1,88 +1,194 @@
-import logging
-import os
+from __future__ import annotations
+
 from typing import Any, Dict, List, Optional
 
 import httpx
 
 
-logger = logging.getLogger(__name__)
+class MemoryManagerError(Exception):
+    """Raised when the Memory service returns an error."""
+
 
 class MemoryManager:
-    """An API client for the Pinak Memory Service."""
+    """An API client for interacting with the Pinak Memory Service."""
 
     def __init__(
         self,
         service_base_url: str = "http://localhost:8001",
+        *,
         token: Optional[str] = None,
-        tenant: Optional[str] = None,
+        tenant_id: Optional[str] = None,
         project_id: Optional[str] = None,
         client: Optional[httpx.Client] = None,
-    ):
-        """Initializes the client with the URL of the running memory service.
+        timeout: float = 10.0,
+    ) -> None:
+        """Initializes the client with optional authentication context."""
 
-        Args:
-            service_base_url: Base URL for the Pinak memory service.
-            token: Optional JWT used for authorization. Falls back to the
-                ``PINAK_JWT_TOKEN`` environment variable when omitted.
-            tenant: Optional tenant identifier. Falls back to
-                ``PINAK_TENANT`` when omitted.
-            project_id: Optional project identifier. Falls back to
-                ``PINAK_PROJECT`` when omitted.
-            client: Optional pre-configured :class:`httpx.Client` instance to
-                use for requests.
-        """
-        self.base_url = f"{service_base_url}/api/v1/memory"
+        self.timeout = timeout
         self.client = client or httpx.Client()
-        self.token = token or os.getenv("PINAK_JWT_TOKEN")
-        self.tenant = tenant or os.getenv("PINAK_TENANT")
-        self.project_id = project_id or os.getenv("PINAK_PROJECT")
-        logger.debug("MemoryManager client initialized for base URL %s", self.base_url)
+        self.service_base_url = service_base_url.rstrip("/")
+        self.base_url = f"{self.service_base_url}/api/v1/memory"
+
+        self.token = token
+        self.tenant_id = tenant_id
+        self.project_id = project_id
+        self._apply_headers()
+
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
+    def _apply_headers(self) -> None:
+        """Apply authentication headers to the HTTP client."""
+
+        # Remove existing headers before applying new ones
+        for header in ("Authorization", "X-Pinak-Tenant", "X-Pinak-Project"):
+            if header in self.client.headers:
+                del self.client.headers[header]
+
+        if self.token:
+            self.client.headers["Authorization"] = f"Bearer {self.token}"
+        if self.tenant_id:
+            self.client.headers["X-Pinak-Tenant"] = self.tenant_id
+        if self.project_id:
+            self.client.headers["X-Pinak-Project"] = self.project_id
+
+    def _request(self, method: str, path: str, **kwargs: Any) -> httpx.Response:
+        url = f"{self.base_url}{path}"
+        try:
+            response = self.client.request(method, url, timeout=self.timeout, **kwargs)
+            response.raise_for_status()
+            return response
+        except httpx.RequestError as exc:
+            raise MemoryManagerError(
+                f"Unable to reach {exc.request.url!s}: {exc!s}"
+            ) from exc
+        except httpx.HTTPStatusError as exc:
+            detail = self._extract_error_detail(exc.response)
+            raise MemoryManagerError(
+                f"Request to {exc.request.url!s} failed with status "
+                f"{exc.response.status_code}: {detail}"
+            ) from exc
+
+    @staticmethod
+    def _extract_error_detail(response: httpx.Response) -> str:
+        """Return a readable description of an error response."""
+
+        try:
+            payload = response.json()
+        except ValueError:
+            return response.text or "Unknown error"
+
+        if isinstance(payload, dict):
+            detail = payload.get("detail")
+            if isinstance(detail, list):
+                return "; ".join(str(item) for item in detail)
+            if detail:
+                return str(detail)
+            return ", ".join(f"{key}: {value}" for key, value in payload.items()) or "Unknown error"
+
+        if isinstance(payload, list):
+            return "; ".join(str(item) for item in payload) or "Unknown error"
+
+        return str(payload) or "Unknown error"
+
+    def configure(
+        self,
+        *,
+        service_base_url: Optional[str] = None,
+        token: Optional[str] = None,
+        tenant_id: Optional[str] = None,
+        project_id: Optional[str] = None,
+    ) -> None:
+        """Update runtime configuration for subsequent requests."""
+
+        if service_base_url:
+            self.service_base_url = service_base_url.rstrip("/")
+            self.base_url = f"{self.service_base_url}/api/v1/memory"
+        if token is not None:
+            self.token = token
+        if tenant_id is not None:
+            self.tenant_id = tenant_id
+        if project_id is not None:
+            self.project_id = project_id
+        self._apply_headers()
+
+    # ------------------------------------------------------------------
+    # Authentication helpers
+    # ------------------------------------------------------------------
+    def login(
+        self,
+        *,
+        token: str,
+        tenant_id: Optional[str] = None,
+        project_id: Optional[str] = None,
+    ) -> Dict[str, Optional[str]]:
+        """Store authentication context for subsequent requests."""
+
+        self.configure(token=token, tenant_id=tenant_id, project_id=project_id)
+        return {
+            "token": self.token,
+            "tenant_id": self.tenant_id,
+            "project_id": self.project_id,
+        }
 
     def add_memory(self, content: str, tags: list = None) -> Dict[str, Any]:
         """Sends a request to the Memory Service to add a new memory."""
-        try:
-            response = self.client.post(
-                f"{self.base_url}/add",
-                json={"content": content, "tags": tags or []},
-                headers=self._build_headers(),
-                params=self._build_query_params(),
-                timeout=10.0
-            )
-            response.raise_for_status()  # Raise an exception for bad status codes (4xx or 5xx)
-            return response.json()
-        except httpx.HTTPError as e:
-            logger.warning("Error during add_memory request to %s: %s", e.request.url, e)
-            return None
+        response = self._request(
+            "POST",
+            "/add",
+            json={"content": content, "tags": tags or []},
+        )
+        return response.json()
 
     def search_memory(self, query: str, k: int = 5) -> List[Dict[str, Any]]:
         """Sends a request to the Memory Service to search for memories."""
-        try:
-            response = self.client.get(
-                f"{self.base_url}/search",
-                params=self._build_query_params({"query": query, "k": k}),
-                headers=self._build_headers(),
-                timeout=10.0
-            )
-            response.raise_for_status()
-            return response.json()
-        except httpx.HTTPError as e:
-            logger.warning("Error during search_memory request to %s: %s", e.request.url, e)
-            return []
+        response = self._request(
+            "GET",
+            "/search",
+            params={"query": query, "k": k},
+        )
+        return response.json()
 
-    def _build_headers(self) -> Dict[str, str]:
-        headers: Dict[str, str] = {}
-        if self.token:
-            headers["Authorization"] = f"Bearer {self.token}"
-        if self.tenant:
-            headers["X-Tenant-ID"] = self.tenant
-        if self.project_id:
-            headers["X-Project-ID"] = self.project_id
-        return headers
+    def list_events(
+        self,
+        *,
+        query: Optional[str] = None,
+        since: Optional[str] = None,
+        until: Optional[str] = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> List[Dict[str, Any]]:
+        """Retrieve events from the memory service."""
 
-    def _build_query_params(self, base: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        params = dict(base or {})
-        if self.tenant:
-            params.setdefault("tenant", self.tenant)
-        if self.project_id:
-            params.setdefault("project_id", self.project_id)
-        return params
+        params = {
+            "q": query,
+            "since": since,
+            "until": until,
+            "limit": limit,
+            "offset": offset,
+        }
+        params = {key: value for key, value in params.items() if value is not None}
+        response = self._request("GET", "/events", params=params)
+        return response.json()
+
+    def list_session(
+        self,
+        session_id: str,
+        *,
+        limit: int = 100,
+        offset: int = 0,
+        since: Optional[str] = None,
+        until: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        """Retrieve session data for a given session identifier."""
+
+        params = {
+            "session_id": session_id,
+            "limit": limit,
+            "offset": offset,
+            "since": since,
+            "until": until,
+        }
+        params = {key: value for key, value in params.items() if value is not None}
+        response = self._request("GET", "/session/list", params=params)
+        return response.json()
