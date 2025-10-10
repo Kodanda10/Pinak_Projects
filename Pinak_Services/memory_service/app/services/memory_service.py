@@ -1,4 +1,3 @@
-
 import json
 import os
 import uuid
@@ -32,8 +31,9 @@ class MemoryService:
             client.ping()
             print(f"Successfully connected to Redis at {redis_host}:{redis_port}.")
             return client
-        except redis.exceptions.ConnectionError as e:
-            raise Exception(f"Could not connect to Redis at {redis_host}:{redis_port}. Error: {e}")
+        except Exception as e:
+            print(f"Redis not available at {redis_host}:{redis_port}. Continuing without Redis. Error: {e}")
+            return None
 
     def _load_config(self, path):
         with open(path, 'r') as f:
@@ -90,5 +90,145 @@ class MemoryService:
                 results.append(MemorySearchResult.model_validate(result_with_dist))
         return results
 
+    def _store_dir(self, tenant: str, project_id: str) -> str:
+        """Get storage directory for tenant/project."""
+        base = os.path.join('data', tenant, project_id or 'default')
+        os.makedirs(base, exist_ok=True)
+        return base
+
+    def _dated_file(self, base: str, layer: str, prefix: str) -> str:
+        """Get dated file path for layer."""
+        date = datetime.datetime.utcnow().strftime('%Y%m%d')
+        return os.path.join(base, layer, f'{prefix}_{date}.jsonl')
+
+    def _append_audit_jsonl(self, path: str, record: dict):
+        """Append record to JSONL file with audit."""
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, 'a') as f:
+            json.dump(record, f)
+            f.write('\n')
+
+    def _session_file(self, base: str, session_id: str) -> str:
+        """Get session file path."""
+        return os.path.join(base, 'session', f'session_{session_id}.jsonl')
+
+    def _working_file(self, base: str) -> str:
+        """Get working file path."""
+        date = datetime.datetime.utcnow().strftime('%Y%m%d')
+        return os.path.join(base, 'working', f'working_{date}.jsonl')
+
+    def _append_jsonl(self, path: str, record: dict):
+        """Append record to JSONL file."""
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, 'a') as f:
+            json.dump(record, f)
+            f.write('\n')
+
 # Singleton instance
 memory_service = MemoryService()
+
+# Layer-specific service functions
+
+def add_episodic(memory_service: MemoryService, tenant: str, project_id: str, content: str, salience: int) -> dict:
+    """Add episodic memory with salience."""
+    base = memory_service._store_dir(tenant, project_id)
+    path = memory_service._dated_file(base, 'episodic', 'episodic')
+    rec = {
+        'content': content,
+        'salience': salience,
+        'project_id': project_id,
+        'ts': datetime.datetime.utcnow().isoformat(),
+    }
+    memory_service._append_jsonl(path, rec)
+    return rec
+
+def list_episodic(memory_service: MemoryService, tenant: str, project_id: str) -> list:
+    """List episodic memories."""
+    base = memory_service._store_dir(tenant, project_id)
+    out = []
+    import glob
+    folder = os.path.join(base, 'episodic')
+    for fp in sorted(glob.glob(os.path.join(folder, 'episodic_*.jsonl'))):
+        if os.path.exists(fp):
+            with open(fp, 'r') as f:
+                for line in f:
+                    try:
+                        obj = json.loads(line)
+                        out.append(obj)
+                    except:
+                        pass
+    return out
+
+def add_procedural(memory_service: MemoryService, tenant: str, project_id: str, skill_id: str, steps: list) -> dict:
+    """Add procedural memory."""
+    base = memory_service._store_dir(tenant, project_id)
+    path = memory_service._dated_file(base, 'procedural', 'procedural')
+    rec = {
+        'skill_id': skill_id,
+        'steps': steps,
+        'project_id': project_id,
+        'ts': datetime.datetime.utcnow().isoformat(),
+    }
+    memory_service._append_jsonl(path, rec)
+    return rec
+
+def list_procedural(memory_service: MemoryService, tenant: str, project_id: str) -> list:
+    """List procedural memories."""
+    base = memory_service._store_dir(tenant, project_id)
+    out = []
+    import glob
+    folder = os.path.join(base, 'procedural')
+    for fp in sorted(glob.glob(os.path.join(folder, 'procedural_*.jsonl'))):
+        if os.path.exists(fp):
+            with open(fp, 'r') as f:
+                for line in f:
+                    try:
+                        obj = json.loads(line)
+                        out.append(obj)
+                    except:
+                        pass
+    return out
+
+def add_rag(memory_service: MemoryService, tenant: str, project_id: str, query: str, external_source: str) -> dict:
+    """Add RAG memory."""
+    base = memory_service._store_dir(tenant, project_id)
+    path = memory_service._dated_file(base, 'rag', 'rag')
+    rec = {
+        'query': query,
+        'external_source': external_source,
+        'project_id': project_id,
+        'ts': datetime.datetime.utcnow().isoformat(),
+    }
+    memory_service._append_jsonl(path, rec)
+    return rec
+
+def list_rag(memory_service: MemoryService, tenant: str, project_id: str) -> list:
+    """List RAG memories."""
+    base = memory_service._store_dir(tenant, project_id)
+    out = []
+    import glob
+    folder = os.path.join(base, 'rag')
+    for fp in sorted(glob.glob(os.path.join(folder, 'rag_*.jsonl'))):
+        if os.path.exists(fp):
+            with open(fp, 'r') as f:
+                for line in f:
+                    try:
+                        obj = json.loads(line)
+                        out.append(obj)
+                    except:
+                        pass
+    return out
+
+def search_v2(memory_service: MemoryService, tenant: str, project_id: str, query: str, layer_list: list) -> dict:
+    """Search across multiple layers."""
+    results = {}
+    if 'episodic' in layer_list:
+        epi_results = list_episodic(memory_service, tenant, project_id)
+        results['episodic'] = [r for r in epi_results if query.lower() in r.get('content', '').lower()][:5]
+    if 'procedural' in layer_list:
+        proc_results = list_procedural(memory_service, tenant, project_id)
+        results['procedural'] = [r for r in proc_results if query.lower() in r.get('skill_id', '').lower()][:5]
+    if 'rag' in layer_list:
+        rag_results = list_rag(memory_service, tenant, project_id)
+        results['rag'] = [r for r in rag_results if query.lower() in r.get('query', '').lower()][:5]
+    return results
