@@ -1,689 +1,234 @@
-from __future__ import annotations
-
-import datetime
-import glob
 import json
-import math
 import os
-import threading
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
-
-import faiss
+import uuid
+import datetime
 import numpy as np
-from app.core.schemas import MemoryCreate, MemoryOut, MemorySearchResult
-
-# ---- Project imports (adjust paths if your structure differs) ----
-# Models / Schemas
-from app.db.models import Base, Memory
-from app.embedder import get_embedder
-from sqlalchemy import create_engine, select
-from sqlalchemy.orm import Session, sessionmaker
-
-# ------------------------------------------------------------------
-# In-process FAISS index holder (one per process). If you have multi-process workers,
-# back the index by a shared store or rebuild per process at startup.
-# ------------------------------------------------------------------
-
-
-class _FaissHolder:
-    """
-    Lazily initializes a FAISS index with the correct dimension and provides a lock
-    for thread-safe mutation and search.
-    """
-
-    def __init__(self) -> None:
-        self._index: Optional[faiss.Index] = None
-        self._dim: Optional[int] = None
-        self._lock = threading.RLock()
-
-    @property
-    def lock(self) -> threading.RLock:
-        return self._lock
-
-    def ensure(self, embedding_dim: int) -> faiss.Index:
-        with self._lock:
-            if self._index is not None:
-                # Guard against dimension mismatches
-                if self._dim is not None and self._dim != embedding_dim:
-                    raise RuntimeError(
-                        f"FAISS index dimension mismatch: index={self._dim}, embedder={embedding_dim}"
-                    )
-                return self._index
-
-            # Use IndexIDMap to support add_with_ids
-            base_index = faiss.IndexFlatL2(embedding_dim)
-            index = faiss.IndexIDMap(base_index)
-            self._index = index
-            self._dim = embedding_dim
-            return index
-
-    def get(self) -> faiss.Index:
-        if self._index is None:
-            raise RuntimeError("FAISS index not initialized; call ensure(dim) first.")
-        return self._index
-
-
-_FAISS = _FaissHolder()
-
-
-# -----------------------
-# Utility helpers
-# -----------------------
-
-
-def _to_vec(x: Sequence[float]) -> np.ndarray:
-    arr = np.asarray(x, dtype="float32")
-    if arr.ndim == 1:
-        arr = arr.reshape(1, -1)
-    return arr
-
-
-def _preserve_rank(items: Iterable[Memory], order_ids: List[int]) -> List[Memory]:
-    by_id = {m.faiss_id: m for m in items if m.faiss_id is not None}
-    return [by_id[i] for i in order_ids if i in by_id]
-
-
-# -----------------------
-# Service
-# -----------------------
-
+import faiss
+import redis
+from sentence_transformers import SentenceTransformer
+from app.core.schemas import MemoryCreate, MemoryRead, MemorySearchResult
+from typing import List
 
 class MemoryService:
-    """
-    Memory add/search with FAISS-backed ANN. The critical invariant:
-    **faiss_id == Memory.id** (DB PK). We assign faiss_id in a single transaction.
+    """The core logic for the memory service, handling vector search and storage."""
 
-    Requirements for the Memory model:
-      - id: int PK (autoincrement)
-      - faiss_id: Optional[int]
-      - content: str
-      - embedding: Optional[bytes|str|JSON]  (if you persist it)
-      - metadata: Optional[JSON/dict]
-      - project_id: Optional[str]  (if multi-tenant)
-    """
+    def __init__(self, config_path='app/core/config.json'):
+        print("Initializing MemoryService with real logic...")
+        self.config = self._load_config(config_path)
+        self._ensure_data_directory()
+        self.model = SentenceTransformer(self.config['embedding_model'])
+        self.index, self.metadata = self._load_or_create_vector_db()
+        self.redis_client = self._connect_to_redis()
+        print("MemoryService initialized.")
 
-    def __init__(
-        self,
-        project_id: Optional[str] = None,
-        config_path: Optional[str] = None,
-        database_url: Optional[str] = None,
-        data_dir: Optional[str] = None,
-    ) -> None:
-        self.project_id = project_id
-        self.config_path = config_path
-        self.database_url = database_url or "sqlite:///./data/memory.db"
-        self.data_dir = data_dir or "data"  # Default data directory
+    def _connect_to_redis(self):
+        """Connects to the Redis server, prioritizing environment variables."""
+        redis_host = os.getenv("REDIS_HOST", self.config.get("redis_host", "localhost"))
+        redis_port = int(os.getenv("REDIS_PORT", self.config.get("redis_port", 6379)))
+        
+        try:
+            client = redis.Redis(host=redis_host, port=redis_port, decode_responses=True)
+            client.ping()
+            print(f"Successfully connected to Redis at {redis_host}:{redis_port}.")
+            return client
+        except Exception as e:
+            print(f"Redis not available at {redis_host}:{redis_port}. Continuing without Redis. Error: {e}")
+            return None
 
-        # Initialize SQLAlchemy engine and session
-        self.engine = create_engine(self.database_url, echo=False)
-        self.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
+    def _load_config(self, path):
+        with open(path, 'r') as f:
+            return json.load(f)
 
-        self.embedder = get_embedder()
-        # Initialize FAISS with correct dim once
-        _FAISS.ensure(self.embedder.dim)
-        self.redis_client = None  # Optional Redis
+    def _ensure_data_directory(self):
+        data_dir = os.path.dirname(self.config['vector_db_path'])
+        if not os.path.exists(data_dir):
+            os.makedirs(data_dir)
 
-    async def create_all(self) -> None:
-        """Create all database tables."""
-        with self.engine.begin() as conn:
-            Base.metadata.create_all(bind=conn)
+    def _load_or_create_vector_db(self):
+        db_path = self.config['vector_db_path']
+        meta_path = self.config['metadata_db_path']
+        if os.path.exists(db_path) and os.path.exists(meta_path):
+            index = faiss.read_index(db_path)
+            with open(meta_path, 'r') as f:
+                metadata = json.load(f)
+        else:
+            embedding_dim = self.model.get_sentence_embedding_dimension()
+            index = faiss.IndexFlatL2(embedding_dim)
+            metadata = {}
+        return index, metadata
 
-    async def drop_all(self) -> None:
-        """Drop all database tables."""
-        with self.engine.begin() as conn:
-            Base.metadata.drop_all(bind=conn)
+    def _save_vector_db(self):
+        faiss.write_index(self.index, self.config['vector_db_path'])
+        with open(self.config['metadata_db_path'], 'w') as f:
+            json.dump(self.metadata, f, indent=2)
 
-    def Session(self) -> Session:
-        """Get a new SQLAlchemy session."""
-        return self.SessionLocal()
+    def add_memory(self, memory_data: MemoryCreate) -> MemoryRead:
+        memory_id = str(uuid.uuid4())
+        embedding = self.model.encode([memory_data.content])[0].astype('float32')
+        self.index.add(np.array([embedding]))
+        
+        new_meta = {
+            "id": memory_id,
+            "content": memory_data.content,
+            "tags": memory_data.tags,
+            "created_at": datetime.datetime.utcnow().isoformat(),
+        }
+        self.metadata[str(self.index.ntotal - 1)] = new_meta
+        self._save_vector_db()
+        return MemoryRead.model_validate(new_meta)
 
-    async def aclose(self) -> None:
-        """Close the service and clean up resources."""
-        # Clean up Redis connection if it exists
-        if self.redis_client is not None:
-            try:
-                await self.redis_client.aclose()  # type: ignore
-            except Exception:
-                pass
-        # Dispose of SQLAlchemy engine
-        if hasattr(self, "engine") and self.engine is not None:
-            self.engine.dispose()
-
-    # ------------- Add -------------
-
-    def add_memory(self, payload: MemoryCreate, db: Optional[Session] = None) -> MemoryOut:
-        """
-        Single-commit add:
-          1) Compute embedding
-          2) Create row, session.add + flush() to obtain DB id
-          3) Use DB id as faiss_id; add vector with add_with_ids()
-          4) Set row.faiss_id = id and commit()
-        """
-        # For now, create a simple in-memory storage if no db provided
-        if db is None:
-            # Simple in-memory storage for testing
-            import uuid
-
-            memory_id = str(uuid.uuid4())
-            return MemoryOut(
-                id=memory_id,
-                faiss_id=None,
-                content=payload.content,
-                metadata=None,
-                tags=payload.tags or [],
-                created_at=datetime.datetime.now(datetime.timezone.utc),
-                redacted=None,
-            )
-
-        # 1) Embed
-        vec = self._embed_text(payload.content)  # (1, d)
-        d = vec.shape[1]
-
-        # 2) Create row and flush to get PK
-        row = Memory(
-            content=payload.content,
-            tags=payload.tags,
-            memory_data=self._safe_metadata(payload.metadata),
-            project_id=self.project_id,
-            created_at=datetime.datetime.now(datetime.timezone.utc),
-        )
-        db.add(row)
-        db.flush()  # assigns row.id without committing
-
-        # 3) Use a simple integer ID for FAISS
-        faiss_id = hash(row.id) % 1000000  # Use hash of DB ID as FAISS ID
-
-        # 4) Add vector to FAISS (thread-safe)
-        index = _FAISS.ensure(d)
-        with _FAISS.lock:
-            faiss_ids = np.asarray([faiss_id], dtype=np.int64)
-            index.add_with_ids(vec, faiss_ids)  # type: ignore
-
-        # 5) Persist faiss_id in the same transaction and commit
-        row.faiss_id = faiss_id
-        db.commit()
-        db.refresh(row)
-
-        # Invalidate search cache
-        if self.redis_client is not None:
-            try:
-                for key in self.redis_client.scan_iter("search:*"):  # type: ignore
-                    self.redis_client.delete(key)  # type: ignore
-            except Exception:
-                pass
-
-        return self._to_out(row)
-
-    # ------------- Search -------------
-
-    def search_memory(
-        self,
-        query: str,
-        k: int = 5,
-        project_id: Optional[str] = None,
-        min_score: Optional[float] = None,
-        use_inner_product: bool = False,
-        db: Optional[Session] = None,
-    ) -> List[MemoryOut]:
-        """
-        FAISS ANN → DB fetch by faiss_id → return ranked results.
-        - Filters invalid FAISS hits (id == -1 or NaN distances).
-        - Optional tenant filter via project_id.
-        - min_score threshold interprets distance as:
-            * If use_inner_product=True: score = similarity (higher is better)
-            * Else (L2): score = -distance (higher is better)
-        """
-        # Check cache first
-        cache_key = f"search:{query}:{k}"
-        if self.redis_client is not None:
-            try:
-                cached_result = self.redis_client.get(cache_key)  # type: ignore
-                if cached_result:
-                    # Return cached result
-                    cached_data = json.loads(cached_result)
-                    return [MemoryOut(**item) for item in cached_data]
-            except Exception:
-                pass  # Cache miss or error, continue with search
-
-        qvec = self._embed_text(query)
-        index = _FAISS.get()
-
-        # Search (thread-safe)
-        with _FAISS.lock:
-            distances, ids = index.search(qvec, k)  # type: ignore
-
-        ids_row = ids[0].tolist()
-        dists_row = distances[0].tolist()
-
-        # Filter out FAISS "empty" hits
-        filtered: List[Tuple[int, float]] = []
-        for i, dist in zip(ids_row, dists_row):
-            if i == -1:
-                continue
-            if i is None:
-                continue
-            if dist is None or (isinstance(dist, float) and math.isnan(dist)):
-                continue
-            filtered.append((int(i), float(dist)))
-
-        if not filtered:
-            return []
-
-        ordered_ids = [i for i, _ in filtered]
-
-        # Optional score thresholding
-        if min_score is not None:
-            if use_inner_product:
-                keep = [i for (i, s) in filtered if s >= min_score]
-            else:
-                # For L2, convert to a "score" where higher is better
-                keep = [i for (i, d) in filtered if (-d) >= min_score]
-            if not keep:
-                return []
-            ordered_ids = [i for i in ordered_ids if i in set(keep)]
-            if not ordered_ids:
-                return []
-
-        # For now, return mock results if no db provided
-        if db is None:
-            # Mock search results for testing
-            return [
-                MemoryOut(
-                    id="mock-id-1",
-                    faiss_id=None,
-                    content=f"Mock result for query: {query}",
-                    metadata=None,
-                    tags=["mock"],
-                    created_at=datetime.datetime.now(datetime.timezone.utc),
-                    redacted=None,
-                    distance=0.5,
-                )
-            ]
-
-        # Fetch rows in bulk
-        stmt = select(Memory).where(Memory.faiss_id.in_(ordered_ids))
-        if project_id or self.project_id:
-            tenant = project_id or self.project_id
-            stmt = stmt.where(Memory.project_id == tenant)
-
-        rows: List[Memory] = list(db.execute(stmt).scalars().all())
-        if not rows:
-            return []
-
-        ranked_rows = _preserve_rank(rows, ordered_ids)
-        # Create results with distances
+    def search_memory(self, query: str, k: int = 5) -> List[MemorySearchResult]:
+        query_embedding = self.model.encode([query])[0].astype('float32')
+        distances, indices = self.index.search(np.array([query_embedding]), k)
+        
         results = []
-        for row, (faiss_id, distance) in zip(ranked_rows, filtered):
-            result = self._to_out(row, distance)
-            results.append(result)
-
-        # Cache the results
-        if self.redis_client is not None:
-            try:
-                # Convert datetime objects to ISO strings for JSON serialization
-                cache_data = []
-                for result in results:
-                    result_dict = result.model_dump()
-                    if "created_at" in result_dict and isinstance(
-                        result_dict["created_at"], datetime.datetime
-                    ):
-                        result_dict["created_at"] = result_dict["created_at"].isoformat()
-                    cache_data.append(result_dict)
-                self.redis_client.setex(cache_key, 3600, json.dumps(cache_data))  # type: ignore
-            except Exception as e:
-                print(f"Cache write error: {e}")  # Debug print
-                pass  # Cache write failure, ignore
-
+        for i in range(len(indices[0])):
+            index_pos = str(indices[0][i])
+            if index_pos in self.metadata:
+                meta = self.metadata[index_pos]
+                result_with_dist = {**meta, "distance": float(distances[0][i])}
+                results.append(MemorySearchResult.model_validate(result_with_dist))
         return results
 
-    # ------------- (Optional) Rebuild -------------
-
-    def rebuild_faiss_from_db(self, db: Session, batch_size: int = 1000) -> int:
-        """
-        Rebuilds the in-memory FAISS index from DB rows using their **DB ids as faiss_ids**.
-        Useful if you start a fresh process or after clearing the index.
-        Returns the count indexed.
-        """
-        index = _FAISS.ensure(self.embedder.dim)
-        with _FAISS.lock:
-            # Reset index
-            self._reset_index(index)
-
-            offset = 0
-            total = 0
-            while True:
-                q = select(Memory).order_by(Memory.id).limit(batch_size).offset(offset)
-                if self.project_id:
-                    q = q.where(Memory.project_id == self.project_id)
-                batch = list(db.execute(q).scalars().all())
-                if not batch:
-                    break
-
-                vecs: List[np.ndarray] = []
-                ids: List[int] = []
-                for row in batch:
-                    # If you persisted embeddings, load from row; else re-embed.
-                    emb = self._embed_text(row.content)  # (1, d)
-                    vecs.append(emb[0])
-                    # Use the same FAISS ID generation as in add_memory
-                    faiss_id = hash(row.id) % 1000000
-                    ids.append(faiss_id)
-
-                mat = np.vstack(vecs).astype("float32")
-                idarr = np.asarray(ids, dtype=np.int64)
-                index.add_with_ids(mat, idarr)  # type: ignore
-
-                # Keep faiss_id column in sync
-                for row in batch:
-                    expected_faiss_id = hash(row.id) % 1000000
-                    if row.faiss_id != expected_faiss_id:
-                        row.faiss_id = expected_faiss_id
-                db.flush()
-
-                total += len(batch)
-                offset += batch_size
-
-            db.commit()
-            return total
-
-    # ------------- Internal helpers -------------
-
-    def _embed_text(self, text: str | List[str]) -> np.ndarray:
-        vec = self.embedder.embed(text)
-        vec = np.asarray(vec, dtype="float32")
-        if vec.ndim == 1:
-            vec = vec.reshape(1, -1)
-        # If your search uses IndexFlatIP, you should L2-normalize here.
-        # faiss.normalize_L2(vec)  # uncomment when using inner product similarity
-        return vec
-
-    @staticmethod
-    def _reset_index(index: faiss.Index) -> None:
-        # Recreate a fresh empty index with the same dimension
-        dim = index.d
-        base_index = faiss.IndexFlatL2(dim)
-        new_index = faiss.IndexIDMap(base_index)
-        _FAISS._index = new_index  # swap in holder
-        _FAISS._dim = dim
-
-    @staticmethod
-    def _safe_metadata(md: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-        if md is None:
-            return None
-        # Ensure JSON-serializable
-        try:
-            json.dumps(md)
-            return md
-        except Exception:
-            return {"_raw": str(md)}
-
-    @staticmethod
-    def _serialize_embedding(vec1d: np.ndarray) -> List[float]:
-        # If you store embeddings in DB; returns Python list (JSON)
-        return [float(x) for x in np.asarray(vec1d, dtype="float32").tolist()]
-
-    @staticmethod
-    def _to_out(row: Memory, distance: Optional[float] = None) -> MemoryOut:
-        return MemoryOut(
-            id=row.id,
-            faiss_id=row.faiss_id,
-            content=row.content,
-            metadata=row.memory_data,
-            tags=row.tags,
-            created_at=row.created_at,
-            redacted=row.redacted,
-            distance=distance,
-        )
-
-    def _store_dir(self, tenant: str, project_id: Optional[str]) -> str:
+    def _store_dir(self, tenant: str, project_id: str) -> str:
         """Get storage directory for tenant/project."""
-        base = os.path.join(self.data_dir, tenant, project_id or "default")
+        base = os.path.join('data', tenant, project_id or 'default')
         os.makedirs(base, exist_ok=True)
         return base
 
     def _dated_file(self, base: str, layer: str, prefix: str) -> str:
         """Get dated file path for layer."""
-        date = datetime.datetime.utcnow().strftime("%Y%m%d")
-        return os.path.join(base, layer, f"{prefix}_{date}.jsonl")
+        date = datetime.datetime.utcnow().strftime('%Y%m%d')
+        return os.path.join(base, layer, f'{prefix}_{date}.jsonl')
 
-    def _append_audit_jsonl(self, path: str, record: Dict[str, Any]):
+    def _append_audit_jsonl(self, path: str, record: dict):
         """Append record to JSONL file with audit."""
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "a") as f:
+        with open(path, 'a') as f:
             json.dump(record, f)
-            f.write("\n")
-
-    def _append_jsonl(self, path: str, record: Dict[str, Any]):
-        """Append record to JSONL file."""
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "a") as f:
-            json.dump(record, f)
-            f.write("\n")
+            f.write('\n')
 
     def _session_file(self, base: str, session_id: str) -> str:
         """Get session file path."""
-        return os.path.join(base, "session", f"session_{session_id}.jsonl")
+        return os.path.join(base, 'session', f'session_{session_id}.jsonl')
 
     def _working_file(self, base: str) -> str:
         """Get working file path."""
-        date = datetime.datetime.utcnow().strftime("%Y%m%d")
-        return os.path.join(base, "working", f"working_{date}.jsonl")
+        date = datetime.datetime.utcnow().strftime('%Y%m%d')
+        return os.path.join(base, 'working', f'working_{date}.jsonl')
 
-    def redact_memory(
-        self, memory_id: str, tenant: str, project_id: Optional[str], reason: str
-    ) -> Dict[str, Any]:
-        """Redact a memory."""
-        # Stub: mark as redacted
-        return {"status": "redacted", "id": memory_id}
-
-    def list_changelog(
-        self,
-        tenant: str,
-        project_id: Optional[str],
-        change_type: Optional[str],
-        since: Optional[str],
-        until: Optional[str],
-        limit: int,
-        offset: int,
-    ) -> List[Dict[str, Any]]:
-        """List changelog entries."""
-        base = self._store_dir(tenant, project_id)
-        out = []
-        folder = os.path.join(base, "changelog")
-        import glob
-
-        for fp in sorted(glob.glob(os.path.join(folder, "changes_*.jsonl"))):
-            if os.path.exists(fp):
-                with open(fp, "r") as f:
-                    for line in f:
-                        try:
-                            obj = json.loads(line)
-                            out.append(obj)
-                        except Exception as e:
-                            pass
-        return out[offset : offset + limit]
-
-    def write_audit_anchor(
-        self,
-        tenant: str,
-        project_id: Optional[str],
-        kind: str,
-        date: Optional[str],
-        reason: str,
-    ) -> Dict[str, Any]:
-        """Write audit anchor."""
-        base = self._store_dir(tenant, project_id)
-        path = os.path.join(base, "audit", f"anchor_{kind}.json")
-        anchor = {
-            "kind": kind,
-            "date": date,
-            "reason": reason,
-            "ts": datetime.datetime.utcnow().isoformat(),
-        }
+    def _append_jsonl(self, path: str, record: dict):
+        """Append record to JSONL file."""
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "w") as f:
-            json.dump(anchor, f)
-        return anchor
+        with open(path, 'a') as f:
+            json.dump(record, f)
+            f.write('\n')
 
-    def verify_audit_chain(
-        self, tenant: str, project_id: Optional[str], kind: str, date: Optional[str]
-    ) -> Dict[str, Any]:
-        """Verify audit chain."""
-        # Stub implementation - always return verified for now
-        return {"verified": True, "kind": kind, "ok": True, "count": 1}
+# Singleton instance
+memory_service = MemoryService()
 
-    # Layer-specific service functions (outside the class for import)
+# Layer-specific service functions
 
-
-def add_episodic(
-    memory_service: MemoryService,
-    tenant: str,
-    project_id: Optional[str],
-    content: str,
-    salience: int,
-) -> Dict[str, Any]:
+def add_episodic(memory_service: MemoryService, tenant: str, project_id: str, content: str, salience: int) -> dict:
     """Add episodic memory with salience."""
-    # Store in JSONL file
     base = memory_service._store_dir(tenant, project_id)
-    path = memory_service._dated_file(base, "episodic", "episodic")
+    path = memory_service._dated_file(base, 'episodic', 'episodic')
     rec = {
-        "content": content,
-        "salience": salience,
-        "project_id": project_id,
-        "ts": datetime.datetime.utcnow().isoformat(),
+        'content': content,
+        'salience': salience,
+        'project_id': project_id,
+        'ts': datetime.datetime.utcnow().isoformat(),
     }
-    memory_service._append_audit_jsonl(path, rec)
+    memory_service._append_jsonl(path, rec)
     return rec
 
-
-def list_episodic(
-    memory_service: MemoryService, tenant: str, project_id: Optional[str]
-) -> List[Dict[str, Any]]:
+def list_episodic(memory_service: MemoryService, tenant: str, project_id: str) -> list:
     """List episodic memories."""
     base = memory_service._store_dir(tenant, project_id)
     out = []
     import glob
-
-    folder = os.path.join(base, "episodic")
-    for fp in sorted(glob.glob(os.path.join(folder, "episodic_*.jsonl"))):
+    folder = os.path.join(base, 'episodic')
+    for fp in sorted(glob.glob(os.path.join(folder, 'episodic_*.jsonl'))):
         if os.path.exists(fp):
-            with open(fp, "r") as f:
+            with open(fp, 'r') as f:
                 for line in f:
                     try:
                         obj = json.loads(line)
                         out.append(obj)
-                    except Exception as e:
+                    except:
                         pass
-    # Sort by salience in descending order (highest first)
-    out.sort(key=lambda x: x.get("salience", 0), reverse=True)
     return out
 
-
-def add_procedural(
-    memory_service: MemoryService,
-    tenant: str,
-    project_id: Optional[str],
-    skill_id: str,
-    steps: List[str],
-) -> Dict[str, Any]:
+def add_procedural(memory_service: MemoryService, tenant: str, project_id: str, skill_id: str, steps: list) -> dict:
     """Add procedural memory."""
     base = memory_service._store_dir(tenant, project_id)
-    path = memory_service._dated_file(base, "procedural", "procedural")
+    path = memory_service._dated_file(base, 'procedural', 'procedural')
     rec = {
-        "skill_id": skill_id,
-        "steps": steps,
-        "project_id": project_id,
-        "ts": datetime.datetime.utcnow().isoformat(),
+        'skill_id': skill_id,
+        'steps': steps,
+        'project_id': project_id,
+        'ts': datetime.datetime.utcnow().isoformat(),
     }
-    memory_service._append_audit_jsonl(path, rec)
+    memory_service._append_jsonl(path, rec)
     return rec
 
-
-def list_procedural(
-    memory_service: MemoryService, tenant: str, project_id: Optional[str]
-) -> List[Dict[str, Any]]:
+def list_procedural(memory_service: MemoryService, tenant: str, project_id: str) -> list:
     """List procedural memories."""
     base = memory_service._store_dir(tenant, project_id)
     out = []
     import glob
-
-    folder = os.path.join(base, "procedural")
-    for fp in sorted(glob.glob(os.path.join(folder, "procedural_*.jsonl"))):
+    folder = os.path.join(base, 'procedural')
+    for fp in sorted(glob.glob(os.path.join(folder, 'procedural_*.jsonl'))):
         if os.path.exists(fp):
-            with open(fp, "r") as f:
+            with open(fp, 'r') as f:
                 for line in f:
                     try:
                         obj = json.loads(line)
                         out.append(obj)
-                    except Exception as e:
+                    except:
                         pass
     return out
 
-
-def add_rag(
-    memory_service: MemoryService,
-    tenant: str,
-    project_id: Optional[str],
-    query: str,
-    external_source: Optional[str],
-) -> Dict[str, Any]:
+def add_rag(memory_service: MemoryService, tenant: str, project_id: str, query: str, external_source: str) -> dict:
     """Add RAG memory."""
     base = memory_service._store_dir(tenant, project_id)
-    path = memory_service._dated_file(base, "rag", "rag")
+    path = memory_service._dated_file(base, 'rag', 'rag')
     rec = {
-        "query": query,
-        "external_source": external_source,
-        "project_id": project_id,
-        "ts": datetime.datetime.utcnow().isoformat(),
+        'query': query,
+        'external_source': external_source,
+        'project_id': project_id,
+        'ts': datetime.datetime.utcnow().isoformat(),
     }
-    memory_service._append_audit_jsonl(path, rec)
+    memory_service._append_jsonl(path, rec)
     return rec
 
-
-def list_rag(
-    memory_service: MemoryService, tenant: str, project_id: Optional[str]
-) -> List[Dict[str, Any]]:
+def list_rag(memory_service: MemoryService, tenant: str, project_id: str) -> list:
     """List RAG memories."""
     base = memory_service._store_dir(tenant, project_id)
     out = []
     import glob
-
-    folder = os.path.join(base, "rag")
-    for fp in sorted(glob.glob(os.path.join(folder, "rag_*.jsonl"))):
+    folder = os.path.join(base, 'rag')
+    for fp in sorted(glob.glob(os.path.join(folder, 'rag_*.jsonl'))):
         if os.path.exists(fp):
-            with open(fp, "r") as f:
+            with open(fp, 'r') as f:
                 for line in f:
                     try:
                         obj = json.loads(line)
                         out.append(obj)
-                    except Exception as e:
+                    except:
                         pass
     return out
 
-
-def search_v2(
-    memory_service: MemoryService,
-    tenant: str,
-    project_id: Optional[str],
-    query: str,
-    layer_list: List[str],
-) -> Dict[str, Any]:
+def search_v2(memory_service: MemoryService, tenant: str, project_id: str, query: str, layer_list: list) -> dict:
     """Search across multiple layers."""
     results = {}
-    # Semantic not included here as it's DB-based
-    if "episodic" in layer_list:
+    if 'episodic' in layer_list:
         epi_results = list_episodic(memory_service, tenant, project_id)
-        # Simple filter by content
-        results["episodic"] = [
-            r for r in epi_results if query.lower() in r.get("content", "").lower()
-        ][:5]
-    if "procedural" in layer_list:
+        results['episodic'] = [r for r in epi_results if query.lower() in r.get('content', '').lower()][:5]
+    if 'procedural' in layer_list:
         proc_results = list_procedural(memory_service, tenant, project_id)
-        results["procedural"] = [
-            r for r in proc_results if query.lower() in r.get("skill_id", "").lower()
-        ][:5]
-    if "rag" in layer_list:
+        results['procedural'] = [r for r in proc_results if query.lower() in r.get('skill_id', '').lower()][:5]
+    if 'rag' in layer_list:
         rag_results = list_rag(memory_service, tenant, project_id)
-        results["rag"] = [r for r in rag_results if query.lower() in r.get("query", "").lower()][:5]
-    # Add other layers similarly
+        results['rag'] = [r for r in rag_results if query.lower() in r.get('query', '').lower()][:5]
     return results
