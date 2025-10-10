@@ -14,7 +14,7 @@ jobs:
     - name: Install dependencies
       run: |
         pip install --upgrade uv
-        uv sync --project Pinak_Services/memory_service --no-dev --frozen
+        uv sync --extra tests --project Pinak_Services/memory_service --frozen
     - name: Run tests
       run: |
         cd Pinak_Services/memory_service
