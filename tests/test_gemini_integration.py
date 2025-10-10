@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+from typing import Optional
 
 import pytest
 
@@ -6,7 +7,7 @@ from pinak.integrations import gemini
 
 
 class StubMemoryManager:
-    def __init__(self, results=None, error: Exception | None = None):
+    def __init__(self, results=None, error: Optional[Exception] = None):
         self._results = results or []
         self._error = error
         self.search_v2_called_with = None
