@@ -1,9 +1,6 @@
 name: CI/CD Pipeline
 
-on:
-  push:
-    branches: [ main, feature/memory-partition-lock-audit ]
-  pull_request:
+on: [push, pull_request]
 
 jobs:
   test:
