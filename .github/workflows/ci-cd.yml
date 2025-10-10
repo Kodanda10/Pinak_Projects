@@ -1,10 +1,6 @@
 name: CI/CD Pipeline
 
-on:
-  push:
-    branches: [ main, feature/memory-partition-lock-audit ]
-  pull_request:
-    branches: [ main ]
+on: [push, pull_request, workflow_dispatch]
 
 jobs:
   test:
@@ -17,9 +13,8 @@ jobs:
         python-version: '3.13'
     - name: Install dependencies
       run: |
-        cd Pinak_Services/memory_service
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
+        pip install --upgrade uv
+        uv sync --project Pinak_Services/memory_service --no-dev --frozen
     - name: Run tests
       run: |
         cd Pinak_Services/memory_service

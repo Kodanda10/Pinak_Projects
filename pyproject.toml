@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pinak-project"
+version = "1.0.0"
+description = "A unified local-first package for AI memory and security auditing."
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "Abhijita/Gemini" }]
+dependencies = [
+    "httpx>=0.24,<0.27",
+]
+
+[project.optional-dependencies]
+security = [
+    "pip-audit>=2.7",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["pinak*"]
+
+
+[tool.uv.workspace]
+members = ["Pinak_Services/memory_service"]

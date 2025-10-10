@@ -12,16 +12,17 @@ Pinak is a local-first, enterprise-grade AI assistant designed for developers, p
 ### Key Features
 - **8-Layer Memory System**: Semantic, Episodic, Procedural, RAG, Events, Session, Working, Changelog
 - **Local-First Architecture**: Data stored locally with optional sync
-- **Enterprise Security**: JWT, OPA/Rego policies, tamper-evident audits
+- **Enterprise Security Foundations**: JWT-protected APIs and tamper-evident audits
 - **Real-Time Context**: Proactive nudges and orchestration
 - **Multi-Tenant**: Project-based isolation with audit trails
 
 ## 🚀 Quick Start
 
 ### Prerequisites
-- Python 3.13+
+- Python 3.11+
 - Docker (optional)
 - Redis (optional, for caching)
+- [uv](https://astral.sh/uv) (fast Python package manager)
 
 ### Installation
 
@@ -30,14 +31,51 @@ Pinak is a local-first, enterprise-grade AI assistant designed for developers, p
 git clone https://github.com/Pinak-Setu/Pinak_Projects.git
 cd Pinak_Projects
 
-# Install Python dependencies for the CLI and tests
-pip install -r requirements.txt
+# Install uv (skip if already installed)
+pip install --upgrade uv
 
-# (Optional) Run the FastAPI memory service if you want to talk to a live backend
-cd Pinak_Services/memory_service
-pip install -r requirements.txt
-uvicorn app.main:app --reload
+# Sync project dependencies
+uv sync --frozen
+uv sync --project Pinak_Services/memory_service --no-dev --frozen
+
+# Configure authentication secret (generate a strong value in production)
+export PINAK_JWT_SECRET="dev-secret-change-me"
+
+# Run the service
+uv run --project Pinak_Services/memory_service uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
 ```
+
+### Authentication & Multi-Tenancy
+
+All API routes require a Bearer JWT. The token **must** include `tenant` (or `tenant_id`) and `project_id` claims; data is stored and retrieved from segregated directories derived from these values.
+
+In development you can mint a token with:
+
+```bash
+python - <<'PY'
+import datetime, jwt
+token = jwt.encode(
+    {
+        "sub": "local-dev",
+        "tenant": "demo-tenant",
+        "project_id": "demo-project",
+        "iat": datetime.datetime.utcnow(),
+        "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=1),
+    },
+    "dev-secret-change-me",
+    algorithm="HS256",
+)
+print(token)
+PY
+```
+
+Then export it for subsequent requests:
+
+```bash
+export PINAK_DEV_TOKEN="<token-from-command-above>"
+```
+
+Use the generated value in the `Authorization: Bearer <token>` header when calling the API.
 
 ### API Usage
 
@@ -45,18 +83,22 @@ uvicorn app.main:app --reload
 # Add semantic memory
 curl -X POST "http://localhost:8001/api/v1/memory/add" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ${PINAK_DEV_TOKEN}" \
   -d '{"content": "Python async functions use await", "tags": ["python", "async"]}'
 
 # Search memory
-curl "http://localhost:8001/api/v1/memory/search?query=async&limit=5"
+curl "http://localhost:8001/api/v1/memory/search?query=async&limit=5" \
+  -H "Authorization: Bearer ${PINAK_DEV_TOKEN}"
 
 # Add episodic memory
 curl -X POST "http://localhost:8001/api/v1/memory/episodic/add" \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer ${PINAK_DEV_TOKEN}" \
   -d '{"content": "Fixed async bug in CI pipeline", "salience": 8}'
 
 # Multi-layer search
-curl "http://localhost:8001/api/v1/memory/search_v2?query=async&layers=semantic,episodic,procedural"
+curl "http://localhost:8001/api/v1/memory/search_v2?query=async&layers=episodic,procedural,rag" \
+  -H "Authorization: Bearer ${PINAK_DEV_TOKEN}"
 ```
 
 ## 🏗️ Architecture
@@ -108,41 +150,23 @@ curl "http://localhost:8001/api/v1/memory/search_v2?query=async&layers=semantic,
 ## 🧪 Testing
 
 ```bash
-# Run the CLI integration suite
-PYTHONPATH=src pytest tests/test_cli.py -q
+# Run all tests (uses deterministic embeddings, no external downloads)
+uv sync --project Pinak_Services/memory_service --group tests --frozen
+uv run --project Pinak_Services/memory_service pytest tests/ -v
 
-# Run the entire test suite
-PYTHONPATH=src pytest
+# Run with coverage
+uv run --project Pinak_Services/memory_service pytest tests/ --cov=app --cov-report=html
 
-# Legacy service tests are still available under the FastAPI app
-cd Pinak_Services/memory_service
-pytest tests/ -v
-```
-
-### CLI Quick Start
-
-The Typer-based `pinak` CLI persists its configuration in `~/.pinak/config.json` by default.
-
-```bash
-# Log in and persist configuration
-pinak login --service-url http://localhost:8001 --token <TOKEN> --tenant-id <TENANT> --project-id <PROJECT>
-
-# Add a memory and search for it
-pinak memory add "Remember this" --tag cli --tag example
-pinak memory search "Remember" --k 3
-
-# List events and session data
-pinak events list --limit 10
-pinak session list SESSION-ID --limit 10
-
-# Override the configuration location (optional)
-PINAK_CONFIG_PATH=/tmp/pinak-config.json pinak memory search "query"
+# Run demo script
+uv run --project Pinak_Services/memory_service python ../../scripts/demo_all_layers.py
 ```
 
 ## 🔒 Security
 
 - **Local-First**: All data stored locally by default
-- **Tamper-Evident**: Hash-chained audit logs
+- **JWT Guarded Endpoints**: All memory APIs enforce Bearer token validation
+- **Tamper-Evident**: Hash-chained audit logs for events
+- **Tenant Isolation**: File-system level segregation by `tenant` and `project_id`
 - **Privacy**: Configurable redaction rules
 - **Compliance**: GDPR, SOC2, and enterprise-ready
 
@@ -154,6 +178,7 @@ See [SECURITY.md](SECURITY.md) for details.
 - [SOTA Context Orchestrator Plan](Pinakontext_SOTA_Plan.md)
 - [Development Log](development_log.md)
 - [API Documentation](docs/)
+- [Remediation & Hardening Plan](docs/remediation_plan.md)
 - [Contributing Guide](CONTRIBUTING.md)
 
 ## 🤝 Contributing
