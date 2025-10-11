@@ -1,25 +1,65 @@
 import json
 import os
+import re
 import uuid
+import hashlib
 import datetime
+from typing import Dict, List, Optional, Tuple
+
 import numpy as np
 import faiss
 import redis
 from sentence_transformers import SentenceTransformer
+
 from app.core.schemas import MemoryCreate, MemoryRead, MemorySearchResult
-from typing import List
+
+
+class _DeterministicEncoder:
+    """Lightweight embedding encoder used for tests and local development."""
+
+    def __init__(self, dimension: int = 8):
+        self.embedding_dimension = dimension
+
+    def encode(self, sentences: List[str]) -> np.ndarray:
+        import itertools
+        vectors = []
+        for sentence in sentences:
+            digest = hashlib.sha256(sentence.encode("utf-8")).digest()
+            needed_bytes = self.embedding_dimension * 4
+            if len(digest) < needed_bytes:
+                # Use itertools.cycle for efficient padding
+                digest = bytes(itertools.islice(itertools.cycle(digest), needed_bytes))
+            vectors.append(np.frombuffer(digest[:needed_bytes], dtype=np.float32))
+        return np.array(vectors, dtype=np.float32)
 
 class MemoryService:
     """The core logic for the memory service, handling vector search and storage."""
 
-    def __init__(self, config_path='app/core/config.json'):
-        print("Initializing MemoryService with real logic...")
+    def __init__(self, config_path: Optional[str] = None, model: Optional[object] = None):
+        config_path = config_path or os.getenv("PINAK_CONFIG_PATH", "app/core/config.json")
         self.config = self._load_config(config_path)
-        self._ensure_data_directory()
-        self.model = SentenceTransformer(self.config['embedding_model'])
-        self.index, self.metadata = self._load_or_create_vector_db()
+        self.data_root = self._determine_data_root()
+        os.makedirs(self.data_root, exist_ok=True)
+        self.model = model or self._load_embedding_model(self.config.get("embedding_model"))
+        self.embedding_dim = getattr(self.model, "embedding_dimension", None)
+        if self.embedding_dim is None and hasattr(self.model, "get_sentence_embedding_dimension"):
+            self.embedding_dim = self.model.get_sentence_embedding_dimension()
+        if self.embedding_dim is None:
+            raise RuntimeError("Unable to determine embedding dimension for the configured model")
+        self._vector_stores: Dict[Tuple[str, str], Dict[str, object]] = {}
         self.redis_client = self._connect_to_redis()
-        print("MemoryService initialized.")
+
+    def _determine_data_root(self) -> str:
+        if "data_root" in self.config:
+            return self.config["data_root"]
+        vector_path = self.config.get("vector_db_path", "data/memory.faiss")
+        return os.path.dirname(vector_path) or "data"
+
+    def _load_embedding_model(self, name: Optional[str]):
+        backend = os.getenv("PINAK_EMBEDDING_BACKEND")
+        if backend == "dummy" or not name or name.lower() == "dummy":
+            return _DeterministicEncoder()
+        return SentenceTransformer(name)
 
     def _connect_to_redis(self):
         """Connects to the Redis server, prioritizing environment variables."""
@@ -39,74 +79,148 @@ class MemoryService:
         with open(path, 'r') as f:
             return json.load(f)
 
-    def _ensure_data_directory(self):
-        data_dir = os.path.dirname(self.config['vector_db_path'])
-        if not os.path.exists(data_dir):
-            os.makedirs(data_dir)
+    def _vector_paths(self, tenant: str, project_id: str) -> Tuple[str, str]:
+        base = self._store_dir(tenant, project_id)
+        semantic_dir = os.path.join(base, "semantic")
+        os.makedirs(semantic_dir, exist_ok=True)
+        return (
+            os.path.join(semantic_dir, "memory.faiss"),
+            os.path.join(semantic_dir, "metadata.json"),
+        )
 
-    def _load_or_create_vector_db(self):
-        db_path = self.config['vector_db_path']
-        meta_path = self.config['metadata_db_path']
-        if os.path.exists(db_path) and os.path.exists(meta_path):
-            index = faiss.read_index(db_path)
-            with open(meta_path, 'r') as f:
-                metadata = json.load(f)
+    def _load_vector_store(self, tenant: str, project_id: str) -> Dict[str, object]:
+        vector_path, metadata_path = self._vector_paths(tenant, project_id)
+        if os.path.exists(vector_path) and os.path.exists(metadata_path):
+            index = faiss.read_index(vector_path)
+            with open(metadata_path, "r", encoding="utf-8") as fh:
+                metadata = json.load(fh)
         else:
-            embedding_dim = self.model.get_sentence_embedding_dimension()
-            index = faiss.IndexFlatL2(embedding_dim)
+            index = faiss.IndexFlatL2(self.embedding_dim)
             metadata = {}
-        return index, metadata
+        return {"index": index, "metadata": metadata, "vector_path": vector_path, "metadata_path": metadata_path}
 
-    def _save_vector_db(self):
-        faiss.write_index(self.index, self.config['vector_db_path'])
-        with open(self.config['metadata_db_path'], 'w') as f:
-            json.dump(self.metadata, f, indent=2)
+    def _get_vector_store(self, tenant: str, project_id: str) -> Dict[str, object]:
+        key = (tenant, project_id)
+        if key not in self._vector_stores:
+            self._vector_stores[key] = self._load_vector_store(tenant, project_id)
+        return self._vector_stores[key]
 
-    def add_memory(self, memory_data: MemoryCreate) -> MemoryRead:
+    def _save_vector_store(self, tenant: str, project_id: str) -> None:
+        store = self._vector_stores.get((tenant, project_id))
+        if not store:
+            return
+        faiss.write_index(store["index"], store["vector_path"])
+        with open(store["metadata_path"], "w", encoding="utf-8") as fh:
+            json.dump(store["metadata"], fh, indent=2)
+
+    def add_memory(self, memory_data: MemoryCreate, tenant: str, project_id: str) -> MemoryRead:
+        store = self._get_vector_store(tenant, project_id)
         memory_id = str(uuid.uuid4())
-        embedding = self.model.encode([memory_data.content])[0].astype('float32')
-        self.index.add(np.array([embedding]))
-        
+        embedding = self.model.encode([memory_data.content])[0].astype("float32")
+        store["index"].add(np.array([embedding]))
+
+        tags = memory_data.tags or []
         new_meta = {
             "id": memory_id,
             "content": memory_data.content,
-            "tags": memory_data.tags,
+            "tags": tags,
             "created_at": datetime.datetime.utcnow().isoformat(),
+            "tenant": tenant,
+            "project_id": project_id,
         }
-        self.metadata[str(self.index.ntotal - 1)] = new_meta
-        self._save_vector_db()
+        store["metadata"][str(store["index"].ntotal - 1)] = new_meta
+        self._save_vector_store(tenant, project_id)
         return MemoryRead.model_validate(new_meta)
 
-    def search_memory(self, query: str, k: int = 5) -> List[MemorySearchResult]:
-        query_embedding = self.model.encode([query])[0].astype('float32')
-        distances, indices = self.index.search(np.array([query_embedding]), k)
-        
-        results = []
+    def search_memory(self, query: str, tenant: str, project_id: str, k: int = 5) -> List[MemorySearchResult]:
+        store = self._get_vector_store(tenant, project_id)
+        if store["index"].ntotal == 0:
+            return []
+        k = min(k, store["index"].ntotal)
+        query_embedding = self.model.encode([query])[0].astype("float32")
+        distances, indices = store["index"].search(np.array([query_embedding]), k)
+
+        results: List[MemorySearchResult] = []
         for i in range(len(indices[0])):
             index_pos = str(indices[0][i])
-            if index_pos in self.metadata:
-                meta = self.metadata[index_pos]
+            if index_pos in store["metadata"]:
+                meta = store["metadata"][index_pos]
                 result_with_dist = {**meta, "distance": float(distances[0][i])}
                 results.append(MemorySearchResult.model_validate(result_with_dist))
         return results
 
+    def _sanitize_component(self, value: Optional[str]) -> str:
+        if not value:
+            return "default"
+        safe = re.sub(r"[^A-Za-z0-9_.-]", "_", value)
+        return safe or "default"
+
     def _store_dir(self, tenant: str, project_id: str) -> str:
         """Get storage directory for tenant/project."""
-        base = os.path.join('data', tenant, project_id or 'default')
+        tenant_component = self._sanitize_component(tenant)
+        project_component = self._sanitize_component(project_id)
+        base = os.path.join(self.data_root, tenant_component, project_component)
         os.makedirs(base, exist_ok=True)
         return base
 
     def _dated_file(self, base: str, layer: str, prefix: str) -> str:
         """Get dated file path for layer."""
         date = datetime.datetime.utcnow().strftime('%Y%m%d')
-        return os.path.join(base, layer, f'{prefix}_{date}.jsonl')
+        layer_dir = os.path.join(base, layer)
+        os.makedirs(layer_dir, exist_ok=True)
+        return os.path.join(layer_dir, f'{prefix}_{date}.jsonl')
 
-    def _append_audit_jsonl(self, path: str, record: dict):
-        """Append record to JSONL file with audit."""
+    def _last_audit_record(self, path: str) -> Optional[dict]:
+        if not os.path.exists(path):
+            return None
+        try:
+            with open(path, 'rb') as fh:
+                fh.seek(0, os.SEEK_END)
+                position = fh.tell()
+                buffer = b''
+                while position > 0:
+                    read_size = min(4096, position)
+                    position -= read_size
+                    fh.seek(position)
+                    buffer = fh.read(read_size) + buffer
+                    lines = buffer.split(b'\n')
+                    # If we have more than one line, process from the end
+                    for line in reversed(lines):
+                        line = line.strip()
+                        if line:
+                            try:
+                                return json.loads(line.decode('utf-8'))
+                            except (json.JSONDecodeError, UnicodeDecodeError):
+                                continue
+                    # If not enough lines, continue reading backwards
+                    buffer = lines[0]  # keep the partial first line
+                # If we reach here, try the remaining buffer
+                line = buffer.strip()
+                if line:
+                    try:
+                        return json.loads(line.decode('utf-8'))
+                    except (json.JSONDecodeError, UnicodeDecodeError):
+                        pass
+        except Exception:
+            pass
+        return None
+
+    def _compute_audit_hash(self, payload: dict) -> str:
+        to_hash = {k: v for k, v in payload.items() if k != 'hash'}
+        serialized = json.dumps(to_hash, sort_keys=True, separators=(',', ':')).encode('utf-8')
+        return hashlib.sha256(serialized).hexdigest()
+
+    def _append_audit_jsonl(self, path: str, record: dict) -> dict:
+        """Append record to JSONL file with tamper-evident hashing."""
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, 'a') as f:
-            json.dump(record, f)
+        prev_entry = self._last_audit_record(path)
+        prev_hash = prev_entry.get('hash') if prev_entry else None
+        payload = {**record, 'prev_hash': prev_hash}
+        payload['hash'] = self._compute_audit_hash(payload)
+        with open(path, 'a', encoding='utf-8') as f:
+            json.dump(payload, f, sort_keys=True)
             f.write('\n')
+        return payload
 
     def _session_file(self, base: str, session_id: str) -> str:
         """Get session file path."""
@@ -120,12 +234,9 @@ class MemoryService:
     def _append_jsonl(self, path: str, record: dict):
         """Append record to JSONL file."""
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, 'a') as f:
-            json.dump(record, f)
+        with open(path, 'a', encoding='utf-8') as f:
+            json.dump(record, f, sort_keys=True)
             f.write('\n')
-
-# Singleton instance
-memory_service = MemoryService()
 
 # Layer-specific service functions
 
@@ -137,6 +248,7 @@ def add_episodic(memory_service: MemoryService, tenant: str, project_id: str, co
         'content': content,
         'salience': salience,
         'project_id': project_id,
+        'tenant': tenant,
         'ts': datetime.datetime.utcnow().isoformat(),
     }
     memory_service._append_jsonl(path, rec)
@@ -167,6 +279,7 @@ def add_procedural(memory_service: MemoryService, tenant: str, project_id: str, 
         'skill_id': skill_id,
         'steps': steps,
         'project_id': project_id,
+        'tenant': tenant,
         'ts': datetime.datetime.utcnow().isoformat(),
     }
     memory_service._append_jsonl(path, rec)
@@ -197,6 +310,7 @@ def add_rag(memory_service: MemoryService, tenant: str, project_id: str, query: 
         'query': query,
         'external_source': external_source,
         'project_id': project_id,
+        'tenant': tenant,
         'ts': datetime.datetime.utcnow().isoformat(),
     }
     memory_service._append_jsonl(path, rec)

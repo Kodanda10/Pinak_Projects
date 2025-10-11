@@ -19,10 +19,6 @@ dependencies = [
 security = [
     "pip-audit>=2.7",
 ]
-dev = [
-    "pytest",
-    "pytest-asyncio",
-]
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -31,8 +27,3 @@ include = ["pinak*"]
 
 [tool.uv.workspace]
 members = ["Pinak_Services/memory_service"]
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-norecursedirs = ["Pinak_Services"]
-pythonpath = ["src"]

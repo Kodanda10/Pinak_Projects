@@ -11,3 +11,6 @@ build/
 # Pinak_Services/memory_service/data/*.faiss
 # Pinak_Services/memory_service/data/metadata.json
 
+# OS-specific files
+.DS_Store
+.venv/
