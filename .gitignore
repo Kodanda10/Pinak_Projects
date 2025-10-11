@@ -6,6 +6,13 @@ __pycache__/
 *.pyc
 *.egg-info/
 
+# Coverage reports
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+*.cover
+
 # Local data and reports (we don't want to version this)
 memory-baseline/data/
 security-baseline/data/
