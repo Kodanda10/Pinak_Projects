@@ -124,7 +124,7 @@ class MemoryService:
             "id": memory_id,
             "content": memory_data.content,
             "tags": tags,
-            "created_at": datetime.datetime.utcnow().isoformat(),
+            "created_at": datetime.datetime.now(datetime.UTC).isoformat(),
             "tenant": tenant,
             "project_id": project_id,
         }
@@ -165,7 +165,7 @@ class MemoryService:
 
     def _dated_file(self, base: str, layer: str, prefix: str) -> str:
         """Get dated file path for layer."""
-        date = datetime.datetime.utcnow().strftime('%Y%m%d')
+        date = datetime.datetime.now(datetime.UTC).strftime('%Y%m%d')
         layer_dir = os.path.join(base, layer)
         os.makedirs(layer_dir, exist_ok=True)
         return os.path.join(layer_dir, f'{prefix}_{date}.jsonl')
@@ -228,7 +228,7 @@ class MemoryService:
 
     def _working_file(self, base: str) -> str:
         """Get working file path."""
-        date = datetime.datetime.utcnow().strftime('%Y%m%d')
+        date = datetime.datetime.now(datetime.UTC).strftime('%Y%m%d')
         return os.path.join(base, 'working', f'working_{date}.jsonl')
 
     def _append_jsonl(self, path: str, record: dict):
@@ -249,7 +249,7 @@ def add_episodic(memory_service: MemoryService, tenant: str, project_id: str, co
         'salience': salience,
         'project_id': project_id,
         'tenant': tenant,
-        'ts': datetime.datetime.utcnow().isoformat(),
+        'ts': datetime.datetime.now(datetime.UTC).isoformat(),
     }
     memory_service._append_jsonl(path, rec)
     return rec
@@ -280,7 +280,7 @@ def add_procedural(memory_service: MemoryService, tenant: str, project_id: str, 
         'steps': steps,
         'project_id': project_id,
         'tenant': tenant,
-        'ts': datetime.datetime.utcnow().isoformat(),
+        'ts': datetime.datetime.now(datetime.UTC).isoformat(),
     }
     memory_service._append_jsonl(path, rec)
     return rec
@@ -311,7 +311,7 @@ def add_rag(memory_service: MemoryService, tenant: str, project_id: str, query: 
         'external_source': external_source,
         'project_id': project_id,
         'tenant': tenant,
-        'ts': datetime.datetime.utcnow().isoformat(),
+        'ts': datetime.datetime.now(datetime.UTC).isoformat(),
     }
     memory_service._append_jsonl(path, rec)
     return rec

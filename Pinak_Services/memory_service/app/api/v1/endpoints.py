@@ -143,7 +143,7 @@ def add_event(
 ) -> Dict[str, Any]:
     base = memory_service._store_dir(ctx.tenant_id, ctx.project_id)
     event_payload = {
-        "ts": datetime.datetime.utcnow().isoformat(),
+        "ts": datetime.datetime.now(datetime.UTC).isoformat(),
         **payload,
         "tenant": ctx.tenant_id,
         "project_id": ctx.project_id,
@@ -207,11 +207,11 @@ def session_add(
         'content': payload.get('content') or '',
         'project_id': ctx.project_id,
         'tenant': ctx.tenant_id,
-        'ts': payload.get('ts') or datetime.datetime.utcnow().isoformat(),
+        'ts': payload.get('ts') or datetime.datetime.now(datetime.UTC).isoformat(),
     }
     ttl = payload.get('ttl_seconds')
     if ttl:
-        rec['expires_at'] = (datetime.datetime.utcnow()+datetime.timedelta(seconds=int(ttl))).isoformat()
+        rec['expires_at'] = (datetime.datetime.now(datetime.UTC)+datetime.timedelta(seconds=int(ttl))).isoformat()
     if payload.get('expires_at'):
         rec['expires_at'] = payload['expires_at']
     memory_service._append_jsonl(path, rec)
@@ -250,7 +250,7 @@ def session_list(
                     exp = obj.get('expires_at')
                     if exp:
                         try:
-                            if datetime.datetime.fromisoformat(exp) < datetime.datetime.utcnow():
+                            if datetime.datetime.fromisoformat(exp) < datetime.datetime.now(datetime.UTC):
                                 continue
                         except Exception:
                             pass
@@ -277,11 +277,11 @@ def working_add(
         'content': payload.get('content') or '',
         'project_id': ctx.project_id,
         'tenant': ctx.tenant_id,
-        'ts': payload.get('ts') or datetime.datetime.utcnow().isoformat(),
+        'ts': payload.get('ts') or datetime.datetime.now(datetime.UTC).isoformat(),
     }
     ttl = payload.get('ttl_seconds')
     if ttl:
-        rec['expires_at'] = (datetime.datetime.utcnow()+datetime.timedelta(seconds=int(ttl))).isoformat()
+        rec['expires_at'] = (datetime.datetime.now(datetime.UTC)+datetime.timedelta(seconds=int(ttl))).isoformat()
     if payload.get('expires_at'):
         rec['expires_at'] = payload['expires_at']
     memory_service._append_jsonl(path, rec)
@@ -315,7 +315,7 @@ def working_list(
                     exp = obj.get('expires_at')
                     if exp:
                         try:
-                            if datetime.datetime.fromisoformat(exp) < datetime.datetime.utcnow():
+                            if datetime.datetime.fromisoformat(exp) < datetime.datetime.now(datetime.UTC):
                                 continue
                         except Exception:
                             pass

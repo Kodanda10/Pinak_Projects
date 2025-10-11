@@ -44,10 +44,11 @@ def _issue_token(tenant: str, project: str, subject: str = "tester") -> str:
         "sub": subject,
         "tenant": tenant,
         "project_id": project,
-        "iat": datetime.datetime.utcnow(),
-        "exp": datetime.datetime.utcnow() + datetime.timedelta(minutes=5),
+        "iat": datetime.datetime.now(datetime.UTC),
+        "exp": datetime.datetime.now(datetime.UTC) + datetime.timedelta(minutes=5),
     }
     return jwt.encode(payload, "test-secret", algorithm="HS256")
+
 
 
 @pytest.mark.asyncio
