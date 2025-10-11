@@ -2,6 +2,12 @@ import os
 import httpx
 from typing import List, Dict, Any, Optional, Mapping
 
+
+class MemoryManagerError(Exception):
+    """Exception raised for errors in the MemoryManager."""
+    pass
+
+
 class MemoryManager:
     """An API client for the Pinak Memory Service."""
 
@@ -9,6 +15,8 @@ class MemoryManager:
         self,
         service_base_url: Optional[str] = None,
         token: Optional[str] = None,
+        tenant_id: Optional[str] = None,
+        project_id: Optional[str] = None,
         default_headers: Optional[Mapping[str, str]] = None,
         timeout: float = 10.0,
         client: Optional[httpx.Client] = None,
@@ -22,6 +30,8 @@ class MemoryManager:
         """
         base = service_base_url or os.getenv("PINAK_MEMORY_URL", "http://localhost:8001")
         self.base_url = f"{base}/api/v1/memory"
+        self.tenant_id = tenant_id
+        self.project_id = project_id
         self._timeout = timeout
         headers = {}
         if token:
@@ -53,11 +63,9 @@ class MemoryManager:
             response.raise_for_status() # Raise an exception for bad status codes (4xx or 5xx)
             return response.json()
         except httpx.RequestError as e:
-            print(f"An error occurred while requesting {e.request.url!r}.")
-            return None
+            raise MemoryManagerError(f"An error occurred while requesting {e.request.url!r}.") from e
         except httpx.HTTPStatusError as e:
-            print(f"HTTP error: {e.response.status_code} {e.response.text}")
-            return None
+            raise MemoryManagerError(f"Error: status {e.response.status_code}") from e
 
     def search_memory(self, query: str, k: int = 5) -> List[Dict[str, Any]]:
         """Sends a request to the Memory Service to search for memories."""
@@ -70,11 +78,9 @@ class MemoryManager:
             response.raise_for_status()
             return response.json()
         except httpx.RequestError as e:
-            print(f"An error occurred while requesting {e.request.url!r}.")
-            return []
+            raise MemoryManagerError(f"An error occurred while requesting {e.request.url!r}.") from e
         except httpx.HTTPStatusError as e:
-            print(f"HTTP error: {e.response.status_code} {e.response.text}")
-            return []
+            raise MemoryManagerError(f"Error: status {e.response.status_code}") from e
 
     def health(self) -> bool:
         try:
@@ -82,3 +88,41 @@ class MemoryManager:
             return r.status_code == 200
         except Exception:
             return False
+
+    def login(self, token: Optional[str] = None, tenant_id: Optional[str] = None, project_id: Optional[str] = None) -> None:
+        """Login method, currently a no-op."""
+        pass
+
+    def list_events(self, query: Optional[str] = None, since: Optional[str] = None, until: Optional[str] = None, limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
+        """List events."""
+        params: Dict[str, Any] = {"limit": limit, "offset": offset}
+        if query:
+            params["query"] = query
+        if since:
+            params["since"] = since
+        if until:
+            params["until"] = until
+        try:
+            response = self.client.get(f"{self.base_url}/events", params=params, timeout=self._timeout)
+            response.raise_for_status()
+            return response.json()
+        except httpx.RequestError as e:
+            raise MemoryManagerError(f"An error occurred while requesting {e.request.url!r}.") from e
+        except httpx.HTTPStatusError as e:
+            raise MemoryManagerError(f"Error: status {e.response.status_code}") from e
+
+    def list_session(self, session_id: str, limit: int = 100, offset: int = 0, since: Optional[str] = None, until: Optional[str] = None) -> List[Dict[str, Any]]:
+        """List session entries."""
+        params: Dict[str, Any] = {"session_id": session_id, "limit": limit, "offset": offset}
+        if since:
+            params["since"] = since
+        if until:
+            params["until"] = until
+        try:
+            response = self.client.get(f"{self.base_url}/session/list", params=params, timeout=self._timeout)
+            response.raise_for_status()
+            return response.json()
+        except httpx.RequestError as e:
+            raise MemoryManagerError(f"An error occurred while requesting {e.request.url!r}.") from e
+        except httpx.HTTPStatusError as e:
+            raise MemoryManagerError(f"Error: status {e.response.status_code}") from e
