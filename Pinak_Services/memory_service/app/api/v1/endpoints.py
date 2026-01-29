@@ -150,6 +150,19 @@ def list_working(
 ):
     return service.working_list(ctx.tenant_id, ctx.project_id, limit)
 
+@router.put("/{layer}/{memory_id}", status_code=status.HTTP_200_OK)
+def update_memory(
+    layer: str,
+    memory_id: str,
+    updates: Dict[str, Any] = Body(...),
+    ctx: AuthContext = Depends(require_auth_context),
+    service: MemoryService = Depends(get_memory_service),
+):
+    success = service.update_memory(layer, memory_id, updates, ctx.tenant_id, ctx.project_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Memory not found")
+    return {"status": "updated", "id": memory_id}
+
 @router.delete("/{layer}/{memory_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_memory(
     layer: str,

@@ -61,6 +61,12 @@ class DatabaseManager:
                       INSERT INTO memories_semantic_fts(memories_semantic_fts, rowid, content) VALUES('delete', old.rowid, old.content);
                     END;
                 """)
+                conn.execute("""
+                    CREATE TRIGGER IF NOT EXISTS memories_semantic_au AFTER UPDATE ON memories_semantic BEGIN
+                      INSERT INTO memories_semantic_fts(memories_semantic_fts, rowid, content) VALUES('delete', old.rowid, old.content);
+                      INSERT INTO memories_semantic_fts(rowid, content) VALUES (new.rowid, new.content);
+                    END;
+                """)
 
                 # 2. Episodic Memory (Experiences)
                 conn.execute("""
@@ -247,8 +253,42 @@ class DatabaseManager:
             cur.execute(f"SELECT * FROM {table} WHERE id = ? AND tenant = ? AND project_id = ?", (memory_id, tenant, project_id))
             row = cur.fetchone()
             if row:
-                return dict(row)
+                d = dict(row)
+                if layer == "semantic" and d.get('tags'): d['tags'] = json.loads(d['tags'])
+                if layer == "episodic":
+                    if d.get('plan'): d['plan'] = json.loads(d['plan'])
+                    if d.get('tool_logs'): d['tool_logs'] = json.loads(d['tool_logs'])
+                if layer == "procedural" and d.get('steps'): d['steps'] = json.loads(d['steps'])
+                return d
             return None
+
+    def update_memory(self, layer: str, memory_id: str, updates: Dict[str, Any], tenant: str, project_id: str) -> bool:
+        """Updates a memory record."""
+        table_map = {
+            "semantic": "memories_semantic",
+            "episodic": "memories_episodic",
+            "procedural": "memories_procedural",
+            "rag": "memories_rag",
+            "working": "working_memory"
+        }
+        if layer not in table_map:
+            raise ValueError(f"Invalid layer: {layer}")
+
+        table = table_map[layer]
+
+        # Serialize JSON fields
+        json_fields = ['tags', 'plan', 'tool_logs', 'steps']
+        for k in json_fields:
+            if k in updates and isinstance(updates[k], (list, dict)):
+                updates[k] = json.dumps(updates[k])
+
+        set_clause = ", ".join([f"{k} = ?" for k in updates.keys()])
+        values = list(updates.values())
+        values.extend([memory_id, tenant, project_id])
+
+        with self.get_cursor() as cur:
+            cur.execute(f"UPDATE {table} SET {set_clause} WHERE id = ? AND tenant = ? AND project_id = ?", values)
+            return cur.rowcount > 0
 
     def delete_memory(self, layer: str, memory_id: str, tenant: str, project_id: str) -> bool:
         """Deletes a memory from the specified layer."""

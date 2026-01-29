@@ -70,6 +70,18 @@ class VectorStore:
         with self.lock:
             self.index.remove_ids(id_array)
 
+    def reconstruct(self, id: int) -> Optional[np.ndarray]:
+        """Get vector by ID (if supported by index type)."""
+        with self.lock:
+            try:
+                # Direct access might fail depending on index type (IVF vs Flat)
+                # But we use IDMap around FlatL2, so it should work if ID exists.
+                # However, faiss.IndexIDMap.reconstruct is not always available.
+                # Usually we rely on DB for content. Reconstruct is rarely needed unless update.
+                return self.index.reconstruct(id)
+            except Exception:
+                return None
+
     def search(self, query_vector: np.ndarray, k: int = 10) -> Tuple[List[float], List[int]]:
         """
         Returns (distances, ids)

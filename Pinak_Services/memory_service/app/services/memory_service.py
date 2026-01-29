@@ -271,6 +271,34 @@ class MemoryService:
     def working_list(self, tenant: str, project_id: str, limit: int=100):
         return self.db.list_working(tenant, project_id, limit)
 
+    def update_memory(self, layer: str, memory_id: str, updates: Dict[str, Any], tenant: str, project_id: str) -> bool:
+        """
+        Updates memory in DB. If content changes in Semantic layer, re-embeds.
+        """
+        # Security: Prevent updating system fields
+        forbidden_keys = {"id", "tenant", "project_id", "created_at", "embedding_id"}
+        safe_updates = {k: v for k, v in updates.items() if k not in forbidden_keys}
+
+        if not safe_updates:
+            return False
+
+        if layer == "semantic" and "content" in safe_updates:
+            # 1. Fetch old record to get embedding_id
+            old_item = self.db.get_memory(layer, memory_id, tenant, project_id)
+            if old_item:
+                emb_id = old_item.get("embedding_id")
+                # 2. Re-embed
+                new_embedding = self.model.encode([safe_updates["content"]])[0].astype("float32")
+                # 3. Update Vector Store
+                # Remove old vector first
+                if emb_id:
+                    self.vector_store.remove_ids([emb_id])
+                    # Add new
+                    self.vector_store.add_vectors(np.array([new_embedding]), [emb_id])
+                    self.vector_store.save()
+
+        return self.db.update_memory(layer, memory_id, safe_updates, tenant, project_id)
+
     def delete_memory(self, layer: str, memory_id: str, tenant: str, project_id: str) -> bool:
         if layer == "semantic":
             # Fetch embedding ID first
