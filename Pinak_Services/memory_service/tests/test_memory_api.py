@@ -96,7 +96,8 @@ async def test_hash_chained_audit_log(test_app, memory_service):
 
     base = memory_service._store_dir("tenant-log", "project-log")
     events_folder = os.path.join(base, "events")
-    event_files = sorted(f for f in os.listdir(events_folder) if f.startswith("events_"))
+    # Fix: exclude .lock files
+    event_files = sorted(f for f in os.listdir(events_folder) if f.startswith("events_") and f.endswith(".jsonl"))
     assert event_files, "expected at least one event log file"
 
     latest_file = os.path.join(events_folder, event_files[-1])

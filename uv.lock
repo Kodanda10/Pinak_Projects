@@ -908,6 +908,7 @@ source = { editable = "Pinak_Services/memory_service" }
 dependencies = [
     { name = "faiss-cpu" },
     { name = "fastapi" },
+    { name = "filelock" },
     { name = "numpy" },
     { name = "pyjwt" },
     { name = "redis" },
@@ -928,6 +929,7 @@ requires-dist = [
     { name = "asgi-lifespan", marker = "extra == 'tests'", specifier = ">=2.1.0" },
     { name = "faiss-cpu", specifier = ">=1.7.4" },
     { name = "fastapi", specifier = ">=0.111" },
+    { name = "filelock", specifier = ">=3.13" },
     { name = "httpx", marker = "extra == 'tests'", specifier = ">=0.26.0" },
     { name = "numpy", specifier = ">=1.26" },
     { name = "pyjwt", specifier = ">=2.8" },

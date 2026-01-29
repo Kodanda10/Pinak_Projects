@@ -15,6 +15,7 @@ dependencies = [
     "redis>=5.0",
     "numpy>=1.26",
     "PyJWT>=2.8",
+    "filelock>=3.13",
 ]
 
 [project.optional-dependencies]

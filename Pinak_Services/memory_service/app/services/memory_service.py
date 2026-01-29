@@ -4,12 +4,15 @@ import re
 import uuid
 import hashlib
 import datetime
-from typing import Dict, List, Optional, Tuple
+import shutil
+import glob
+from typing import Dict, List, Optional, Tuple, Any
 
 import numpy as np
 import faiss
 import redis
 from sentence_transformers import SentenceTransformer
+from filelock import FileLock
 
 from app.core.schemas import MemoryCreate, MemoryRead, MemorySearchResult
 
@@ -90,13 +93,16 @@ class MemoryService:
 
     def _load_vector_store(self, tenant: str, project_id: str) -> Dict[str, object]:
         vector_path, metadata_path = self._vector_paths(tenant, project_id)
-        if os.path.exists(vector_path) and os.path.exists(metadata_path):
-            index = faiss.read_index(vector_path)
-            with open(metadata_path, "r", encoding="utf-8") as fh:
-                metadata = json.load(fh)
-        else:
-            index = faiss.IndexFlatL2(self.embedding_dim)
-            metadata = {}
+        lock_path = vector_path + ".lock"
+
+        with FileLock(lock_path):
+            if os.path.exists(vector_path) and os.path.exists(metadata_path):
+                index = faiss.read_index(vector_path)
+                with open(metadata_path, "r", encoding="utf-8") as fh:
+                    metadata = json.load(fh)
+            else:
+                index = faiss.IndexFlatL2(self.embedding_dim)
+                metadata = {}
         return {"index": index, "metadata": metadata, "vector_path": vector_path, "metadata_path": metadata_path}
 
     def _get_vector_store(self, tenant: str, project_id: str) -> Dict[str, object]:
@@ -109,9 +115,22 @@ class MemoryService:
         store = self._vector_stores.get((tenant, project_id))
         if not store:
             return
-        faiss.write_index(store["index"], store["vector_path"])
-        with open(store["metadata_path"], "w", encoding="utf-8") as fh:
-            json.dump(store["metadata"], fh, indent=2)
+
+        vector_path = store["vector_path"]
+        metadata_path = store["metadata_path"]
+        lock_path = vector_path + ".lock"
+
+        with FileLock(lock_path):
+            # Atomic write for FAISS index
+            tmp_vector_path = vector_path + ".tmp"
+            faiss.write_index(store["index"], tmp_vector_path)
+            shutil.move(tmp_vector_path, vector_path)
+
+            # Atomic write for metadata
+            tmp_metadata_path = metadata_path + ".tmp"
+            with open(tmp_metadata_path, "w", encoding="utf-8") as fh:
+                json.dump(store["metadata"], fh, indent=2)
+            shutil.move(tmp_metadata_path, metadata_path)
 
     def add_memory(self, memory_data: MemoryCreate, tenant: str, project_id: str) -> MemoryRead:
         store = self._get_vector_store(tenant, project_id)
@@ -124,7 +143,7 @@ class MemoryService:
             "id": memory_id,
             "content": memory_data.content,
             "tags": tags,
-            "created_at": datetime.datetime.utcnow().isoformat(),
+            "created_at": datetime.datetime.now(datetime.UTC).isoformat(),
             "tenant": tenant,
             "project_id": project_id,
         }
@@ -165,7 +184,7 @@ class MemoryService:
 
     def _dated_file(self, base: str, layer: str, prefix: str) -> str:
         """Get dated file path for layer."""
-        date = datetime.datetime.utcnow().strftime('%Y%m%d')
+        date = datetime.datetime.now(datetime.UTC).strftime('%Y%m%d')
         layer_dir = os.path.join(base, layer)
         os.makedirs(layer_dir, exist_ok=True)
         return os.path.join(layer_dir, f'{prefix}_{date}.jsonl')
@@ -213,30 +232,73 @@ class MemoryService:
     def _append_audit_jsonl(self, path: str, record: dict) -> dict:
         """Append record to JSONL file with tamper-evident hashing."""
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        prev_entry = self._last_audit_record(path)
-        prev_hash = prev_entry.get('hash') if prev_entry else None
-        payload = {**record, 'prev_hash': prev_hash}
-        payload['hash'] = self._compute_audit_hash(payload)
-        with open(path, 'a', encoding='utf-8') as f:
-            json.dump(payload, f, sort_keys=True)
-            f.write('\n')
-        return payload
+        lock_path = path + ".lock"
+        with FileLock(lock_path):
+            prev_entry = self._last_audit_record(path)
+            prev_hash = prev_entry.get('hash') if prev_entry else None
+            payload = {**record, 'prev_hash': prev_hash}
+            payload['hash'] = self._compute_audit_hash(payload)
+            with open(path, 'a', encoding='utf-8') as f:
+                json.dump(payload, f, sort_keys=True)
+                f.write('\n')
+                f.flush()
+                os.fsync(f.fileno())
+            return payload
 
     def _session_file(self, base: str, session_id: str) -> str:
         """Get session file path."""
-        return os.path.join(base, 'session', f'session_{session_id}.jsonl')
+        safe_id = self._sanitize_component(session_id)
+        return os.path.join(base, 'session', f'session_{safe_id}.jsonl')
 
     def _working_file(self, base: str) -> str:
         """Get working file path."""
-        date = datetime.datetime.utcnow().strftime('%Y%m%d')
+        date = datetime.datetime.now(datetime.UTC).strftime('%Y%m%d')
         return os.path.join(base, 'working', f'working_{date}.jsonl')
 
     def _append_jsonl(self, path: str, record: dict):
         """Append record to JSONL file."""
         os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, 'a', encoding='utf-8') as f:
-            json.dump(record, f, sort_keys=True)
-            f.write('\n')
+        lock_path = path + ".lock"
+        with FileLock(lock_path):
+            with open(path, 'a', encoding='utf-8') as f:
+                json.dump(record, f, sort_keys=True)
+                f.write('\n')
+
+    @staticmethod
+    def parse_ts(ts: str) -> Optional[datetime.datetime]:
+        if not ts:
+            return None
+        try:
+            dt = datetime.datetime.fromisoformat(ts.replace('Z', '+00:00'))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=datetime.UTC)
+            return dt
+        except Exception:
+            return None
+
+    def _read_jsonl(self, path: str) -> List[Dict[str, Any]]:
+        """Read all records from a JSONL file."""
+        if not os.path.exists(path):
+            return []
+
+        # We don't necessarily need a lock for reading unless strict consistency is required.
+        # But for robustness, we can use a shared lock if FileLock supported it (it's exclusive).
+        # We'll skip lock for read for performance, acknowledging slight race.
+        out = []
+        try:
+            with open(path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    try:
+                        out.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        continue
+        except Exception:
+            pass # Graceful failure
+        return out
+
+    def get_layer_files(self, base: str, layer: str, prefix: str) -> List[str]:
+        folder = os.path.join(base, layer)
+        return sorted(glob.glob(os.path.join(folder, f'{prefix}_*.jsonl')))
 
 # Layer-specific service functions
 
@@ -249,26 +311,32 @@ def add_episodic(memory_service: MemoryService, tenant: str, project_id: str, co
         'salience': salience,
         'project_id': project_id,
         'tenant': tenant,
-        'ts': datetime.datetime.utcnow().isoformat(),
+        'ts': datetime.datetime.now(datetime.UTC).isoformat(),
     }
     memory_service._append_jsonl(path, rec)
     return rec
 
-def list_episodic(memory_service: MemoryService, tenant: str, project_id: str) -> list:
+def list_episodic(
+    memory_service: MemoryService,
+    tenant: str,
+    project_id: str,
+    since: Optional[str] = None,
+    until: Optional[str] = None
+) -> list:
     """List episodic memories."""
     base = memory_service._store_dir(tenant, project_id)
     out = []
-    import glob
-    folder = os.path.join(base, 'episodic')
-    for fp in sorted(glob.glob(os.path.join(folder, 'episodic_*.jsonl'))):
-        if os.path.exists(fp):
-            with open(fp, 'r') as f:
-                for line in f:
-                    try:
-                        obj = json.loads(line)
-                        out.append(obj)
-                    except:
-                        pass
+    t_since = memory_service.parse_ts(since) if since else None
+    t_until = memory_service.parse_ts(until) if until else None
+
+    for fp in memory_service.get_layer_files(base, 'episodic', 'episodic'):
+        for obj in memory_service._read_jsonl(fp):
+            ts = memory_service.parse_ts(obj.get('ts', ''))
+            if t_since and ts and ts < t_since:
+                continue
+            if t_until and ts and ts > t_until:
+                continue
+            out.append(obj)
     return out
 
 def add_procedural(memory_service: MemoryService, tenant: str, project_id: str, skill_id: str, steps: list) -> dict:
@@ -280,26 +348,32 @@ def add_procedural(memory_service: MemoryService, tenant: str, project_id: str, 
         'steps': steps,
         'project_id': project_id,
         'tenant': tenant,
-        'ts': datetime.datetime.utcnow().isoformat(),
+        'ts': datetime.datetime.now(datetime.UTC).isoformat(),
     }
     memory_service._append_jsonl(path, rec)
     return rec
 
-def list_procedural(memory_service: MemoryService, tenant: str, project_id: str) -> list:
+def list_procedural(
+    memory_service: MemoryService,
+    tenant: str,
+    project_id: str,
+    since: Optional[str] = None,
+    until: Optional[str] = None
+) -> list:
     """List procedural memories."""
     base = memory_service._store_dir(tenant, project_id)
     out = []
-    import glob
-    folder = os.path.join(base, 'procedural')
-    for fp in sorted(glob.glob(os.path.join(folder, 'procedural_*.jsonl'))):
-        if os.path.exists(fp):
-            with open(fp, 'r') as f:
-                for line in f:
-                    try:
-                        obj = json.loads(line)
-                        out.append(obj)
-                    except:
-                        pass
+    t_since = memory_service.parse_ts(since) if since else None
+    t_until = memory_service.parse_ts(until) if until else None
+
+    for fp in memory_service.get_layer_files(base, 'procedural', 'procedural'):
+        for obj in memory_service._read_jsonl(fp):
+            ts = memory_service.parse_ts(obj.get('ts', ''))
+            if t_since and ts and ts < t_since:
+                continue
+            if t_until and ts and ts > t_until:
+                continue
+            out.append(obj)
     return out
 
 def add_rag(memory_service: MemoryService, tenant: str, project_id: str, query: str, external_source: str) -> dict:
@@ -311,38 +385,222 @@ def add_rag(memory_service: MemoryService, tenant: str, project_id: str, query: 
         'external_source': external_source,
         'project_id': project_id,
         'tenant': tenant,
-        'ts': datetime.datetime.utcnow().isoformat(),
+        'ts': datetime.datetime.now(datetime.UTC).isoformat(),
     }
     memory_service._append_jsonl(path, rec)
     return rec
 
-def list_rag(memory_service: MemoryService, tenant: str, project_id: str) -> list:
+def list_rag(
+    memory_service: MemoryService,
+    tenant: str,
+    project_id: str,
+    since: Optional[str] = None,
+    until: Optional[str] = None
+) -> list:
     """List RAG memories."""
     base = memory_service._store_dir(tenant, project_id)
     out = []
-    import glob
-    folder = os.path.join(base, 'rag')
-    for fp in sorted(glob.glob(os.path.join(folder, 'rag_*.jsonl'))):
-        if os.path.exists(fp):
-            with open(fp, 'r') as f:
-                for line in f:
-                    try:
-                        obj = json.loads(line)
-                        out.append(obj)
-                    except:
-                        pass
+    t_since = memory_service.parse_ts(since) if since else None
+    t_until = memory_service.parse_ts(until) if until else None
+
+    for fp in memory_service.get_layer_files(base, 'rag', 'rag'):
+        for obj in memory_service._read_jsonl(fp):
+            ts = memory_service.parse_ts(obj.get('ts', ''))
+            if t_since and ts and ts < t_since:
+                continue
+            if t_until and ts and ts > t_until:
+                continue
+            out.append(obj)
     return out
 
-def search_v2(memory_service: MemoryService, tenant: str, project_id: str, query: str, layer_list: list) -> dict:
+def search_v2(
+    memory_service: MemoryService,
+    tenant: str,
+    project_id: str,
+    query: str,
+    layer_list: list,
+    since: Optional[str] = None,
+    until: Optional[str] = None
+) -> dict:
     """Search across multiple layers."""
     results = {}
+    query_lower = query.lower()
+
     if 'episodic' in layer_list:
-        epi_results = list_episodic(memory_service, tenant, project_id)
-        results['episodic'] = [r for r in epi_results if query.lower() in r.get('content', '').lower()][:5]
+        epi_results = list_episodic(memory_service, tenant, project_id, since, until)
+        results['episodic'] = [r for r in epi_results if query_lower in r.get('content', '').lower()][:5]
     if 'procedural' in layer_list:
-        proc_results = list_procedural(memory_service, tenant, project_id)
-        results['procedural'] = [r for r in proc_results if query.lower() in r.get('skill_id', '').lower()][:5]
+        proc_results = list_procedural(memory_service, tenant, project_id, since, until)
+        results['procedural'] = [r for r in proc_results if query_lower in r.get('skill_id', '').lower()][:5]
     if 'rag' in layer_list:
-        rag_results = list_rag(memory_service, tenant, project_id)
-        results['rag'] = [r for r in rag_results if query.lower() in r.get('query', '').lower()][:5]
+        rag_results = list_rag(memory_service, tenant, project_id, since, until)
+        results['rag'] = [r for r in rag_results if query_lower in r.get('query', '').lower()][:5]
     return results
+
+def add_event(memory_service: MemoryService, tenant: str, project_id: str, payload: dict) -> dict:
+    base = memory_service._store_dir(tenant, project_id)
+    event_payload = {
+        "ts": datetime.datetime.now(datetime.UTC).isoformat(),
+        **payload,
+        "tenant": tenant,
+        "project_id": project_id,
+    }
+    ep = memory_service._dated_file(base, 'events', 'events')
+    memory_service._append_audit_jsonl(ep, event_payload)
+    return {"status": "ok"}
+
+def list_events(
+    memory_service: MemoryService,
+    tenant: str,
+    project_id: str,
+    q: Optional[str] = None,
+    since: Optional[str] = None,
+    until: Optional[str] = None,
+    limit: int = 100,
+    offset: int = 0
+) -> List[Dict[str, Any]]:
+    base = memory_service._store_dir(tenant, project_id)
+    out = []
+    t_since = memory_service.parse_ts(since) if since else None
+    t_until = memory_service.parse_ts(until) if until else None
+
+    for fp in memory_service.get_layer_files(base, 'events', 'events'):
+        for obj in memory_service._read_jsonl(fp):
+            if q and q not in json.dumps(obj):
+                continue
+            ts = memory_service.parse_ts(obj.get('ts', ''))
+            if t_since and ts and ts < t_since:
+                continue
+            if t_until and ts and ts > t_until:
+                continue
+            out.append(obj)
+    return out[offset:offset+limit]
+
+def add_session(
+    memory_service: MemoryService,
+    tenant: str,
+    project_id: str,
+    session_id: str,
+    content: str,
+    ttl: Optional[int] = None,
+    expires_at: Optional[str] = None,
+    ts: Optional[str] = None
+) -> dict:
+    base = memory_service._store_dir(tenant, project_id)
+    path = memory_service._session_file(base, session_id)
+    rec = {
+        'session_id': session_id,
+        'content': content,
+        'project_id': project_id,
+        'tenant': tenant,
+        'ts': ts or datetime.datetime.now(datetime.UTC).isoformat(),
+    }
+    if ttl:
+        rec['expires_at'] = (datetime.datetime.now(datetime.UTC)+datetime.timedelta(seconds=int(ttl))).isoformat()
+    if expires_at:
+        rec['expires_at'] = expires_at
+    memory_service._append_jsonl(path, rec)
+    return {'status': 'ok'}
+
+def list_session(
+    memory_service: MemoryService,
+    tenant: str,
+    project_id: str,
+    session_id: str,
+    limit: int = 100,
+    offset: int = 0,
+    since: Optional[str] = None,
+    until: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    base = memory_service._store_dir(tenant, project_id)
+    path = memory_service._session_file(base, session_id)
+    out = []
+
+    # Check legacy path too (as per original code)
+    if not os.path.exists(path):
+        legacy = os.path.join(base, f'session_{session_id}.jsonl')
+        if os.path.exists(legacy):
+            path = legacy
+
+    t_since = memory_service.parse_ts(since) if since else None
+    t_until = memory_service.parse_ts(until) if until else None
+
+    now = datetime.datetime.now(datetime.UTC)
+
+    for obj in memory_service._read_jsonl(path):
+        exp = obj.get('expires_at')
+        if exp:
+            try:
+                if datetime.datetime.fromisoformat(exp) < now:
+                    continue
+            except Exception:
+                pass
+
+        ts = memory_service.parse_ts(obj.get('ts', ''))
+        if t_since and ts and ts < t_since:
+            continue
+        if t_until and ts and ts > t_until:
+            continue
+        out.append(obj)
+
+    return out[offset:offset+limit]
+
+def add_working(
+    memory_service: MemoryService,
+    tenant: str,
+    project_id: str,
+    content: str,
+    ttl: Optional[int] = None,
+    expires_at: Optional[str] = None,
+    ts: Optional[str] = None
+) -> dict:
+    base = memory_service._store_dir(tenant, project_id)
+    path = memory_service._working_file(base)
+    rec = {
+        'content': content,
+        'project_id': project_id,
+        'tenant': tenant,
+        'ts': ts or datetime.datetime.now(datetime.UTC).isoformat(),
+    }
+    if ttl:
+        rec['expires_at'] = (datetime.datetime.now(datetime.UTC)+datetime.timedelta(seconds=int(ttl))).isoformat()
+    if expires_at:
+        rec['expires_at'] = expires_at
+    memory_service._append_jsonl(path, rec)
+    return {'status': 'ok'}
+
+def list_working(
+    memory_service: MemoryService,
+    tenant: str,
+    project_id: str,
+    limit: int = 100,
+    offset: int = 0,
+    since: Optional[str] = None,
+    until: Optional[str] = None,
+) -> List[Dict[str, Any]]:
+    base = memory_service._store_dir(tenant, project_id)
+    path = memory_service._working_file(base)
+    out = []
+
+    t_since = memory_service.parse_ts(since) if since else None
+    t_until = memory_service.parse_ts(until) if until else None
+
+    now = datetime.datetime.now(datetime.UTC)
+
+    for obj in memory_service._read_jsonl(path):
+        exp = obj.get('expires_at')
+        if exp:
+            try:
+                if datetime.datetime.fromisoformat(exp) < now:
+                    continue
+            except Exception:
+                pass
+
+        ts = memory_service.parse_ts(obj.get('ts', ''))
+        if t_since and ts and ts < t_since:
+            continue
+        if t_until and ts and ts > t_until:
+            continue
+        out.append(obj)
+
+    return out[offset:offset+limit]
