@@ -13,23 +13,25 @@ jobs:
     - name: Install system dependencies
       run: |
         sudo apt-get update -qq
-        sudo apt-get install -y libopenblas-dev liblapack-dev gfortran build-essential
+        sudo apt-get install -y libopenblas-dev liblapack-dev gfortran build-essential libomp-dev jq
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
-        python-version: '3.13'
+        python-version: '3.12'
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+      with:
+        enable-cache: true
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip setuptools wheel
-        pip install -e ".[tests]"
+        uv sync --extra tests
     - name: Run tests
       run: |
-        pytest tests/ -v --tb=short
+        uv run pytest tests/ -v --tb=short
     - name: Lint with flake8
       run: |
-        pip install flake8
-        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-        flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+        uv run flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+        uv run flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
 
   build:
     runs-on: ubuntu-latest
@@ -37,9 +39,9 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
-        python-version: '3.13'
+        python-version: '3.12'
     - name: Build Docker image
       run: |
         cd Pinak_Services/memory_service
@@ -72,9 +74,13 @@ jobs:
    runs-on: ubuntu-latest
    steps:
    - uses: actions/checkout@v4
+   - name: Install dependencies
+     run: |
+       sudo apt-get update -qq && sudo apt-get install -y jq
+       pip install pip-audit
    - name: Audit dependencies
      run: |
-       pip install pip-audit
+       cd Pinak_Services/memory_service
        pip-audit --format json | jq . || echo "Audit warnings (non-blocking)"
 
   docs:
@@ -91,4 +97,4 @@ jobs:
         git config --local user.email "action@github.com"
         git config --local user.name "GitHub Action"
         git add docs/
-        git commit -m "Auto-update docs [CI]" || echo "No changes to commit"
+        git diff --quiet && git diff --staged --quiet || git commit -m "Auto-update docs [CI]"
