@@ -64,6 +64,59 @@ class MemoryService:
         # Vector Store
         self.vector_store = VectorStore(self.vector_path, self.embedding_dim)
 
+    def verify_and_recover(self):
+        """
+        Check consistency between DB and Vector Store. Rebuild if necessary.
+        """
+        # Simple heuristic: Count check
+        # We need to count ALL semantic memories in DB.
+        db_count = 0
+        with self.db.get_cursor() as cur:
+            cur.execute("SELECT count(*) FROM memories_semantic")
+            db_count = cur.fetchone()[0]
+
+        vec_count = self.vector_store.total
+
+        if db_count != vec_count:
+            logger.warning(f"Consistency Mismatch! DB: {db_count}, Vector: {vec_count}. Rebuilding Index...")
+            self._rebuild_index()
+        else:
+            logger.info(f"System Consistent. {vec_count} memories loaded.")
+
+    def _rebuild_index(self):
+        """Re-encode all semantic memories and populate FAISS."""
+        # 1. Reset Index (handled by create in store or we can manually reset if we expose it)
+        # VectorStore doesn't expose reset, but we can delete file and reload or just loop add.
+        # Better: Create new index in memory and swap.
+
+        # We will use batch_add context
+        with self.vector_store.batch_add():
+            # Clear existing logic?
+            # self.vector_store.index.reset() # We need to expose this or access protected.
+            with self.vector_store.lock:
+                self.vector_store.index.reset()
+
+            # Page through DB
+            offset = 0
+            limit = 100
+            while True:
+                with self.db.get_cursor() as cur:
+                    cur.execute("SELECT content, embedding_id FROM memories_semantic LIMIT ? OFFSET ?", (limit, offset))
+                    rows = cur.fetchall()
+
+                if not rows:
+                    break
+
+                # Batch Encode
+                texts = [r['content'] for r in rows]
+                ids = [r['embedding_id'] for r in rows]
+
+                embeddings = self.model.encode(texts)
+                self.vector_store.add_vectors(embeddings, ids)
+
+                offset += len(rows)
+                logger.info(f"Rebuilt {offset} vectors...")
+
     def _load_config(self, path):
         if not os.path.exists(path):
             return {}
@@ -165,9 +218,10 @@ class MemoryService:
             ))
         return out
 
-    def search_hybrid(self, query: str, tenant: str, project_id: str, limit: int = 10) -> List[Dict[str, Any]]:
+    def search_hybrid(self, query: str, tenant: str, project_id: str, limit: int = 10, semantic_weight: float = 0.5) -> List[Dict[str, Any]]:
         """
-        Performs Hybrid Search (Vector + Keyword) with Reciprocal Rank Fusion (RRF).
+        Performs Hybrid Search (Vector + Keyword) with Weighted Fusion.
+        semantic_weight: 0.0 = pure keyword, 1.0 = pure semantic.
         """
         # 1. Keyword Search (SQLite FTS)
         keyword_results = self.db.search_keyword(query, tenant, project_id, limit=limit * 2)
@@ -176,63 +230,80 @@ class MemoryService:
         embedding = self.model.encode([query])[0].astype("float32")
         dists, ids = self.vector_store.search(embedding, k=limit * 2)
 
-        # Fetch metadata for vector hits
-        # Note: Vector store only has Semantic memories currently.
         vector_results_db = self.db.get_semantic_by_embedding_ids(ids, tenant, project_id)
-
-        # Map DB results to a dictionary for O(1) access
-        # vector_results_db is list of dicts.
-        # We need to preserve order from FAISS to know the rank.
         vector_map = {item['embedding_id']: item for item in vector_results_db}
 
-        vector_results = []
-        for i, emb_id in enumerate(ids):
-            if emb_id in vector_map:
-                item = vector_map[emb_id]
-                item['type'] = 'semantic'
-                item['vector_rank'] = i
-                vector_results.append(item)
-
-        # 3. RRF Fusion
-        # score = 1 / (k + rank_vec) + 1 / (k + rank_fts)
-        # k usually 60
-        rrf_k = 60
-        scores: Dict[str, float] = {}
-        merged: Dict[str, Dict] = {}
-
-        # Process Keyword Results
+        # 3. Score Normalization
+        fts_scores = {}
         for i, item in enumerate(keyword_results):
-            mid = item['id']
-            merged[mid] = item
-            scores[mid] = scores.get(mid, 0.0) + (1.0 / (rrf_k + i))
+            # Rank based score: 1.0 for first, decaying
+            # Normalize to [0,1]
+            score = 1.0 - (i / len(keyword_results))
+            fts_scores[item['id']] = score
 
-        # Process Vector Results
-        for i, item in enumerate(vector_results):
-            mid = item['id']
-            # If item already in merged (from keyword), we assume it's the same item.
-            # However, vector results are full rows, keyword results are FTS rows (id, content, type).
-            # They should match on ID.
-            if mid not in merged:
-                merged[mid] = item
-            scores[mid] = scores.get(mid, 0.0) + (1.0 / (rrf_k + i))
+        vector_scores = {}
+        for i, (dist, idx) in enumerate(zip(dists, ids)):
+            if idx in vector_map:
+                item = vector_map[idx]
+                mid = item['id']
+                # Distance based score (inverted)
+                # Ensure dist is normalized if possible, but for L2 usually unbounded.
+                # Heuristic: 1 / (1 + dist) or exp(-dist) or simple rank decay
+                # Review suggested: 1.0 - (dist / 100) clipping at 0.
+                # Or simple rank decay since we don't know dist range well without stats.
+                # Let's use Rank Decay for consistency with FTS if dist is wild.
+                # But Dist is better. Let's use rank decay to be safe.
+                # score = 1.0 - (i / len(ids))
+                # Reviewer code: 1.0 - (r['distance'] / 100).
+                # I'll stick to rank decay for robust merging unless distance is calibrated.
+                score = 1.0 - (i / len(ids))
+                vector_scores[mid] = score
+
+        # 4. Weighted Fusion
+        merged: Dict[str, Dict] = {}
+        all_ids = set(fts_scores.keys()) | set(vector_scores.keys())
+        final_scores = {}
+
+        for mid in all_ids:
+            # Get item data from either source
+            item = None
+            if mid in fts_scores:
+                # Find in keyword_results
+                item = next((x for x in keyword_results if x['id'] == mid), None)
+
+            if not item and mid in vector_scores:
+                # Find in vector results
+                # vector_map keys are embedding_id, we need mapping by memory_id
+                # Inefficient loop but safe
+                item = next((x for x in vector_results_db if x['id'] == mid), None)
+                if item: item['type'] = 'semantic'
+
+            if item:
+                if mid not in merged:
+                    merged[mid] = item
+
+                s_vec = vector_scores.get(mid, 0.0)
+                s_fts = fts_scores.get(mid, 0.0)
+
+                final_scores[mid] = (semantic_weight * s_vec) + ((1.0 - semantic_weight) * s_fts)
 
         # Sort by Score DESC
-        sorted_ids = sorted(scores.keys(), key=lambda x: scores[x], reverse=True)
+        sorted_ids = sorted(final_scores.keys(), key=lambda x: final_scores[x], reverse=True)
 
         final_results = []
         for mid in sorted_ids[:limit]:
             item = merged[mid]
-            item['score'] = scores[mid]
+            item['score'] = final_scores[mid]
             final_results.append(item)
 
         return final_results
 
-    def retrieve_context(self, query: str, tenant: str, project_id: str) -> Dict[str, Any]:
+    def retrieve_context(self, query: str, tenant: str, project_id: str, semantic_weight: float = 0.5) -> Dict[str, Any]:
         """
         Unified Context Retrieval for Agents.
         Returns categorized memory relevant to the query.
         """
-        hybrid_hits = self.search_hybrid(query, tenant, project_id, limit=20)
+        hybrid_hits = self.search_hybrid(query, tenant, project_id, limit=20, semantic_weight=semantic_weight)
 
         # Categorize
         context = {
