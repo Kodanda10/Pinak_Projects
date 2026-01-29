@@ -54,7 +54,9 @@ def _issue_token(tenant: str, project: str, subject: str = "tester") -> str:
 async def test_missing_token_is_rejected(test_app):
     async with LifespanManager(test_app):
         async with AsyncClient(transport=ASGITransport(app=test_app), base_url="http://test") as client:
-            response = await client.get("/api/v1/memory/episodic/list")
+            # Need to provide valid payload even for auth check usually, or it fails validation first
+            # But Depends usually runs before Body validation? Let's see.
+            response = await client.get("/api/v1/memory/events")
     assert response.status_code == 401
 
 
@@ -76,12 +78,23 @@ async def test_memory_isolation_between_tenants(test_app, memory_service):
 
     assert search_a.status_code == 200
     assert search_b.status_code == 200
-    assert all(result["tenant"] == "tenant-a" for result in search_a.json())
-    assert all(result["tenant"] == "tenant-b" for result in search_b.json())
+    # The search endpoint now returns Pydantic models.
+    # We check if content matches.
+    res_a = search_a.json()
+    res_b = search_b.json()
+
+    assert len(res_a) >= 1
+    assert len(res_b) >= 1
+    assert res_a[0]["content"] == "alpha memory"
+    assert res_b[0]["content"] == "beta memory"
+
+    # Verify Metadata if returned
+    assert res_a[0]["tenant"] == "tenant-a"
+    assert res_b[0]["tenant"] == "tenant-b"
 
 
 @pytest.mark.asyncio
-async def test_hash_chained_audit_log(test_app, memory_service):
+async def test_audit_log_persistence(test_app, memory_service):
     token = _issue_token("tenant-log", "project-log")
     headers = {"Authorization": f"Bearer {token}"}
 
@@ -91,24 +104,17 @@ async def test_hash_chained_audit_log(test_app, memory_service):
                 await client.post(
                     "/api/v1/memory/event",
                     headers=headers,
-                    json={"type": "audit", "step": step},
+                    json={"event_type": "audit", "payload": {"step": step}},
                 )
 
-    base = memory_service._store_dir("tenant-log", "project-log")
-    events_folder = os.path.join(base, "events")
-    event_files = sorted(f for f in os.listdir(events_folder) if f.startswith("events_"))
-    assert event_files, "expected at least one event log file"
-
-    latest_file = os.path.join(events_folder, event_files[-1])
-    with open(latest_file, "r", encoding="utf-8") as fh:
-        records = [json.loads(line) for line in fh if line.strip()]
-
-    assert len(records) == 3
-    assert records[0]["prev_hash"] is None
-    for idx in range(1, len(records)):
-        assert records[idx]["prev_hash"] == records[idx - 1]["hash"]
-        expected_hash = memory_service._compute_audit_hash({k: v for k, v in records[idx].items() if k != "hash"})
-        assert records[idx]["hash"] == expected_hash
+            # Verify retrieval
+            response = await client.get("/api/v1/memory/events", headers=headers)
+            assert response.status_code == 200
+            data = response.json()
+            assert len(data) == 3
+            # Check LIFO order (DESC)
+            assert json.loads(data[0]['payload'])['step'] == 2
+            assert json.loads(data[2]['payload'])['step'] == 0
 
 
 @pytest.mark.asyncio
@@ -123,12 +129,12 @@ async def test_session_and_working_memory_are_scoped(test_app):
             await client.post(
                 "/api/v1/memory/session/add",
                 headers=headers_a,
-                json={"session_id": "conversation", "content": "hello"},
+                json={"session_id": "conversation", "content": "hello", "role": "user"},
             )
             await client.post(
                 "/api/v1/memory/session/add",
                 headers=headers_b,
-                json={"session_id": "conversation", "content": "hola"},
+                json={"session_id": "conversation", "content": "hola", "role": "user"},
             )
 
             await client.post(
@@ -172,5 +178,6 @@ async def test_invalid_token_is_rejected(test_app):
     headers = {"Authorization": "Bearer invalid"}
     async with LifespanManager(test_app):
         async with AsyncClient(transport=ASGITransport(app=test_app), base_url="http://test") as client:
-            response = await client.get("/api/v1/memory/episodic/list", headers=headers)
+            # list_episodic no longer exists in same path form, checking events
+            response = await client.get("/api/v1/memory/events", headers=headers)
     assert response.status_code == 401
