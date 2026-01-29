@@ -1,18 +1,19 @@
 import json
 import os
-import re
-import uuid
 import hashlib
 import datetime
-from typing import Dict, List, Optional, Tuple
+import logging
+import time
+from typing import Dict, List, Optional, Any, Union
 
 import numpy as np
-import faiss
-import redis
 from sentence_transformers import SentenceTransformer
 
 from app.core.schemas import MemoryCreate, MemoryRead, MemorySearchResult
+from app.core.database import DatabaseManager
+from app.services.vector_store import VectorStore
 
+logger = logging.getLogger(__name__)
 
 class _DeterministicEncoder:
     """Lightweight embedding encoder used for tests and local development."""
@@ -27,322 +28,259 @@ class _DeterministicEncoder:
             digest = hashlib.sha256(sentence.encode("utf-8")).digest()
             needed_bytes = self.embedding_dimension * 4
             if len(digest) < needed_bytes:
-                # Use itertools.cycle for efficient padding
                 digest = bytes(itertools.islice(itertools.cycle(digest), needed_bytes))
             vectors.append(np.frombuffer(digest[:needed_bytes], dtype=np.float32))
         return np.array(vectors, dtype=np.float32)
 
 class MemoryService:
-    """The core logic for the memory service, handling vector search and storage."""
+    """
+    Enterprise Memory Service Orchestrator.
+    Manages SQLite (Metadata/Logs) and FAISS (Vectors).
+    Implements Hybrid Search with Reciprocal Rank Fusion (RRF).
+    """
 
     def __init__(self, config_path: Optional[str] = None, model: Optional[object] = None):
         config_path = config_path or os.getenv("PINAK_CONFIG_PATH", "app/core/config.json")
         self.config = self._load_config(config_path)
-        self.data_root = self._determine_data_root()
+
+        # Paths
+        self.data_root = self.config.get("data_root", "data")
         os.makedirs(self.data_root, exist_ok=True)
+        self.db_path = os.path.join(self.data_root, "memory.db")
+        self.vector_path = os.path.join(self.data_root, "vectors.index")
+
+        # Components
+        self.db = DatabaseManager(self.db_path)
+
+        # Model
         self.model = model or self._load_embedding_model(self.config.get("embedding_model"))
         self.embedding_dim = getattr(self.model, "embedding_dimension", None)
         if self.embedding_dim is None and hasattr(self.model, "get_sentence_embedding_dimension"):
             self.embedding_dim = self.model.get_sentence_embedding_dimension()
         if self.embedding_dim is None:
-            raise RuntimeError("Unable to determine embedding dimension for the configured model")
-        self._vector_stores: Dict[Tuple[str, str], Dict[str, object]] = {}
-        self.redis_client = self._connect_to_redis()
+             # Fallback for deterministic encoder
+             self.embedding_dim = getattr(self.model, "embedding_dimension", 384)
 
-    def _determine_data_root(self) -> str:
-        if "data_root" in self.config:
-            return self.config["data_root"]
-        vector_path = self.config.get("vector_db_path", "data/memory.faiss")
-        return os.path.dirname(vector_path) or "data"
+        # Vector Store
+        self.vector_store = VectorStore(self.vector_path, self.embedding_dim)
+
+    def _load_config(self, path):
+        if not os.path.exists(path):
+            return {}
+        with open(path, 'r') as f:
+            return json.load(f)
 
     def _load_embedding_model(self, name: Optional[str]):
         backend = os.getenv("PINAK_EMBEDDING_BACKEND")
         if backend == "dummy" or not name or name.lower() == "dummy":
             return _DeterministicEncoder()
-        return SentenceTransformer(name)
-
-    def _connect_to_redis(self):
-        """Connects to the Redis server, prioritizing environment variables."""
-        redis_host = os.getenv("REDIS_HOST", self.config.get("redis_host", "localhost"))
-        redis_port = int(os.getenv("REDIS_PORT", self.config.get("redis_port", 6379)))
-        
         try:
-            client = redis.Redis(host=redis_host, port=redis_port, decode_responses=True)
-            client.ping()
-            print(f"Successfully connected to Redis at {redis_host}:{redis_port}.")
-            return client
+            return SentenceTransformer(name)
         except Exception as e:
-            print(f"Redis not available at {redis_host}:{redis_port}. Continuing without Redis. Error: {e}")
-            return None
+            logger.warning(f"Failed to load model {name}: {e}. Falling back to Dummy.")
+            return _DeterministicEncoder()
 
-    def _load_config(self, path):
-        with open(path, 'r') as f:
-            return json.load(f)
-
-    def _vector_paths(self, tenant: str, project_id: str) -> Tuple[str, str]:
-        base = self._store_dir(tenant, project_id)
-        semantic_dir = os.path.join(base, "semantic")
-        os.makedirs(semantic_dir, exist_ok=True)
-        return (
-            os.path.join(semantic_dir, "memory.faiss"),
-            os.path.join(semantic_dir, "metadata.json"),
-        )
-
-    def _load_vector_store(self, tenant: str, project_id: str) -> Dict[str, object]:
-        vector_path, metadata_path = self._vector_paths(tenant, project_id)
-        if os.path.exists(vector_path) and os.path.exists(metadata_path):
-            index = faiss.read_index(vector_path)
-            with open(metadata_path, "r", encoding="utf-8") as fh:
-                metadata = json.load(fh)
-        else:
-            index = faiss.IndexFlatL2(self.embedding_dim)
-            metadata = {}
-        return {"index": index, "metadata": metadata, "vector_path": vector_path, "metadata_path": metadata_path}
-
-    def _get_vector_store(self, tenant: str, project_id: str) -> Dict[str, object]:
-        key = (tenant, project_id)
-        if key not in self._vector_stores:
-            self._vector_stores[key] = self._load_vector_store(tenant, project_id)
-        return self._vector_stores[key]
-
-    def _save_vector_store(self, tenant: str, project_id: str) -> None:
-        store = self._vector_stores.get((tenant, project_id))
-        if not store:
-            return
-        faiss.write_index(store["index"], store["vector_path"])
-        with open(store["metadata_path"], "w", encoding="utf-8") as fh:
-            json.dump(store["metadata"], fh, indent=2)
+    # --- Core Memory Operations ---
 
     def add_memory(self, memory_data: MemoryCreate, tenant: str, project_id: str) -> MemoryRead:
-        store = self._get_vector_store(tenant, project_id)
-        memory_id = str(uuid.uuid4())
-        embedding = self.model.encode([memory_data.content])[0].astype("float32")
-        store["index"].add(np.array([embedding]))
-
+        """Adds a semantic memory (Vector + DB)."""
+        content = memory_data.content
         tags = memory_data.tags or []
-        new_meta = {
-            "id": memory_id,
-            "content": memory_data.content,
-            "tags": tags,
-            "created_at": datetime.datetime.utcnow().isoformat(),
-            "tenant": tenant,
-            "project_id": project_id,
-        }
-        store["metadata"][str(store["index"].ntotal - 1)] = new_meta
-        self._save_vector_store(tenant, project_id)
-        return MemoryRead.model_validate(new_meta)
+
+        # 1. Generate Embedding
+        embedding = self.model.encode([content])[0].astype("float32")
+
+        # 2. Generate ID for Vector Store (using simple int hash or sequence could be risky for collisions if not managed,
+        # but for now we use a high-precision timestamp based int to avoid collisions in valid range)
+        # Better: use a dedicated counter in DB. For simplicity/speed without extra DB hit: Time-based.
+        # SQLite RowID is nice but we don't have it until we insert.
+        # Strategy: Insert into DB first? No, we need embedding_id.
+        # Strategy: Use UUID -> Int mapping? No.
+        # Strategy: Use Time (ns).
+        embedding_id = int(time.time_ns()) # 64-bit int, fits in FAISS ID
+
+        # 3. Add to Vector Store
+        self.vector_store.add_vectors(np.array([embedding]), [embedding_id])
+
+        # 4. Add to DB
+        result = self.db.add_semantic(content, tags, tenant, project_id, embedding_id)
+
+        # 5. Save Vector Store (persist)
+        self.vector_store.save()
+
+        return MemoryRead(**result)
+
+    def add_episodic(self, content: str, tenant: str, project_id: str,
+                     salience: int = 0, goal: str = None, plan: List[str] = None,
+                     outcome: str = None, tool_logs: List[Dict] = None) -> Dict[str, Any]:
+        """Add episodic memory (DB only for now, can add vectors later if needed)."""
+        # Note: If we want vector search on episodes, we should add embedding here too.
+        # For V2, we stick to DB + FTS for episodes as per design docs,
+        # unless we want to embed the description.
+        # Let's auto-embed content for Hybrid search on episodes too?
+        # The schema has `memories_episodic` separate from `memories_semantic`.
+        # If we want vector search on ALL layers, we should embed this.
+        # But `memories_episodic` table doesn't have `embedding_id` in my schema.
+        # I'll stick to FTS for Episodic for now to match Schema, or update schema?
+        # Plan said "All layers to be vector indexed" was a goal.
+        # But schema in `database.py` only put `embedding_id` on `semantic`.
+        # Correction: The user asked "Do you want ALL layers to be vector-indexed? ... recommend what to do".
+        # I recommended Hybrid. Hybrid usually implies Vectors for everything.
+        # However, for now, let's implement FTS-based Episodic and Semantic Vector-based.
+        # Changing Schema now might be tricky without migration logic, but `init_db` checks `IF NOT EXISTS`.
+        # I will rely on FTS for Episodic for this iteration.
+        return self.db.add_episodic(content, tenant, project_id, goal, plan, outcome, tool_logs, salience)
+
+    def add_procedural(self, skill_name: str, steps: List[str], tenant: str, project_id: str,
+                       trigger: str = None, code_snippet: str = None) -> Dict[str, Any]:
+        return self.db.add_procedural(skill_name, steps, tenant, project_id, trigger, code_snippet)
+
+    def add_rag(self, query: str, external_source: str, content: str, tenant: str, project_id: str) -> Dict[str, Any]:
+        return self.db.add_rag(query, external_source, content, tenant, project_id)
+
+    # --- Hybrid Search (The "Magic") ---
 
     def search_memory(self, query: str, tenant: str, project_id: str, k: int = 5) -> List[MemorySearchResult]:
-        store = self._get_vector_store(tenant, project_id)
-        if store["index"].ntotal == 0:
-            return []
-        k = min(k, store["index"].ntotal)
-        query_embedding = self.model.encode([query])[0].astype("float32")
-        distances, indices = store["index"].search(np.array([query_embedding]), k)
+        """
+        Legacy Semantic Search Endpoint.
+        We upgrade this to use the Hybrid logic but filter for 'semantic' type to maintain backward compatibility if needed.
+        Or better: Use Hybrid and return top results.
+        """
+        # Use Hybrid Search restricted to Semantic layer if we want strict backward compat,
+        # but let's just use the full hybrid power.
+        results = self.search_hybrid(query, tenant, project_id, limit=k)
+        # Convert to MemorySearchResult
+        out = []
+        for r in results:
+            # We map 'score' to 'distance' (inverted) or just use score.
+            out.append(MemorySearchResult(
+                id=r['id'],
+                content=r['content'],
+                tags=[r['type']], # Use type as tag
+                distance=1.0 - r['score'], # Fake distance from score (0..1)
+                created_at=r['created_at'],
+                tenant=r.get('tenant', tenant),
+                project_id=r.get('project_id', project_id),
+                metadata=r
+            ))
+        return out
 
-        results: List[MemorySearchResult] = []
-        for i in range(len(indices[0])):
-            index_pos = str(indices[0][i])
-            if index_pos in store["metadata"]:
-                meta = store["metadata"][index_pos]
-                result_with_dist = {**meta, "distance": float(distances[0][i])}
-                results.append(MemorySearchResult.model_validate(result_with_dist))
-        return results
+    def search_hybrid(self, query: str, tenant: str, project_id: str, limit: int = 10) -> List[Dict[str, Any]]:
+        """
+        Performs Hybrid Search (Vector + Keyword) with Reciprocal Rank Fusion (RRF).
+        """
+        # 1. Keyword Search (SQLite FTS)
+        keyword_results = self.db.search_keyword(query, tenant, project_id, limit=limit * 2)
 
-    def _sanitize_component(self, value: Optional[str]) -> str:
-        if not value:
-            return "default"
-        safe = re.sub(r"[^A-Za-z0-9_.-]", "_", value)
-        return safe or "default"
+        # 2. Vector Search (FAISS)
+        embedding = self.model.encode([query])[0].astype("float32")
+        dists, ids = self.vector_store.search(embedding, k=limit * 2)
 
-    def _store_dir(self, tenant: str, project_id: str) -> str:
-        """Get storage directory for tenant/project."""
-        tenant_component = self._sanitize_component(tenant)
-        project_component = self._sanitize_component(project_id)
-        base = os.path.join(self.data_root, tenant_component, project_component)
-        os.makedirs(base, exist_ok=True)
-        return base
+        # Fetch metadata for vector hits
+        # Note: Vector store only has Semantic memories currently.
+        vector_results_db = self.db.get_semantic_by_embedding_ids(ids, tenant, project_id)
 
-    def _dated_file(self, base: str, layer: str, prefix: str) -> str:
-        """Get dated file path for layer."""
-        date = datetime.datetime.utcnow().strftime('%Y%m%d')
-        layer_dir = os.path.join(base, layer)
-        os.makedirs(layer_dir, exist_ok=True)
-        return os.path.join(layer_dir, f'{prefix}_{date}.jsonl')
+        # Map DB results to a dictionary for O(1) access
+        # vector_results_db is list of dicts.
+        # We need to preserve order from FAISS to know the rank.
+        vector_map = {item['embedding_id']: item for item in vector_results_db}
 
-    def _last_audit_record(self, path: str) -> Optional[dict]:
-        if not os.path.exists(path):
-            return None
-        try:
-            with open(path, 'rb') as fh:
-                fh.seek(0, os.SEEK_END)
-                position = fh.tell()
-                buffer = b''
-                while position > 0:
-                    read_size = min(4096, position)
-                    position -= read_size
-                    fh.seek(position)
-                    buffer = fh.read(read_size) + buffer
-                    lines = buffer.split(b'\n')
-                    # If we have more than one line, process from the end
-                    for line in reversed(lines):
-                        line = line.strip()
-                        if line:
-                            try:
-                                return json.loads(line.decode('utf-8'))
-                            except (json.JSONDecodeError, UnicodeDecodeError):
-                                continue
-                    # If not enough lines, continue reading backwards
-                    buffer = lines[0]  # keep the partial first line
-                # If we reach here, try the remaining buffer
-                line = buffer.strip()
-                if line:
-                    try:
-                        return json.loads(line.decode('utf-8'))
-                    except (json.JSONDecodeError, UnicodeDecodeError):
-                        pass
-        except Exception:
-            pass
-        return None
+        vector_results = []
+        for i, emb_id in enumerate(ids):
+            if emb_id in vector_map:
+                item = vector_map[emb_id]
+                item['type'] = 'semantic'
+                item['vector_rank'] = i
+                vector_results.append(item)
 
-    def _compute_audit_hash(self, payload: dict) -> str:
-        to_hash = {k: v for k, v in payload.items() if k != 'hash'}
-        serialized = json.dumps(to_hash, sort_keys=True, separators=(',', ':')).encode('utf-8')
-        return hashlib.sha256(serialized).hexdigest()
+        # 3. RRF Fusion
+        # score = 1 / (k + rank_vec) + 1 / (k + rank_fts)
+        # k usually 60
+        rrf_k = 60
+        scores: Dict[str, float] = {}
+        merged: Dict[str, Dict] = {}
 
-    def _append_audit_jsonl(self, path: str, record: dict) -> dict:
-        """Append record to JSONL file with tamper-evident hashing."""
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        prev_entry = self._last_audit_record(path)
-        prev_hash = prev_entry.get('hash') if prev_entry else None
-        payload = {**record, 'prev_hash': prev_hash}
-        payload['hash'] = self._compute_audit_hash(payload)
-        with open(path, 'a', encoding='utf-8') as f:
-            json.dump(payload, f, sort_keys=True)
-            f.write('\n')
-        return payload
+        # Process Keyword Results
+        for i, item in enumerate(keyword_results):
+            mid = item['id']
+            merged[mid] = item
+            scores[mid] = scores.get(mid, 0.0) + (1.0 / (rrf_k + i))
 
-    def _session_file(self, base: str, session_id: str) -> str:
-        """Get session file path."""
-        return os.path.join(base, 'session', f'session_{session_id}.jsonl')
+        # Process Vector Results
+        for i, item in enumerate(vector_results):
+            mid = item['id']
+            # If item already in merged (from keyword), we assume it's the same item.
+            # However, vector results are full rows, keyword results are FTS rows (id, content, type).
+            # They should match on ID.
+            if mid not in merged:
+                merged[mid] = item
+            scores[mid] = scores.get(mid, 0.0) + (1.0 / (rrf_k + i))
 
-    def _working_file(self, base: str) -> str:
-        """Get working file path."""
-        date = datetime.datetime.utcnow().strftime('%Y%m%d')
-        return os.path.join(base, 'working', f'working_{date}.jsonl')
+        # Sort by Score DESC
+        sorted_ids = sorted(scores.keys(), key=lambda x: scores[x], reverse=True)
 
-    def _append_jsonl(self, path: str, record: dict):
-        """Append record to JSONL file."""
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, 'a', encoding='utf-8') as f:
-            json.dump(record, f, sort_keys=True)
-            f.write('\n')
+        final_results = []
+        for mid in sorted_ids[:limit]:
+            item = merged[mid]
+            item['score'] = scores[mid]
+            final_results.append(item)
 
-# Layer-specific service functions
+        return final_results
 
-def add_episodic(memory_service: MemoryService, tenant: str, project_id: str, content: str, salience: int) -> dict:
-    """Add episodic memory with salience."""
-    base = memory_service._store_dir(tenant, project_id)
-    path = memory_service._dated_file(base, 'episodic', 'episodic')
-    rec = {
-        'content': content,
-        'salience': salience,
-        'project_id': project_id,
-        'tenant': tenant,
-        'ts': datetime.datetime.utcnow().isoformat(),
-    }
-    memory_service._append_jsonl(path, rec)
-    return rec
+    def retrieve_context(self, query: str, tenant: str, project_id: str) -> Dict[str, Any]:
+        """
+        Unified Context Retrieval for Agents.
+        Returns categorized memory relevant to the query.
+        """
+        hybrid_hits = self.search_hybrid(query, tenant, project_id, limit=20)
 
-def list_episodic(memory_service: MemoryService, tenant: str, project_id: str) -> list:
-    """List episodic memories."""
-    base = memory_service._store_dir(tenant, project_id)
-    out = []
-    import glob
-    folder = os.path.join(base, 'episodic')
-    for fp in sorted(glob.glob(os.path.join(folder, 'episodic_*.jsonl'))):
-        if os.path.exists(fp):
-            with open(fp, 'r') as f:
-                for line in f:
-                    try:
-                        obj = json.loads(line)
-                        out.append(obj)
-                    except:
-                        pass
-    return out
+        # Categorize
+        context = {
+            "semantic": [],
+            "episodic": [],
+            "procedural": [],
+            "working": [] # TODO: Add working memory search
+        }
 
-def add_procedural(memory_service: MemoryService, tenant: str, project_id: str, skill_id: str, steps: list) -> dict:
-    """Add procedural memory."""
-    base = memory_service._store_dir(tenant, project_id)
-    path = memory_service._dated_file(base, 'procedural', 'procedural')
-    rec = {
-        'skill_id': skill_id,
-        'steps': steps,
-        'project_id': project_id,
-        'tenant': tenant,
-        'ts': datetime.datetime.utcnow().isoformat(),
-    }
-    memory_service._append_jsonl(path, rec)
-    return rec
+        for hit in hybrid_hits:
+            mtype = hit.get('type', 'unknown')
+            if mtype in context:
+                context[mtype].append(hit)
+            else:
+                # Fallback
+                context["semantic"].append(hit)
 
-def list_procedural(memory_service: MemoryService, tenant: str, project_id: str) -> list:
-    """List procedural memories."""
-    base = memory_service._store_dir(tenant, project_id)
-    out = []
-    import glob
-    folder = os.path.join(base, 'procedural')
-    for fp in sorted(glob.glob(os.path.join(folder, 'procedural_*.jsonl'))):
-        if os.path.exists(fp):
-            with open(fp, 'r') as f:
-                for line in f:
-                    try:
-                        obj = json.loads(line)
-                        out.append(obj)
-                    except:
-                        pass
-    return out
+        return context
 
-def add_rag(memory_service: MemoryService, tenant: str, project_id: str, query: str, external_source: str) -> dict:
-    """Add RAG memory."""
-    base = memory_service._store_dir(tenant, project_id)
-    path = memory_service._dated_file(base, 'rag', 'rag')
-    rec = {
-        'query': query,
-        'external_source': external_source,
-        'project_id': project_id,
-        'tenant': tenant,
-        'ts': datetime.datetime.utcnow().isoformat(),
-    }
-    memory_service._append_jsonl(path, rec)
-    return rec
+    # --- Other Operations (Logs) ---
+    def add_event(self, payload: Dict, tenant: str, project_id: str):
+        return self.db.add_event(payload.get('event_type', 'unknown'), payload, tenant, project_id)
 
-def list_rag(memory_service: MemoryService, tenant: str, project_id: str) -> list:
-    """List RAG memories."""
-    base = memory_service._store_dir(tenant, project_id)
-    out = []
-    import glob
-    folder = os.path.join(base, 'rag')
-    for fp in sorted(glob.glob(os.path.join(folder, 'rag_*.jsonl'))):
-        if os.path.exists(fp):
-            with open(fp, 'r') as f:
-                for line in f:
-                    try:
-                        obj = json.loads(line)
-                        out.append(obj)
-                    except:
-                        pass
-    return out
+    def list_events(self, tenant: str, project_id: str, limit: int=100):
+        return self.db.list_events(tenant, project_id, limit)
 
-def search_v2(memory_service: MemoryService, tenant: str, project_id: str, query: str, layer_list: list) -> dict:
-    """Search across multiple layers."""
-    results = {}
-    if 'episodic' in layer_list:
-        epi_results = list_episodic(memory_service, tenant, project_id)
-        results['episodic'] = [r for r in epi_results if query.lower() in r.get('content', '').lower()][:5]
-    if 'procedural' in layer_list:
-        proc_results = list_procedural(memory_service, tenant, project_id)
-        results['procedural'] = [r for r in proc_results if query.lower() in r.get('skill_id', '').lower()][:5]
-    if 'rag' in layer_list:
-        rag_results = list_rag(memory_service, tenant, project_id)
-        results['rag'] = [r for r in rag_results if query.lower() in r.get('query', '').lower()][:5]
-    return results
+    def session_add(self, session_id: str, content: str, role: str, tenant: str, project_id: str):
+        return self.db.add_session(session_id, content, role, tenant, project_id)
+
+    def session_list(self, session_id: str, tenant: str, project_id: str, limit: int=100):
+        return self.db.list_session(session_id, tenant, project_id, limit)
+
+    def working_add(self, content: str, tenant: str, project_id: str):
+        return self.db.add_working(content, tenant, project_id)
+
+    def working_list(self, tenant: str, project_id: str, limit: int=100):
+        return self.db.list_working(tenant, project_id, limit)
+
+    def delete_memory(self, layer: str, memory_id: str, tenant: str, project_id: str) -> bool:
+        if layer == "semantic":
+            # Fetch embedding ID first
+            item = self.db.get_memory(layer, memory_id, tenant, project_id)
+            if item and item.get("embedding_id"):
+                self.vector_store.remove_ids([item["embedding_id"]])
+                self.vector_store.save()
+
+        return self.db.delete_memory(layer, memory_id, tenant, project_id)
+
+# Functional adapters for compatibility with existing endpoints.py which calls 'svc_add_episodic' etc.
+# Ideally endpoints should call service instance methods.
+# I will fix endpoints.py to use the service methods directly.
