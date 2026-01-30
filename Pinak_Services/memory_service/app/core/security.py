@@ -5,7 +5,7 @@ from typing import List, Optional
 import os
 
 import jwt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Header
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 
@@ -17,6 +17,12 @@ class AuthContext:
     tenant_id: str
     project_id: str
     roles: List[str]
+    scopes: List[str]
+    client_name: Optional[str]
+    client_id: Optional[str]
+    parent_client_id: Optional[str]
+    child_client_id: Optional[str]
+    effective_client_id: str
     token: str
 
 
@@ -32,6 +38,7 @@ def _get_secret() -> str:
 
 def require_auth_context(
     credentials: HTTPAuthorizationCredentials = Depends(_http_bearer),
+    child_client_id: Optional[str] = Header(default=None, alias="X-Pinak-Child-Id"),
 ) -> AuthContext:
     """FastAPI dependency that validates a JWT and extracts tenant context."""
 
@@ -59,10 +66,37 @@ def require_auth_context(
     if not isinstance(roles, list):
         roles = [str(roles)]
 
+    client_name = payload.get("client_name") or payload.get("client")
+    client_id = payload.get("client_id") or payload.get("cid") or client_name
+    parent_client_id = payload.get("parent_client_id") or payload.get("parent_client")
+    effective_client_id = child_client_id or client_id or payload.get("sub") or "unknown"
+
     return AuthContext(
         subject=payload.get("sub"),
         tenant_id=str(tenant),
         project_id=str(project_id),
         roles=[str(role) for role in roles],
+        scopes=[str(scope) for scope in (payload.get("scopes") or [])],
+        client_name=client_name,
+        client_id=client_id,
+        parent_client_id=parent_client_id,
+        child_client_id=child_client_id,
+        effective_client_id=effective_client_id,
         token=token,
     )
+
+
+def require_scope(ctx: AuthContext, scope: str) -> None:
+    enforce = os.getenv("PINAK_ENFORCE_SCOPES", "true").lower() in ("1", "true", "yes")
+    if not enforce:
+        return
+    if scope not in ctx.scopes:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Missing scope: {scope}")
+
+
+def require_role(ctx: AuthContext, role: str) -> None:
+    enforce = os.getenv("PINAK_ENFORCE_SCOPES", "true").lower() in ("1", "true", "yes")
+    if not enforce:
+        return
+    if role not in ctx.roles:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=f"Missing role: {role}")

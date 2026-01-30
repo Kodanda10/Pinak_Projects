@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+  <dict>
+    <key>Label</key>
+    <string>com.pinak.memory.doctor</string>
+
+    <key>ProgramArguments</key>
+    <array>
+      <string>/bin/bash</string>
+      <string>/Users/abhi-macmini/clawd-simba/Pinak_Projects/Pinak_Services/memory_service/scripts/pinak-memory-doctor-agent.sh</string>
+    </array>
+
+    <key>StartInterval</key>
+    <integer>300</integer>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/Users/abhi-macmini/Library/Logs/pinak-memory-doctor.log</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/abhi-macmini/Library/Logs/pinak-memory-doctor.err.log</string>
+  </dict>
+</plist>

@@ -1,0 +1,16 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "EpisodicMemory",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"type": "string"},
+    "content": {"type": "string", "minLength": 1},
+    "goal": {"type": "string"},
+    "outcome": {"type": "string"},
+    "salience": {"type": "integer", "minimum": 0, "maximum": 10},
+    "plan": {"type": "array", "items": {"type": "string"}},
+    "tool_logs": {"type": "array", "items": {"type": "object"}}
+  },
+  "required": ["content"]
+}

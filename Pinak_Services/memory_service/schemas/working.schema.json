@@ -1,0 +1,11 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "WorkingMemory",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"type": "string"},
+    "content": {"type": "string", "minLength": 1}
+  },
+  "required": ["content"]
+}

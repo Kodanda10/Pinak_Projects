@@ -1,374 +1,704 @@
+
 import sqlite3
-import json
-import logging
 import os
+import json
 import uuid
 import datetime
-from typing import List, Dict, Optional, Any
-from contextlib import contextmanager
+import logging
+from typing import List, Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
 
 class DatabaseManager:
-    """
-    Manages SQLite connection, schema initialization, and CRUD operations.
-    Supports Multi-tenancy via 'tenant' and 'project_id' columns.
-    """
-
     def __init__(self, db_path: str):
         self.db_path = db_path
-        os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
+        db_dir = os.path.dirname(db_path)
+        if db_dir:
+            os.makedirs(db_dir, exist_ok=True)
         self._init_db()
 
-    def _get_connection(self):
-        conn = sqlite3.connect(self.db_path, check_same_thread=False)
+    def _init_db(self):
+        with self.get_cursor() as conn:
+            # 1. Semantic Memory (Knowledge)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS memories_semantic (
+                    id TEXT PRIMARY KEY,
+                    content TEXT NOT NULL,
+                    tags TEXT, -- JSON list
+                    embedding_id INTEGER, -- Link to FAISS
+                    agent_id TEXT,
+                    client_id TEXT,
+                    client_name TEXT,
+                    tenant TEXT NOT NULL,
+                    project_id TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                );
+            """)
+            # FTS for Semantic
+            conn.execute("""
+                CREATE VIRTUAL TABLE IF NOT EXISTS memories_semantic_fts 
+                USING fts5(content, tags, content='memories_semantic', content_rowid='rowid');
+            """)
+            conn.execute("""
+                CREATE TRIGGER IF NOT EXISTS memories_semantic_ai AFTER INSERT ON memories_semantic BEGIN
+                  INSERT INTO memories_semantic_fts(rowid, content, tags) VALUES (new.rowid, new.content, new.tags);
+                END;
+            """)
+
+            # 2. Episodic Memory (Events/Logs)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS memories_episodic (
+                    id TEXT PRIMARY KEY,
+                    content TEXT NOT NULL,
+                    goal TEXT,
+                    outcome TEXT,
+                    plan TEXT, -- JSON
+                    steps TEXT, -- JSON list of executed steps
+                    salience INTEGER,
+                    embedding_id INTEGER, -- Link to FAISS
+                    agent_id TEXT,
+                    client_id TEXT,
+                    client_name TEXT,
+                    tenant TEXT NOT NULL,
+                    project_id TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                );
+            """)
+            conn.execute("""
+                CREATE VIRTUAL TABLE IF NOT EXISTS memories_episodic_fts
+                USING fts5(content, goal, outcome, content='memories_episodic', content_rowid='rowid');
+            """)
+            conn.execute("""
+                CREATE TRIGGER IF NOT EXISTS memories_episodic_ai AFTER INSERT ON memories_episodic BEGIN
+                  INSERT INTO memories_episodic_fts(rowid, content, goal, outcome) VALUES (new.rowid, new.content, new.goal, new.outcome);
+                END;
+            """)
+
+            # 3. Procedural Memory (Skills)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS memories_procedural (
+                    id TEXT PRIMARY KEY,
+                    skill_name TEXT NOT NULL,
+                    trigger TEXT,
+                    steps TEXT, -- JSON
+                    description TEXT,
+                    code_snippet TEXT,
+                    embedding_id INTEGER, -- Link to FAISS
+                    agent_id TEXT,
+                    client_id TEXT,
+                    client_name TEXT,
+                    tenant TEXT NOT NULL,
+                    project_id TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                );
+            """)
+            # FTS for Procedural
+            conn.execute("""
+                CREATE VIRTUAL TABLE IF NOT EXISTS memories_procedural_fts
+                USING fts5(skill_name, trigger, steps, description, content='memories_procedural', content_rowid='rowid');
+            """)
+            conn.execute("""
+                CREATE TRIGGER IF NOT EXISTS memories_procedural_ai AFTER INSERT ON memories_procedural BEGIN
+                  INSERT INTO memories_procedural_fts(rowid, skill_name, trigger, steps, description) VALUES (new.rowid, new.skill_name, new.trigger, new.steps, new.description);
+                END;
+            """)
+
+            # 4. RAG Memory (External Source)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS memories_rag (
+                    id TEXT PRIMARY KEY,
+                    query TEXT,
+                    external_source TEXT,
+                    content TEXT,
+                    agent_id TEXT,
+                    client_id TEXT,
+                    client_name TEXT,
+                    tenant TEXT NOT NULL,
+                    project_id TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                );
+            """)
+
+            # 5. Working Memory (Short-term)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS working_memory (
+                    id TEXT PRIMARY KEY,
+                    session_id TEXT NOT NULL,
+                    key TEXT NOT NULL,
+                    value TEXT NOT NULL, -- JSON
+                    agent_id TEXT,
+                    client_id TEXT,
+                    client_name TEXT,
+                    tenant TEXT NOT NULL,
+                    project_id TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+            """)
+            
+            # --- LOGGING TABLES ---
+            
+            # 6. Event Log (Immutable Audit Trail)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS logs_events (
+                    id TEXT PRIMARY KEY,
+                    event_type TEXT NOT NULL,
+                    payload TEXT, -- JSON
+                    tenant TEXT NOT NULL,
+                    project_id TEXT NOT NULL,
+                    ts TEXT NOT NULL
+                );
+            """)
+
+            # 7. Session Log (Chat History / Reasoning Trace)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS logs_session (
+                    id TEXT PRIMARY KEY,
+                    session_id TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    role TEXT NOT NULL, -- user, assistant, system, tool
+                    tool_calls TEXT, -- JSON
+                    agent_id TEXT,
+                    client_id TEXT,
+                    client_name TEXT,
+                    parent_client_id TEXT,
+                    child_client_id TEXT,
+                    tenant TEXT NOT NULL,
+                    project_id TEXT NOT NULL,
+                    ts TEXT NOT NULL
+                );
+            """)
+            # 7b. Client Registry (Observed + Registered clients)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS clients_registry (
+                    id TEXT PRIMARY KEY,
+                    client_id TEXT NOT NULL,
+                    client_name TEXT,
+                    parent_client_id TEXT,
+                    status TEXT NOT NULL, -- observed|registered|trusted|blocked
+                    metadata TEXT, -- JSON
+                    tenant TEXT NOT NULL,
+                    project_id TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    last_seen TEXT
+                );
+            """)
+            conn.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_clients_registry_unique
+                ON clients_registry (client_id, tenant, project_id);
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_clients_registry_status
+                ON clients_registry (status);
+            """)
+            # 8. Agent Registry (Live Presence)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS logs_agents (
+                    id TEXT PRIMARY KEY,
+                    agent_id TEXT NOT NULL,
+                    client_name TEXT NOT NULL,
+                    client_id TEXT,
+                    parent_client_id TEXT,
+                    hostname TEXT,
+                    pid TEXT,
+                    status TEXT NOT NULL,
+                    meta TEXT, -- JSON
+                    tenant TEXT NOT NULL,
+                    project_id TEXT NOT NULL,
+                    last_seen TEXT NOT NULL
+                );
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_logs_agents_last_seen
+                ON logs_agents (last_seen);
+            """)
+            conn.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_logs_agents_agent_unique
+                ON logs_agents (agent_id, client_name, tenant, project_id);
+            """)
+
+            # 9. Memory Access Logs (Reads/Writes)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS logs_access (
+                    id TEXT PRIMARY KEY,
+                    agent_id TEXT,
+                    client_name TEXT,
+                    client_id TEXT,
+                    parent_client_id TEXT,
+                    child_client_id TEXT,
+                    event_type TEXT NOT NULL, -- read|write|delete|update|propose
+                    target_layer TEXT,
+                    query TEXT,
+                    memory_id TEXT,
+                    result_count INTEGER,
+                    status TEXT NOT NULL, -- ok|error
+                    detail TEXT,
+                    tenant TEXT NOT NULL,
+                    project_id TEXT NOT NULL,
+                    ts TEXT NOT NULL
+                );
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_logs_access_ts
+                ON logs_access (ts);
+            """)
+
+            # 10. Quarantine Queue (Pending Writes)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS memory_quarantine (
+                    id TEXT PRIMARY KEY,
+                    layer TEXT NOT NULL,
+                    payload TEXT NOT NULL, -- JSON
+                    status TEXT NOT NULL, -- pending|approved|rejected
+                    agent_id TEXT,
+                    client_id TEXT,
+                    client_name TEXT,
+                    validation_errors TEXT, -- JSON list
+                    tenant TEXT NOT NULL,
+                    project_id TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    reviewed_at TEXT,
+                    reviewed_by TEXT
+                );
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memory_quarantine_status
+                ON memory_quarantine (status);
+            """)
+
+            # 11. Audit Log (Tamper-evident)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS logs_audit (
+                    id TEXT PRIMARY KEY,
+                    event_type TEXT NOT NULL,
+                    payload TEXT NOT NULL, -- JSON
+                    prev_hash TEXT,
+                    hash TEXT NOT NULL,
+                    ts TEXT NOT NULL
+                );
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_logs_audit_ts
+                ON logs_audit (ts);
+            """)
+            # 12. Client Issue Log (ingestion failures, schema errors, auth issues)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS logs_client_issues (
+                    id TEXT PRIMARY KEY,
+                    client_id TEXT NOT NULL,
+                    client_name TEXT,
+                    agent_id TEXT,
+                    parent_client_id TEXT,
+                    child_client_id TEXT,
+                    layer TEXT,
+                    error_code TEXT NOT NULL,
+                    message TEXT NOT NULL,
+                    payload TEXT,
+                    metadata TEXT,
+                    status TEXT NOT NULL, -- open|resolved
+                    tenant TEXT NOT NULL,
+                    project_id TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    resolved_at TEXT,
+                    resolved_by TEXT,
+                    resolution TEXT
+                );
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_logs_client_issues_status
+                ON logs_client_issues (status);
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_logs_client_issues_ts
+                ON logs_client_issues (created_at);
+            """)
+            self._ensure_column(conn, "working_memory", "expires_at", "TEXT")
+            self._ensure_column(conn, "logs_session", "expires_at", "TEXT")
+            self._ensure_column(conn, "logs_session", "agent_id", "TEXT")
+            self._ensure_column(conn, "logs_session", "client_id", "TEXT")
+            self._ensure_column(conn, "logs_session", "client_name", "TEXT")
+            self._ensure_column(conn, "logs_session", "parent_client_id", "TEXT")
+            self._ensure_column(conn, "logs_session", "child_client_id", "TEXT")
+            self._ensure_column(conn, "logs_access", "client_id", "TEXT")
+            self._ensure_column(conn, "logs_access", "parent_client_id", "TEXT")
+            self._ensure_column(conn, "logs_access", "child_client_id", "TEXT")
+            self._ensure_column(conn, "logs_agents", "client_id", "TEXT")
+            self._ensure_column(conn, "logs_agents", "parent_client_id", "TEXT")
+            self._ensure_column(conn, "memory_quarantine", "agent_id", "TEXT")
+            self._ensure_column(conn, "memory_quarantine", "client_id", "TEXT")
+            self._ensure_column(conn, "memory_quarantine", "client_name", "TEXT")
+            self._ensure_column(conn, "memory_quarantine", "validation_errors", "TEXT")
+            self._ensure_column(conn, "memories_semantic", "agent_id", "TEXT")
+            self._ensure_column(conn, "memories_semantic", "client_id", "TEXT")
+            self._ensure_column(conn, "memories_semantic", "client_name", "TEXT")
+            self._ensure_column(conn, "memories_episodic", "agent_id", "TEXT")
+            self._ensure_column(conn, "memories_episodic", "client_id", "TEXT")
+            self._ensure_column(conn, "memories_episodic", "client_name", "TEXT")
+            self._ensure_column(conn, "memories_procedural", "agent_id", "TEXT")
+            self._ensure_column(conn, "memories_procedural", "client_id", "TEXT")
+            self._ensure_column(conn, "memories_procedural", "client_name", "TEXT")
+            self._ensure_column(conn, "memories_rag", "agent_id", "TEXT")
+            self._ensure_column(conn, "memories_rag", "client_id", "TEXT")
+            self._ensure_column(conn, "memories_rag", "client_name", "TEXT")
+            self._ensure_column(conn, "working_memory", "agent_id", "TEXT")
+            self._ensure_column(conn, "working_memory", "client_id", "TEXT")
+            self._ensure_column(conn, "working_memory", "client_name", "TEXT")
+
+    def _column_exists(self, conn: sqlite3.Connection, table: str, column: str) -> bool:
+        try:
+            rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+        except sqlite3.OperationalError:
+            return False
+        for row in rows:
+            name = row["name"] if isinstance(row, sqlite3.Row) else row[1]
+            if name == column:
+                return True
+        return False
+
+    def _ensure_column(self, conn: sqlite3.Connection, table: str, column: str, col_type: str) -> None:
+        if self._column_exists(conn, table, column):
+            return
+        logger.info("Adding missing column %s.%s", table, column)
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {col_type}")
+
+    def has_column(self, table: str, column: str) -> bool:
+        with self.get_cursor() as conn:
+            return self._column_exists(conn, table, column)
+
+    def get_cursor(self):
+        conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
         return conn
 
-    def _init_db(self):
-        """Initialize the database schema."""
-        conn = self._get_connection()
-        try:
-            # Enable WAL mode for concurrency
-            conn.execute("PRAGMA journal_mode=WAL;")
-
-            with conn:
-                # 1. Semantic Memory (Knowledge)
-                conn.execute("""
-                    CREATE TABLE IF NOT EXISTS memories_semantic (
-                        id TEXT PRIMARY KEY,
-                        content TEXT NOT NULL,
-                        tags TEXT, -- JSON array
-                        embedding_id INTEGER, -- Link to FAISS
-                        tenant TEXT NOT NULL,
-                        project_id TEXT NOT NULL,
-                        created_at TEXT NOT NULL
-                    );
-                """)
-                # FTS Index for Semantic
-                conn.execute("""
-                    CREATE VIRTUAL TABLE IF NOT EXISTS memories_semantic_fts
-                    USING fts5(content, content='memories_semantic', content_rowid='rowid');
-                """)
-                # Trigger to keep FTS updated
-                conn.execute("""
-                    CREATE TRIGGER IF NOT EXISTS memories_semantic_ai AFTER INSERT ON memories_semantic BEGIN
-                      INSERT INTO memories_semantic_fts(rowid, content) VALUES (new.rowid, new.content);
-                    END;
-                """)
-                conn.execute("""
-                    CREATE TRIGGER IF NOT EXISTS memories_semantic_ad AFTER DELETE ON memories_semantic BEGIN
-                      INSERT INTO memories_semantic_fts(memories_semantic_fts, rowid, content) VALUES('delete', old.rowid, old.content);
-                    END;
-                """)
-                conn.execute("""
-                    CREATE TRIGGER IF NOT EXISTS memories_semantic_au AFTER UPDATE ON memories_semantic BEGIN
-                      INSERT INTO memories_semantic_fts(memories_semantic_fts, rowid, content) VALUES('delete', old.rowid, old.content);
-                      INSERT INTO memories_semantic_fts(rowid, content) VALUES (new.rowid, new.content);
-                    END;
-                """)
-
-                # 2. Episodic Memory (Experiences)
-                conn.execute("""
-                    CREATE TABLE IF NOT EXISTS memories_episodic (
-                        id TEXT PRIMARY KEY,
-                        content TEXT NOT NULL,
-                        goal TEXT,
-                        plan TEXT, -- JSON
-                        outcome TEXT,
-                        tool_logs TEXT, -- JSON
-                        salience INTEGER,
-                        embedding_id INTEGER, -- Link to FAISS
-                        tenant TEXT NOT NULL,
-                        project_id TEXT NOT NULL,
-                        created_at TEXT NOT NULL
-                    );
-                """)
-                conn.execute("""
-                    CREATE VIRTUAL TABLE IF NOT EXISTS memories_episodic_fts
-                    USING fts5(content, goal, outcome, content='memories_episodic', content_rowid='rowid');
-                """)
-                conn.execute("""
-                    CREATE TRIGGER IF NOT EXISTS memories_episodic_ai AFTER INSERT ON memories_episodic BEGIN
-                      INSERT INTO memories_episodic_fts(rowid, content, goal, outcome) VALUES (new.rowid, new.content, new.goal, new.outcome);
-                    END;
-                """)
-
-                # 3. Procedural Memory (Skills)
-                conn.execute("""
-                    CREATE TABLE IF NOT EXISTS memories_procedural (
-                        id TEXT PRIMARY KEY,
-                        skill_name TEXT NOT NULL,
-                        trigger TEXT,
-                        steps TEXT, -- JSON
-                        description TEXT,
-                        code_snippet TEXT,
-                        embedding_id INTEGER, -- Link to FAISS
-                        tenant TEXT NOT NULL,
-                        project_id TEXT NOT NULL,
-                        created_at TEXT NOT NULL
-                    );
-                """)
-                # FTS for Procedural
-                conn.execute("""
-                    CREATE VIRTUAL TABLE IF NOT EXISTS memories_procedural_fts
-                    USING fts5(skill_name, trigger, steps, description, content='memories_procedural', content_rowid='rowid');
-                """)
-                conn.execute("""
-                    CREATE TRIGGER IF NOT EXISTS memories_procedural_ai AFTER INSERT ON memories_procedural BEGIN
-                      INSERT INTO memories_procedural_fts(rowid, skill_name, trigger, steps, description) VALUES (new.rowid, new.skill_name, new.trigger, new.steps, new.description);
-                    END;
-                """)
-
-                # 4. RAG Memory (External Source)
-                conn.execute("""
-                    CREATE TABLE IF NOT EXISTS memories_rag (
-                        id TEXT PRIMARY KEY,
-                        query TEXT,
-                        external_source TEXT,
-                        content TEXT,
-                        tenant TEXT NOT NULL,
-                        project_id TEXT NOT NULL,
-                        created_at TEXT NOT NULL
-                    );
-                """)
-
-                # 5. Events (Audit Log)
-                conn.execute("""
-                    CREATE TABLE IF NOT EXISTS logs_events (
-                        id TEXT PRIMARY KEY,
-                        event_type TEXT,
-                        payload TEXT, -- JSON
-                        tenant TEXT NOT NULL,
-                        project_id TEXT NOT NULL,
-                        ts TEXT NOT NULL
-                    );
-                """)
-
-                # 6. Session
-                conn.execute("""
-                    CREATE TABLE IF NOT EXISTS logs_session (
-                        id TEXT PRIMARY KEY,
-                        session_id TEXT NOT NULL,
-                        content TEXT,
-                        role TEXT, -- user/agent
-                        tenant TEXT NOT NULL,
-                        project_id TEXT NOT NULL,
-                        ts TEXT NOT NULL,
-                        expires_at TEXT
-                    );
-                """)
-
-                # 7. Working Memory
-                conn.execute("""
-                    CREATE TABLE IF NOT EXISTS working_memory (
-                        id TEXT PRIMARY KEY,
-                        content TEXT,
-                        tenant TEXT NOT NULL,
-                        project_id TEXT NOT NULL,
-                        ts TEXT NOT NULL,
-                        expires_at TEXT
-                    );
-                """)
-
-        except Exception as e:
-            logger.error(f"Database initialization failed: {e}")
-            raise
-        finally:
-            conn.close()
-
-    @contextmanager
-    def get_cursor(self):
-        conn = self._get_connection()
-        try:
-            yield conn.cursor()
-            conn.commit()
-        except Exception:
-            conn.rollback()
-            raise
-        finally:
-            conn.close()
-
     # --- CRUD Operations ---
 
-    def add_semantic(self, content: str, tags: List[str], tenant: str, project_id: str, embedding_id: int) -> Dict[str, Any]:
-        memory_id = str(uuid.uuid4())
-        created_at = datetime.datetime.utcnow().isoformat()
+    def add_semantic(self, content: str, tags: list, tenant: str, project_id: str, embedding_id: int,
+                     agent_id: Optional[str] = None, client_id: Optional[str] = None,
+                     client_name: Optional[str] = None) -> Dict[str, Any]:
+        mid = str(uuid.uuid4())
+        created_at = datetime.datetime.now().isoformat()
         with self.get_cursor() as cur:
             cur.execute("""
-                INSERT INTO memories_semantic (id, content, tags, embedding_id, tenant, project_id, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (memory_id, content, json.dumps(tags), embedding_id, tenant, project_id, created_at))
-        return {
-            "id": memory_id, "content": content, "tags": tags, "tenant": tenant, "project_id": project_id, "created_at": created_at
-        }
-
-    def add_episodic(self, content: str, tenant: str, project_id: str,
-                     goal: str = None, plan: List[str] = None, outcome: str = None,
-                     tool_logs: List[Dict] = None, salience: int = 0, embedding_id: int = None) -> Dict[str, Any]:
-        memory_id = str(uuid.uuid4())
-        created_at = datetime.datetime.utcnow().isoformat()
-        with self.get_cursor() as cur:
-            cur.execute("""
-                INSERT INTO memories_episodic (id, content, goal, plan, outcome, tool_logs, salience, embedding_id, tenant, project_id, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (memory_id, content, goal, json.dumps(plan) if plan else None, outcome,
-                  json.dumps(tool_logs) if tool_logs else None, salience, embedding_id, tenant, project_id, created_at))
-        return {
-            "id": memory_id, "content": content, "goal": goal, "outcome": outcome, "tenant": tenant, "project_id": project_id, "created_at": created_at, "embedding_id": embedding_id
-        }
-
-    def add_procedural(self, skill_name: str, steps: List[str], tenant: str, project_id: str,
-                       description: str = None, trigger: str = None, code_snippet: str = None, embedding_id: int = None) -> Dict[str, Any]:
-        memory_id = str(uuid.uuid4())
-        created_at = datetime.datetime.utcnow().isoformat()
-        with self.get_cursor() as cur:
-            cur.execute("""
-                INSERT INTO memories_procedural (id, skill_name, trigger, steps, description, code_snippet, embedding_id, tenant, project_id, created_at)
+                INSERT INTO memories_semantic (id, content, tags, embedding_id, agent_id, client_id, client_name, tenant, project_id, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (memory_id, skill_name, trigger, json.dumps(steps), description, code_snippet, embedding_id, tenant, project_id, created_at))
+            """, (mid, content, json.dumps(tags), embedding_id, agent_id, client_id, client_name, tenant, project_id, created_at))
         return {
-            "id": memory_id, "skill_name": skill_name, "tenant": tenant, "project_id": project_id, "created_at": created_at, "embedding_id": embedding_id
+            "id": mid,
+            "content": content,
+            "tags": tags,
+            "tenant": tenant,
+            "project_id": project_id,
+            "created_at": created_at,
+            "agent_id": agent_id,
+            "client_id": client_id,
+            "client_name": client_name,
         }
 
-    def add_rag(self, query: str, external_source: str, content: str, tenant: str, project_id: str) -> Dict[str, Any]:
-        memory_id = str(uuid.uuid4())
-        created_at = datetime.datetime.utcnow().isoformat()
-        with self.get_cursor() as cur:
-            cur.execute("""
-                INSERT INTO memories_rag (id, query, external_source, content, tenant, project_id, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (memory_id, query, external_source, content, tenant, project_id, created_at))
-        return {"id": memory_id, "query": query, "created_at": created_at}
-
-    def get_memory(self, layer: str, memory_id: str, tenant: str, project_id: str) -> Optional[Dict[str, Any]]:
-        table_map = {
-            "semantic": "memories_semantic",
-            "episodic": "memories_episodic",
-            "procedural": "memories_procedural",
-            "rag": "memories_rag",
-            "working": "working_memory"
-        }
-        if layer not in table_map:
-            return None
-        table = table_map[layer]
-        with self.get_cursor() as cur:
-            cur.execute(f"SELECT * FROM {table} WHERE id = ? AND tenant = ? AND project_id = ?", (memory_id, tenant, project_id))
-            row = cur.fetchone()
-            if row:
-                d = dict(row)
-                if layer == "semantic" and d.get('tags'): d['tags'] = json.loads(d['tags'])
-                if layer == "episodic":
-                    if d.get('plan'): d['plan'] = json.loads(d['plan'])
-                    if d.get('tool_logs'): d['tool_logs'] = json.loads(d['tool_logs'])
-                if layer == "procedural" and d.get('steps'): d['steps'] = json.loads(d['steps'])
-                return d
-            return None
-
-    def update_memory(self, layer: str, memory_id: str, updates: Dict[str, Any], tenant: str, project_id: str) -> bool:
-        """Updates a memory record."""
-        table_map = {
-            "semantic": "memories_semantic",
-            "episodic": "memories_episodic",
-            "procedural": "memories_procedural",
-            "rag": "memories_rag",
-            "working": "working_memory"
-        }
-        if layer not in table_map:
-            raise ValueError(f"Invalid layer: {layer}")
-
-        table = table_map[layer]
-
-        # Serialize JSON fields
-        json_fields = ['tags', 'plan', 'tool_logs', 'steps']
-        for k in json_fields:
-            if k in updates and isinstance(updates[k], (list, dict)):
-                updates[k] = json.dumps(updates[k])
-
-        set_clause = ", ".join([f"{k} = ?" for k in updates.keys()])
-        values = list(updates.values())
-        values.extend([memory_id, tenant, project_id])
-
-        with self.get_cursor() as cur:
-            cur.execute(f"UPDATE {table} SET {set_clause} WHERE id = ? AND tenant = ? AND project_id = ?", values)
-            return cur.rowcount > 0
-
-    def delete_memory(self, layer: str, memory_id: str, tenant: str, project_id: str) -> bool:
-        """Deletes a memory from the specified layer."""
-        table_map = {
-            "semantic": "memories_semantic",
-            "episodic": "memories_episodic",
-            "procedural": "memories_procedural",
-            "rag": "memories_rag",
-            "working": "working_memory"
-        }
-        if layer not in table_map:
-            raise ValueError(f"Invalid layer: {layer}")
-
-        table = table_map[layer]
-        with self.get_cursor() as cur:
-            cur.execute(f"DELETE FROM {table} WHERE id = ? AND tenant = ? AND project_id = ?", (memory_id, tenant, project_id))
-            return cur.rowcount > 0
-
-    # --- Search Operations (FTS) ---
-
-    def search_keyword(self, query: str, tenant: str, project_id: str, limit: int = 20) -> List[Dict[str, Any]]:
-        """
-        Performs FTS5 search across Semantic, Episodic, and Procedural layers.
-        Returns a unified list of results with a 'type' field.
-        """
+    def search_keyword(self, query: str, tenant: str, project_id: str, limit: int = 10) -> List[Dict[str, Any]]:
+        # Searches across semantic, episodic, procedural FTS tables
+        # Returns unified list of results
         results = []
-
-        # Clean query for FTS5
-        # Instead of strict phrase match, allow multiple terms (AND logic or simple terms)
-        safe_query = query.replace('"', ' ').replace("'", " ")
-
-        with self.get_cursor() as cur:
-            # Semantic Search
-            cur.execute("""
-                SELECT memories_semantic.id, memories_semantic.content, memories_semantic.tags, memories_semantic.created_at, 'semantic' as type, memories_semantic.tenant, memories_semantic.project_id, memories_semantic_fts.rank
-                FROM memories_semantic
-                JOIN memories_semantic_fts ON memories_semantic.rowid = memories_semantic_fts.rowid
-                WHERE memories_semantic_fts MATCH ? AND tenant = ? AND project_id = ?
+        with self.get_cursor() as conn:
+            # Semantic
+            cur = conn.execute("""
+                SELECT rowid, *, 'semantic' as type FROM memories_semantic_fts 
+                WHERE memories_semantic_fts MATCH ? 
                 ORDER BY rank LIMIT ?
-            """, (safe_query, tenant, project_id, limit))
-            for row in cur.fetchall():
-                d = dict(row)
-                if d.get('tags'): d['tags'] = json.loads(d['tags'])
-                results.append(d)
+            """, (query, limit))
+            # We need to join back to main table to get metadata not in FTS
+            # Simplified: FTS virtual table only has indexed cols.
+            # In production, join rowid to main table.
+            # Here: simplistic approach.
+            
+            # Better approach:
+            cur = conn.execute("""
+                SELECT m.id, m.content, m.tags, 'semantic' as type
+                FROM memories_semantic m
+                JOIN memories_semantic_fts f ON m.rowid = f.rowid
+                WHERE memories_semantic_fts MATCH ? AND m.tenant = ? AND m.project_id = ?
+                ORDER BY f.rank LIMIT ?
+            """, (query, tenant, project_id, limit))
+            sem_rows = [dict(row) for row in cur.fetchall()]
+            for row in sem_rows:
+                if row.get("tags"):
+                    try:
+                        row["tags"] = json.loads(row["tags"])
+                    except Exception:
+                        pass
+            results.extend(sem_rows)
 
-            # Episodic Search
-            cur.execute("""
-                SELECT memories_episodic.id, memories_episodic.content, memories_episodic.plan, memories_episodic.tool_logs, memories_episodic.created_at, 'episodic' as type, memories_episodic.tenant, memories_episodic.project_id, memories_episodic_fts.rank
-                FROM memories_episodic
-                JOIN memories_episodic_fts ON memories_episodic.rowid = memories_episodic_fts.rowid
-                WHERE memories_episodic_fts MATCH ? AND tenant = ? AND project_id = ?
-                ORDER BY rank LIMIT ?
-            """, (safe_query, tenant, project_id, limit))
-            for row in cur.fetchall():
-                d = dict(row)
-                if d.get('plan'): d['plan'] = json.loads(d['plan'])
-                if d.get('tool_logs'): d['tool_logs'] = json.loads(d['tool_logs'])
-                results.append(d)
+            # Episodic
+            cur = conn.execute("""
+                SELECT m.id, m.content, m.goal, m.outcome, m.plan, m.steps, 'episodic' as type
+                FROM memories_episodic m
+                JOIN memories_episodic_fts f ON m.rowid = f.rowid
+                WHERE memories_episodic_fts MATCH ? AND m.tenant = ? AND m.project_id = ?
+                ORDER BY f.rank LIMIT ?
+            """, (query, tenant, project_id, limit))
+            epi_rows = [dict(row) for row in cur.fetchall()]
+            for row in epi_rows:
+                if row.get("plan"):
+                    try:
+                        row["plan"] = json.loads(row["plan"])
+                    except Exception:
+                        pass
+                if row.get("steps"):
+                    try:
+                        row["steps"] = json.loads(row["steps"])
+                        row["tool_logs"] = row["steps"]
+                    except Exception:
+                        pass
+            results.extend(epi_rows)
 
-            # Procedural Search
-            cur.execute("""
-                SELECT memories_procedural.id, memories_procedural.skill_name as content, memories_procedural.steps, memories_procedural.created_at, 'procedural' as type, memories_procedural.tenant, memories_procedural.project_id, memories_procedural_fts.rank
-                FROM memories_procedural
-                JOIN memories_procedural_fts ON memories_procedural.rowid = memories_procedural_fts.rowid
-                WHERE memories_procedural_fts MATCH ? AND tenant = ? AND project_id = ?
-                ORDER BY rank LIMIT ?
-            """, (safe_query, tenant, project_id, limit))
-            for row in cur.fetchall():
-                d = dict(row)
-                if d.get('steps'): d['steps'] = json.loads(d['steps'])
-                results.append(d)
-
+            # Procedural
+            cur = conn.execute("""
+                SELECT m.id, m.skill_name as content, m.description, m.steps, 'procedural' as type 
+                FROM memories_procedural m
+                JOIN memories_procedural_fts f ON m.rowid = f.rowid
+                WHERE memories_procedural_fts MATCH ? AND m.tenant = ? AND m.project_id = ?
+                ORDER BY f.rank LIMIT ?
+            """, (query, tenant, project_id, limit))
+            proc_rows = [dict(row) for row in cur.fetchall()]
+            for row in proc_rows:
+                if row.get("steps"):
+                    try:
+                        row["steps"] = json.loads(row["steps"])
+                    except Exception:
+                        pass
+            results.extend(proc_rows)
+            
         return results
 
+    def add_episodic(self, content: str, tenant: str, project_id: str,
+                     salience: int = 0, goal: Optional[str] = None,
+                     plan: Optional[list] = None, tool_logs: Optional[list] = None,
+                     outcome: Optional[str] = None, embedding_id: Optional[int] = None,
+                     agent_id: Optional[str] = None, client_id: Optional[str] = None,
+                     client_name: Optional[str] = None) -> Dict[str, Any]:
+        mid = str(uuid.uuid4())
+        created_at = datetime.datetime.now().isoformat()
+        steps = tool_logs or []
+        with self.get_cursor() as cur:
+            cur.execute("""
+                INSERT INTO memories_episodic (id, content, goal, outcome, plan, steps, salience, embedding_id, agent_id, client_id, client_name, tenant, project_id, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (mid, content, goal, outcome, json.dumps(plan), json.dumps(steps), salience, embedding_id, agent_id, client_id, client_name, tenant, project_id, created_at))
+        return {
+            "id": mid,
+            "goal": goal,
+            "agent_id": agent_id,
+            "client_id": client_id,
+            "client_name": client_name,
+        }
+
+    # --- Observability ---
+
+    def upsert_agent(self, agent_id: str, client_name: str, status: str, tenant: str, project_id: str,
+                     hostname: Optional[str] = None, pid: Optional[str] = None, meta: Optional[Dict[str, Any]] = None,
+                     client_id: Optional[str] = None, parent_client_id: Optional[str] = None) -> Dict[str, Any]:
+        mid = str(uuid.uuid4())
+        last_seen = datetime.datetime.now().isoformat()
+        meta_json = json.dumps(meta or {})
+        with self.get_cursor() as cur:
+            cur.execute("""
+                INSERT INTO logs_agents (id, agent_id, client_name, client_id, parent_client_id, hostname, pid, status, meta, tenant, project_id, last_seen)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(agent_id, client_name, tenant, project_id)
+                DO UPDATE SET
+                    hostname = excluded.hostname,
+                    pid = excluded.pid,
+                    status = excluded.status,
+                    meta = excluded.meta,
+                    client_id = excluded.client_id,
+                    parent_client_id = excluded.parent_client_id,
+                    last_seen = excluded.last_seen
+            """, (mid, agent_id, client_name, client_id, parent_client_id, hostname, pid, status, meta_json, tenant, project_id, last_seen))
+        return {"agent_id": agent_id, "client_name": client_name, "status": status, "last_seen": last_seen, "client_id": client_id, "parent_client_id": parent_client_id}
+
+    def list_agents(self, tenant: str, project_id: str, limit: int = 200) -> List[Dict[str, Any]]:
+        with self.get_cursor() as conn:
+            cur = conn.execute("""
+                SELECT agent_id, client_name, client_id, parent_client_id, hostname, pid, status, meta, tenant, project_id, last_seen
+                FROM logs_agents
+                WHERE tenant = ? AND project_id = ?
+                ORDER BY last_seen DESC
+                LIMIT ?
+            """, (tenant, project_id, limit))
+            rows = []
+            for row in cur.fetchall():
+                d = dict(row)
+                if d.get("meta"):
+                    try:
+                        d["meta"] = json.loads(d["meta"])
+                    except Exception:
+                        d["meta"] = {}
+                rows.append(d)
+            return rows
+
+    def add_access_event(self, event_type: str, status: str, tenant: str, project_id: str,
+                         agent_id: Optional[str] = None, client_name: Optional[str] = None,
+                         client_id: Optional[str] = None, parent_client_id: Optional[str] = None,
+                         child_client_id: Optional[str] = None, target_layer: Optional[str] = None,
+                         query: Optional[str] = None, memory_id: Optional[str] = None,
+                         result_count: Optional[int] = None, detail: Optional[str] = None) -> Dict[str, Any]:
+        mid = str(uuid.uuid4())
+        ts = datetime.datetime.now().isoformat()
+        with self.get_cursor() as cur:
+            cur.execute("""
+                INSERT INTO logs_access (id, agent_id, client_name, client_id, parent_client_id, child_client_id, event_type, target_layer, query, memory_id, result_count, status, detail, tenant, project_id, ts)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (mid, agent_id, client_name, client_id, parent_client_id, child_client_id, event_type, target_layer, query, memory_id, result_count, status, detail, tenant, project_id, ts))
+        self.add_audit_event(
+            event_type=f"access:{event_type}",
+            payload={
+                "agent_id": agent_id,
+                "client_name": client_name,
+                "client_id": client_id,
+                "parent_client_id": parent_client_id,
+                "child_client_id": child_client_id,
+                "target_layer": target_layer,
+                "query": query,
+                "memory_id": memory_id,
+                "result_count": result_count,
+                "status": status,
+                "detail": detail,
+                "tenant": tenant,
+                "project_id": project_id,
+                "ts": ts,
+            },
+        )
+        return {"id": mid, "event_type": event_type, "status": status, "ts": ts}
+
+    def list_access_events(self, tenant: str, project_id: str, limit: int = 200) -> List[Dict[str, Any]]:
+        with self.get_cursor() as conn:
+            cur = conn.execute("""
+                SELECT agent_id, client_name, client_id, parent_client_id, child_client_id, event_type, target_layer, query, memory_id, result_count, status, detail, ts
+                FROM logs_access
+                WHERE tenant = ? AND project_id = ?
+                ORDER BY ts DESC
+                LIMIT ?
+            """, (tenant, project_id, limit))
+            return [dict(row) for row in cur.fetchall()]
+
+    def add_quarantine(self, layer: str, payload: Dict[str, Any], tenant: str, project_id: str,
+                       agent_id: Optional[str] = None, client_id: Optional[str] = None,
+                       client_name: Optional[str] = None, validation_errors: Optional[List[str]] = None) -> Dict[str, Any]:
+        mid = str(uuid.uuid4())
+        created_at = datetime.datetime.now().isoformat()
+        with self.get_cursor() as cur:
+            cur.execute("""
+                INSERT INTO memory_quarantine (id, layer, payload, status, agent_id, client_id, client_name, validation_errors, tenant, project_id, created_at)
+                VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?)
+            """, (mid, layer, json.dumps(payload), agent_id, client_id, client_name, json.dumps(validation_errors or []), tenant, project_id, created_at))
+        self.add_audit_event(
+            event_type="quarantine:create",
+            payload={"id": mid, "layer": layer, "tenant": tenant, "project_id": project_id},
+        )
+        return {"id": mid, "status": "pending", "layer": layer}
+
+    def list_quarantine(self, tenant: str, project_id: str, status: str = "pending", limit: int = 100) -> List[Dict[str, Any]]:
+        with self.get_cursor() as conn:
+            cur = conn.execute("""
+                SELECT id, layer, payload, status, tenant, project_id, created_at, reviewed_at, reviewed_by,
+                       agent_id, client_id, client_name, validation_errors
+                FROM memory_quarantine
+                WHERE tenant = ? AND project_id = ? AND status = ?
+                ORDER BY created_at DESC
+                LIMIT ?
+            """, (tenant, project_id, status, limit))
+            rows = []
+            for row in cur.fetchall():
+                d = dict(row)
+                if d.get("payload"):
+                    try:
+                        d["payload"] = json.loads(d["payload"])
+                    except Exception:
+                        d["payload"] = {}
+                if d.get("validation_errors"):
+                    try:
+                        d["validation_errors"] = json.loads(d["validation_errors"])
+                    except Exception:
+                        d["validation_errors"] = []
+                rows.append(d)
+            return rows
+
+    def resolve_quarantine(self, item_id: str, status: str, reviewer: str) -> Optional[Dict[str, Any]]:
+        reviewed_at = datetime.datetime.now().isoformat()
+        with self.get_cursor() as conn:
+            cur = conn.cursor()
+            cur.execute("""
+                SELECT layer, payload, tenant, project_id, agent_id, client_id, client_name
+                FROM memory_quarantine
+                WHERE id = ?
+            """, (item_id,))
+            row = cur.fetchone()
+            if not row:
+                return None
+            cur.execute("""
+                UPDATE memory_quarantine
+                SET status = ?, reviewed_at = ?, reviewed_by = ?
+                WHERE id = ?
+            """, (status, reviewed_at, reviewer, item_id))
+        self.add_audit_event(
+            event_type=f"quarantine:{status}",
+            payload={"id": item_id, "reviewed_by": reviewer},
+        )
+        d = dict(row)
+        if d.get("payload"):
+            try:
+                d["payload"] = json.loads(d["payload"])
+            except Exception:
+                d["payload"] = {}
+        return d
+
+    def add_audit_event(self, event_type: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+        mid = str(uuid.uuid4())
+        ts = datetime.datetime.now().isoformat()
+        payload_json = json.dumps(payload, sort_keys=True)
+        with self.get_cursor() as conn:
+            cur = conn.cursor()
+            cur.execute("SELECT hash FROM logs_audit ORDER BY ts DESC LIMIT 1")
+            prev = cur.fetchone()
+            prev_hash = prev[0] if prev else ""
+            import hashlib
+            h = hashlib.sha256(f"{prev_hash}|{event_type}|{payload_json}|{ts}".encode("utf-8")).hexdigest()
+            cur.execute("""
+                INSERT INTO logs_audit (id, event_type, payload, prev_hash, hash, ts)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (mid, event_type, payload_json, prev_hash, h, ts))
+        return {"id": mid, "hash": h, "ts": ts}
+
+    def add_procedural(self, skill_name: str, steps: list, tenant: str, project_id: str,
+                       description: Optional[str] = None, trigger: Optional[str] = None,
+                       code_snippet: Optional[str] = None, embedding_id: Optional[int] = None,
+                       agent_id: Optional[str] = None, client_id: Optional[str] = None,
+                       client_name: Optional[str] = None) -> Dict[str, Any]:
+        mid = str(uuid.uuid4())
+        created_at = datetime.datetime.now().isoformat()
+        with self.get_cursor() as cur:
+            cur.execute("""
+                INSERT INTO memories_procedural (id, skill_name, trigger, steps, description, code_snippet, embedding_id, agent_id, client_id, client_name, tenant, project_id, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (mid, skill_name, trigger, json.dumps(steps), description, code_snippet, embedding_id, agent_id, client_id, client_name, tenant, project_id, created_at))
+        return {"id": mid, "skill_name": skill_name}
+
+    def add_rag(self, query: str, external_source: str, content: str, tenant: str, project_id: str,
+                agent_id: Optional[str] = None, client_id: Optional[str] = None,
+                client_name: Optional[str] = None) -> Dict[str, Any]:
+        mid = str(uuid.uuid4())
+        created_at = datetime.datetime.now().isoformat()
+        with self.get_cursor() as cur:
+            cur.execute("""
+                INSERT INTO memories_rag (id, query, external_source, content, agent_id, client_id, client_name, tenant, project_id, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (mid, query, external_source, content, agent_id, client_id, client_name, tenant, project_id, created_at))
+        return {"id": mid, "query": query}
+
     def get_memories_by_embedding_ids(self, embedding_ids: List[int], tenant: str, project_id: str) -> List[Dict[str, Any]]:
+        # Efficient retrieval for vector search results
         if not embedding_ids:
             return []
+        
         placeholders = ','.join('?' for _ in embedding_ids)
         results = []
         
@@ -378,11 +708,11 @@ class DatabaseManager:
             ("memories_procedural", "procedural")
         ]
         
-        with self.get_cursor() as cur:
+        with self.get_cursor() as conn:
             for table, mtype in tables:
                 # Note: procedural uses skill_name as content in our mapping
                 content_col = "skill_name" if mtype == "procedural" else "content"
-                cur.execute(f"""
+                cur = conn.execute(f"""
                     SELECT *, '{mtype}' as type FROM {table}
                     WHERE embedding_id IN ({placeholders}) AND tenant = ? AND project_id = ?
                 """, (*embedding_ids, tenant, project_id))
@@ -395,9 +725,101 @@ class DatabaseManager:
                     results.append(d)
         return results
 
+    def get_memory(self, layer: str, memory_id: str, tenant: str, project_id: str) -> Optional[Dict[str, Any]]:
+        table_map = {
+            "semantic": "memories_semantic",
+            "episodic": "memories_episodic",
+            "procedural": "memories_procedural",
+            "rag": "memories_rag",
+            "working": "working_memory",
+        }
+        table = table_map.get(layer)
+        if not table:
+            return None
+        with self.get_cursor() as conn:
+            cur = conn.execute(
+                f"SELECT * FROM {table} WHERE id = ? AND tenant = ? AND project_id = ?",
+                (memory_id, tenant, project_id),
+            )
+            row = cur.fetchone()
+            if not row:
+                return None
+            d = dict(row)
+            if d.get("tags"):
+                try:
+                    d["tags"] = json.loads(d["tags"])
+                except Exception:
+                    pass
+            if d.get("plan"):
+                try:
+                    d["plan"] = json.loads(d["plan"])
+                except Exception:
+                    pass
+            if d.get("steps"):
+                try:
+                    d["steps"] = json.loads(d["steps"])
+                    d["tool_logs"] = d["steps"]
+                except Exception:
+                    pass
+            return d
+
+    def update_memory(self, layer: str, memory_id: str, updates: Dict[str, Any], tenant: str, project_id: str) -> bool:
+        table_map = {
+            "semantic": "memories_semantic",
+            "episodic": "memories_episodic",
+            "procedural": "memories_procedural",
+            "rag": "memories_rag",
+        }
+        table = table_map.get(layer)
+        if not table:
+            raise ValueError("Invalid layer")
+        if not updates:
+            return False
+
+        # Serialize JSON fields
+        serialized = {}
+        for key, value in updates.items():
+            if key in ("tags", "plan", "steps") and value is not None:
+                serialized[key] = json.dumps(value)
+            else:
+                serialized[key] = value
+
+        set_clause = ", ".join([f"{k} = ?" for k in serialized.keys()])
+        params = list(serialized.values()) + [memory_id, tenant, project_id]
+        with self.get_cursor() as conn:
+            cur = conn.execute(
+                f"UPDATE {table} SET {set_clause} WHERE id = ? AND tenant = ? AND project_id = ?",
+                params,
+            )
+            return cur.rowcount > 0
+
+    def delete_memory(self, layer: str, memory_id: str, tenant: str, project_id: str) -> bool:
+        table_map = {
+            "semantic": "memories_semantic",
+            "episodic": "memories_episodic",
+            "procedural": "memories_procedural",
+            "rag": "memories_rag",
+        }
+        table = table_map.get(layer)
+        if not table:
+            raise ValueError("Invalid layer")
+        with self.get_cursor() as conn:
+            cur = conn.execute(
+                f"DELETE FROM {table} WHERE id = ? AND tenant = ? AND project_id = ?",
+                (memory_id, tenant, project_id),
+            )
+            return cur.rowcount > 0
+
+    def list_working(self, tenant: str, project_id: str, limit: int = 100) -> List[Dict[str, Any]]:
+        with self.get_cursor() as conn:
+            cur = conn.execute("""
+                SELECT * FROM working_memory WHERE tenant = ? AND project_id = ? ORDER BY updated_at DESC LIMIT ?
+            """, (tenant, project_id, limit))
+            return [dict(row) for row in cur.fetchall()]
+
     def add_event(self, event_type: str, payload: Dict, tenant: str, project_id: str) -> Dict[str, Any]:
         event_id = str(uuid.uuid4())
-        ts = datetime.datetime.utcnow().isoformat()
+        ts = datetime.datetime.now(datetime.timezone.utc).isoformat()
         with self.get_cursor() as cur:
             cur.execute("""
                 INSERT INTO logs_events (id, event_type, payload, tenant, project_id, ts)
@@ -406,48 +828,265 @@ class DatabaseManager:
         return {"id": event_id, "ts": ts}
 
     def list_events(self, tenant: str, project_id: str, limit: int = 100) -> List[Dict[str, Any]]:
-        with self.get_cursor() as cur:
-            cur.execute("""
+        with self.get_cursor() as conn:
+            cur = conn.execute("""
                 SELECT * FROM logs_events WHERE tenant = ? AND project_id = ? ORDER BY ts DESC LIMIT ?
             """, (tenant, project_id, limit))
             return [dict(row) for row in cur.fetchall()]
 
-    def add_session(self, session_id: str, content: str, role: str, tenant: str, project_id: str) -> Dict[str, Any]:
+    def add_session(self, session_id: str, content: str, role: str, tenant: str, project_id: str,
+                    agent_id: Optional[str] = None, client_id: Optional[str] = None,
+                    client_name: Optional[str] = None, parent_client_id: Optional[str] = None,
+                    child_client_id: Optional[str] = None) -> Dict[str, Any]:
         log_id = str(uuid.uuid4())
-        ts = datetime.datetime.utcnow().isoformat()
+        ts = datetime.datetime.now(datetime.timezone.utc).isoformat()
         with self.get_cursor() as cur:
             cur.execute("""
-                INSERT INTO logs_session (id, session_id, content, role, tenant, project_id, ts)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (log_id, session_id, content, role, tenant, project_id, ts))
+                INSERT INTO logs_session (
+                    id, session_id, content, role, agent_id, client_id, client_name,
+                    parent_client_id, child_client_id, tenant, project_id, ts
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                log_id, session_id, content, role, agent_id, client_id, client_name,
+                parent_client_id, child_client_id, tenant, project_id, ts
+            ))
         return {"id": log_id, "ts": ts}
 
     def list_session(self, session_id: str, tenant: str, project_id: str, limit: int = 100) -> List[Dict[str, Any]]:
-        with self.get_cursor() as cur:
-            cur.execute("""
+        with self.get_cursor() as conn:
+            cur = conn.execute("""
                 SELECT * FROM logs_session WHERE session_id = ? AND tenant = ? AND project_id = ? ORDER BY ts ASC LIMIT ?
             """, (session_id, tenant, project_id, limit))
             return [dict(row) for row in cur.fetchall()]
 
-    def add_working(self, content: str, tenant: str, project_id: str) -> Dict[str, Any]:
-        memory_id = str(uuid.uuid4())
-        ts = datetime.datetime.utcnow().isoformat()
+    def observe_client(self, client_id: str, tenant: str, project_id: str,
+                       client_name: Optional[str] = None, parent_client_id: Optional[str] = None,
+                       metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Upsert a client record with status 'observed' if not present."""
+        cid = str(uuid.uuid4())
+        now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        meta_json = json.dumps(metadata or {})
         with self.get_cursor() as cur:
             cur.execute("""
-                INSERT INTO working_memory (id, content, tenant, project_id, ts)
-                VALUES (?, ?, ?, ?, ?)
-            """, (memory_id, content, tenant, project_id, ts))
+                INSERT INTO clients_registry (
+                    id, client_id, client_name, parent_client_id, status, metadata,
+                    tenant, project_id, created_at, updated_at, last_seen
+                ) VALUES (?, ?, ?, ?, 'observed', ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(client_id, tenant, project_id)
+                DO UPDATE SET
+                    client_name = COALESCE(excluded.client_name, clients_registry.client_name),
+                    parent_client_id = COALESCE(excluded.parent_client_id, clients_registry.parent_client_id),
+                    metadata = CASE
+                        WHEN excluded.metadata IS NOT NULL THEN excluded.metadata
+                        ELSE clients_registry.metadata
+                    END,
+                    updated_at = excluded.updated_at,
+                    last_seen = excluded.last_seen
+            """, (
+                cid, client_id, client_name, parent_client_id, meta_json,
+                tenant, project_id, now, now, now
+            ))
+        return {"client_id": client_id, "status": "observed", "updated_at": now}
+
+    def register_client(self, client_id: str, tenant: str, project_id: str,
+                        client_name: Optional[str] = None, parent_client_id: Optional[str] = None,
+                        status: str = "registered", metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        cid = str(uuid.uuid4())
+        now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        meta_json = json.dumps(metadata or {})
+        with self.get_cursor() as cur:
+            cur.execute("""
+                INSERT INTO clients_registry (
+                    id, client_id, client_name, parent_client_id, status, metadata,
+                    tenant, project_id, created_at, updated_at, last_seen
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(client_id, tenant, project_id)
+                DO UPDATE SET
+                    client_name = COALESCE(excluded.client_name, clients_registry.client_name),
+                    parent_client_id = COALESCE(excluded.parent_client_id, clients_registry.parent_client_id),
+                    status = excluded.status,
+                    metadata = excluded.metadata,
+                    updated_at = excluded.updated_at,
+                    last_seen = excluded.last_seen
+            """, (
+                cid, client_id, client_name, parent_client_id, status, meta_json,
+                tenant, project_id, now, now, now
+            ))
+        return {"client_id": client_id, "status": status, "updated_at": now}
+
+    def get_client(self, client_id: str, tenant: str, project_id: str) -> Optional[Dict[str, Any]]:
+        with self.get_cursor() as conn:
+            cur = conn.execute("""
+                SELECT * FROM clients_registry WHERE client_id = ? AND tenant = ? AND project_id = ?
+            """, (client_id, tenant, project_id))
+            row = cur.fetchone()
+            if not row:
+                return None
+            data = dict(row)
+            if data.get("metadata"):
+                try:
+                    data["metadata"] = json.loads(data["metadata"])
+                except Exception:
+                    data["metadata"] = {}
+            return data
+
+    def list_clients(self, tenant: str, project_id: str, limit: int = 200) -> List[Dict[str, Any]]:
+        with self.get_cursor() as conn:
+            cur = conn.execute("""
+                SELECT * FROM clients_registry WHERE tenant = ? AND project_id = ?
+                ORDER BY (last_seen IS NULL), last_seen DESC, updated_at DESC
+                LIMIT ?
+            """, (tenant, project_id, limit))
+            rows = []
+            for row in cur.fetchall():
+                data = dict(row)
+                if data.get("metadata"):
+                    try:
+                        data["metadata"] = json.loads(data["metadata"])
+                    except Exception:
+                        data["metadata"] = {}
+                rows.append(data)
+            return rows
+
+    def add_working(self, content: str, tenant: str, project_id: str,
+                    agent_id: Optional[str] = None, client_id: Optional[str] = None,
+                    client_name: Optional[str] = None) -> Dict[str, Any]:
+        wid = str(uuid.uuid4())
+        updated_at = datetime.datetime.now().isoformat()
+        # Single key for simple working memory
+        key = "current_context"
+        with self.get_cursor() as cur:
+            cur.execute("""
+                INSERT OR REPLACE INTO working_memory (id, session_id, key, value, agent_id, client_id, client_name, tenant, project_id, updated_at)
+                VALUES (
+                    COALESCE((SELECT id FROM working_memory WHERE session_id='global' AND key=?), ?),
+                    'global', ?, ?, ?, ?, ?, ?, ?, ?
+                )
+            """, (key, wid, key, content, agent_id, client_id, client_name, tenant, project_id, updated_at))
         return {
-            "id": memory_id,
+            "id": wid,
             "content": content,
             "tenant": tenant,
             "project_id": project_id,
-            "created_at": ts
+            "created_at": updated_at,
         }
 
-    def list_working(self, tenant: str, project_id: str, limit: int = 100) -> List[Dict[str, Any]]:
+    def add_client_issue(self, client_id: str, message: str, tenant: str, project_id: str,
+                         error_code: str, client_name: Optional[str] = None,
+                         agent_id: Optional[str] = None, parent_client_id: Optional[str] = None,
+                         child_client_id: Optional[str] = None, layer: Optional[str] = None,
+                         payload: Optional[Dict[str, Any]] = None, metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        issue_id = str(uuid.uuid4())
+        created_at = datetime.datetime.now().isoformat()
         with self.get_cursor() as cur:
             cur.execute("""
-                SELECT * FROM working_memory WHERE tenant = ? AND project_id = ? ORDER BY ts DESC LIMIT ?
-            """, (tenant, project_id, limit))
-            return [dict(row) for row in cur.fetchall()]
+                INSERT INTO logs_client_issues (
+                    id, client_id, client_name, agent_id, parent_client_id, child_client_id,
+                    layer, error_code, message, payload, metadata, status, tenant, project_id, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?)
+            """, (
+                issue_id,
+                client_id,
+                client_name,
+                agent_id,
+                parent_client_id,
+                child_client_id,
+                layer,
+                error_code,
+                message,
+                json.dumps(payload) if payload is not None else None,
+                json.dumps(metadata) if metadata is not None else None,
+                tenant,
+                project_id,
+                created_at,
+            ))
+        self.add_audit_event(
+            event_type="client_issue:create",
+            payload={
+                "id": issue_id,
+                "client_id": client_id,
+                "client_name": client_name,
+                "agent_id": agent_id,
+                "error_code": error_code,
+                "tenant": tenant,
+                "project_id": project_id,
+                "ts": created_at,
+            },
+        )
+        return {"id": issue_id, "status": "open", "created_at": created_at}
+
+    def list_client_issues(self, tenant: str, project_id: str, status: str = "open", limit: int = 200) -> List[Dict[str, Any]]:
+        with self.get_cursor() as conn:
+            cur = conn.execute("""
+                SELECT id, client_id, client_name, agent_id, parent_client_id, child_client_id,
+                       layer, error_code, message, payload, metadata, status, tenant, project_id,
+                       created_at, resolved_at, resolved_by, resolution
+                FROM logs_client_issues
+                WHERE tenant = ? AND project_id = ? AND status = ?
+                ORDER BY created_at DESC
+                LIMIT ?
+            """, (tenant, project_id, status, limit))
+            rows = []
+            for row in cur.fetchall():
+                d = dict(row)
+                if d.get("payload"):
+                    try:
+                        d["payload"] = json.loads(d["payload"])
+                    except Exception:
+                        d["payload"] = {}
+                if d.get("metadata"):
+                    try:
+                        d["metadata"] = json.loads(d["metadata"])
+                    except Exception:
+                        d["metadata"] = {}
+                rows.append(d)
+            return rows
+
+    def resolve_client_issue(self, issue_id: str, resolution: str, reviewer: str) -> Optional[Dict[str, Any]]:
+        resolved_at = datetime.datetime.now().isoformat()
+        with self.get_cursor() as conn:
+            cur = conn.execute(
+                "UPDATE logs_client_issues SET status = 'resolved', resolved_at = ?, resolved_by = ?, resolution = ? WHERE id = ?",
+                (resolved_at, reviewer, resolution, issue_id),
+            )
+            if cur.rowcount == 0:
+                return None
+            cur = conn.execute("""
+                SELECT id, client_id, client_name, agent_id, parent_client_id, child_client_id,
+                       layer, error_code, message, payload, metadata, status, tenant, project_id,
+                       created_at, resolved_at, resolved_by, resolution
+                FROM logs_client_issues
+                WHERE id = ?
+            """, (issue_id,))
+            row = cur.fetchone()
+            if not row:
+                return {"id": issue_id, "status": "resolved", "resolved_at": resolved_at, "resolved_by": reviewer}
+            data = dict(row)
+            if data.get("payload"):
+                try:
+                    data["payload"] = json.loads(data["payload"])
+                except Exception:
+                    data["payload"] = {}
+            if data.get("metadata"):
+                try:
+                    data["metadata"] = json.loads(data["metadata"])
+                except Exception:
+                    data["metadata"] = {}
+            resolved_payload = data
+        self.add_audit_event(
+            event_type="client_issue:resolved",
+            payload={"id": issue_id, "reviewer": reviewer, "resolution": resolution, "ts": resolved_at},
+        )
+        return resolved_payload
+
+    def get_working(self, tenant: str, project_id: str) -> Dict[str, Any]:
+        with self.get_cursor() as conn:
+            cur = conn.execute("""
+                SELECT value, updated_at FROM working_memory 
+                WHERE session_id='global' AND key='current_context' AND tenant = ? AND project_id = ?
+            """, (tenant, project_id))
+            row = cur.fetchone()
+            if row:
+                return {"content": row['value'], "updated_at": row['updated_at']}
+            return None
