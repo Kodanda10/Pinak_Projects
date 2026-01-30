@@ -6,7 +6,7 @@ from fastapi import APIRouter, Body, Depends, status, HTTPException
 from app.core.schemas import (
     MemoryCreate, MemoryRead, MemorySearchResult,
     EpisodicCreate, ProceduralCreate, RAGCreate, EventCreate, SessionCreate,
-    ContextResponse, WorkingCreate
+    ContextResponse, WorkingCreate, WorkingRead
 )
 from app.core.security import AuthContext, require_auth_context
 from app.services.memory_service import MemoryService
@@ -79,7 +79,7 @@ def add_procedural(
 ):
     return service.add_procedural(
         item.skill_name, item.steps, ctx.tenant_id, ctx.project_id,
-        item.trigger, item.code_snippet
+        item.description, item.trigger, item.code_snippet
     )
 
 # --- RAG ---
@@ -134,7 +134,7 @@ def list_session(
 ):
     return service.session_list(session_id, ctx.tenant_id, ctx.project_id, limit)
 
-@router.post("/working/add", status_code=status.HTTP_201_CREATED)
+@router.post("/working/add", response_model=WorkingRead, status_code=status.HTTP_201_CREATED)
 def add_working(
     item: WorkingCreate,
     ctx: AuthContext = Depends(require_auth_context),

@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 class _DeterministicEncoder:
     """Lightweight embedding encoder used for tests and local development."""
 
-    def __init__(self, dimension: int = 8):
+    def __init__(self, dimension: int = 384):
         self.embedding_dimension = dimension
 
     def encode(self, sentences: List[str]) -> np.ndarray:
@@ -54,14 +54,13 @@ class MemoryService:
 
         # Model
         self.model = model or self._load_embedding_model(self.config.get("embedding_model"))
-        self.embedding_dim = getattr(self.model, "embedding_dimension", None)
-        if self.embedding_dim is None and hasattr(self.model, "get_sentence_embedding_dimension"):
+        if hasattr(self.model, "get_sentence_embedding_dimension"):
             self.embedding_dim = self.model.get_sentence_embedding_dimension()
-        if self.embedding_dim is None:
-             # Fallback for deterministic encoder
-             self.embedding_dim = getattr(self.model, "embedding_dimension", 384)
+        else:
+            self.embedding_dim = getattr(self.model, "embedding_dimension", 384)
 
         # Vector Store
+        print(f"DEBUG: Initializing VectorStore with dimension {self.embedding_dim}")
         self.vector_store = VectorStore(self.vector_path, self.embedding_dim)
 
     def verify_and_recover(self):
@@ -137,56 +136,61 @@ class MemoryService:
 
     def add_memory(self, memory_data: MemoryCreate, tenant: str, project_id: str) -> MemoryRead:
         """Adds a semantic memory (Vector + DB)."""
-        content = memory_data.content
-        tags = memory_data.tags or []
+        try:
+            content = memory_data.content
+            tags = memory_data.tags or []
 
-        # 1. Generate Embedding
-        embedding = self.model.encode([content])[0].astype("float32")
+            # 1. Generate Embedding
+            embedding = self.model.encode([content])[0].astype("float32")
 
-        # 2. Generate ID for Vector Store (using simple int hash or sequence could be risky for collisions if not managed,
-        # but for now we use a high-precision timestamp based int to avoid collisions in valid range)
-        # Better: use a dedicated counter in DB. For simplicity/speed without extra DB hit: Time-based.
-        # SQLite RowID is nice but we don't have it until we insert.
-        # Strategy: Insert into DB first? No, we need embedding_id.
-        # Strategy: Use UUID -> Int mapping? No.
-        # Strategy: Use Time (ns).
-        embedding_id = int(time.time_ns()) # 64-bit int, fits in FAISS ID
+            # 2. Generate ID for Vector Store
+            # We use a hash or a simpler counter to avoid huge int issues
+            embedding_id = hash(content + str(time.time())) % (2**31 - 1)
 
-        # 3. Add to Vector Store
-        self.vector_store.add_vectors(np.array([embedding]), [embedding_id])
+            # 3. Add to Vector Store
+            self.vector_store.add_vectors(np.array([embedding]), [embedding_id])
 
-        # 4. Add to DB
-        result = self.db.add_semantic(content, tags, tenant, project_id, embedding_id)
+            # 4. Add to DB
+            result = self.db.add_semantic(content, tags, tenant, project_id, embedding_id)
 
-        # 5. Save Vector Store (persist)
-        self.vector_store.save()
+            # 5. Save Vector Store (persist)
+            self.vector_store.save()
 
-        return MemoryRead(**result)
+            return MemoryRead(**result)
+        except Exception as e:
+            import traceback
+            print(f"CRITICAL ERROR in add_memory: {e}")
+            traceback.print_exc()
+            raise
 
     def add_episodic(self, content: str, tenant: str, project_id: str,
                      salience: int = 0, goal: str = None, plan: List[str] = None,
                      outcome: str = None, tool_logs: List[Dict] = None) -> Dict[str, Any]:
-        """Add episodic memory (DB only for now, can add vectors later if needed)."""
-        # Note: If we want vector search on episodes, we should add embedding here too.
-        # For V2, we stick to DB + FTS for episodes as per design docs,
-        # unless we want to embed the description.
-        # Let's auto-embed content for Hybrid search on episodes too?
-        # The schema has `memories_episodic` separate from `memories_semantic`.
-        # If we want vector search on ALL layers, we should embed this.
-        # But `memories_episodic` table doesn't have `embedding_id` in my schema.
-        # I'll stick to FTS for Episodic for now to match Schema, or update schema?
-        # Plan said "All layers to be vector indexed" was a goal.
-        # But schema in `database.py` only put `embedding_id` on `semantic`.
-        # Correction: The user asked "Do you want ALL layers to be vector-indexed? ... recommend what to do".
-        # I recommended Hybrid. Hybrid usually implies Vectors for everything.
-        # However, for now, let's implement FTS-based Episodic and Semantic Vector-based.
-        # Changing Schema now might be tricky without migration logic, but `init_db` checks `IF NOT EXISTS`.
-        # I will rely on FTS for Episodic for this iteration.
-        return self.db.add_episodic(content, tenant, project_id, goal, plan, outcome, tool_logs, salience)
+        """Add episodic memory (Vector + DB)."""
+        # 1. Generate Embedding from content + goal + outcome
+        search_blob = f"{content} {goal or ''} {outcome or ''}"
+        embedding = self.model.encode([search_blob])[0].astype("float32")
+        embedding_id = hash(search_blob + str(time.time())) % (2**31 - 1)
+
+        # 2. Add to Vector Store
+        self.vector_store.add_vectors(np.array([embedding]), [embedding_id])
+
+        # 3. Add to DB
+        return self.db.add_episodic(content, tenant, project_id, goal, plan, outcome, tool_logs, salience, embedding_id)
 
     def add_procedural(self, skill_name: str, steps: List[str], tenant: str, project_id: str,
-                       trigger: str = None, code_snippet: str = None) -> Dict[str, Any]:
-        return self.db.add_procedural(skill_name, steps, tenant, project_id, trigger, code_snippet)
+                       description: str = None, trigger: str = None, code_snippet: str = None) -> Dict[str, Any]:
+        """Add procedural memory (Vector + DB)."""
+        # 1. Generate Embedding from skill_name + trigger + description
+        search_blob = f"{skill_name} {trigger or ''} {description or ''}"
+        embedding = self.model.encode([search_blob])[0].astype("float32")
+        embedding_id = hash(search_blob + str(time.time())) % (2**31 - 1)
+
+        # 2. Add to Vector Store
+        self.vector_store.add_vectors(np.array([embedding]), [embedding_id])
+
+        # 3. Add to DB
+        return self.db.add_procedural(skill_name, steps, tenant, project_id, description, trigger, code_snippet, embedding_id)
 
     def add_rag(self, query: str, external_source: str, content: str, tenant: str, project_id: str) -> Dict[str, Any]:
         return self.db.add_rag(query, external_source, content, tenant, project_id)
@@ -230,33 +234,37 @@ class MemoryService:
         embedding = self.model.encode([query])[0].astype("float32")
         dists, ids = self.vector_store.search(embedding, k=limit * 2)
 
-        vector_results_db = self.db.get_semantic_by_embedding_ids(ids, tenant, project_id)
+        # Filter out -1 ids (no matches)
+        valid_ids = [int(i) for i in ids[0] if i != -1]
+
+        # Unified result retrieval (Semantic, Episodic, Procedural)
+        vector_results_db = self.db.get_memories_by_embedding_ids(valid_ids, tenant, project_id)
         vector_map = {item['embedding_id']: item for item in vector_results_db}
 
-        # 3. Score Normalization
+        # 4. Score Normalization & Weighted Fusion
         fts_scores = {}
         for i, item in enumerate(keyword_results):
             # Rank based score: 1.0 for first, decaying
-            # Normalize to [0,1]
             score = 1.0 - (i / len(keyword_results))
             fts_scores[item['id']] = score
 
         vector_scores = {}
-        for i, (dist, idx) in enumerate(zip(dists, ids)):
+        for i, idx_raw in enumerate(ids[0]):
+            idx = int(idx_raw)
+            if idx == -1: continue
+            
             if idx in vector_map:
                 item = vector_map[idx]
                 mid = item['id']
-                # Distance based score (inverted)
-                # Ensure dist is normalized if possible, but for L2 usually unbounded.
-                # Heuristic: 1 / (1 + dist) or exp(-dist) or simple rank decay
-                # Review suggested: 1.0 - (dist / 100) clipping at 0.
-                # Or simple rank decay since we don't know dist range well without stats.
-                # Let's use Rank Decay for consistency with FTS if dist is wild.
-                # But Dist is better. Let's use rank decay to be safe.
-                # score = 1.0 - (i / len(ids))
-                # Reviewer code: 1.0 - (r['distance'] / 100).
-                # I'll stick to rank decay for robust merging unless distance is calibrated.
-                score = 1.0 - (i / len(ids))
+                dist = dists[0][i]
+                
+                # Heuristic: 1 / (1 + dist)
+                # Handle inf or huge dists (as 0.1 score baseline)
+                if np.isinf(dist) or dist > 1e12:
+                    score = 0.1
+                else:
+                    score = 1.0 / (1.0 + dist)
+                
                 vector_scores[mid] = score
 
         # 4. Weighted Fusion
@@ -273,10 +281,7 @@ class MemoryService:
 
             if not item and mid in vector_scores:
                 # Find in vector results
-                # vector_map keys are embedding_id, we need mapping by memory_id
-                # Inefficient loop but safe
                 item = next((x for x in vector_results_db if x['id'] == mid), None)
-                if item: item['type'] = 'semantic'
 
             if item:
                 if mid not in merged:
@@ -285,7 +290,8 @@ class MemoryService:
                 s_vec = vector_scores.get(mid, 0.0)
                 s_fts = fts_scores.get(mid, 0.0)
 
-                final_scores[mid] = (semantic_weight * s_vec) + ((1.0 - semantic_weight) * s_fts)
+                score = (semantic_weight * s_vec) + ((1.0 - semantic_weight) * s_fts)
+                final_scores[mid] = score
 
         # Sort by Score DESC
         sorted_ids = sorted(final_scores.keys(), key=lambda x: final_scores[x], reverse=True)
@@ -297,6 +303,70 @@ class MemoryService:
             final_results.append(item)
 
         return final_results
+
+    def intent_sniff(self, content: str, tenant: str, project_id: str) -> List[Dict[str, Any]]:
+        """
+        Background Observer Logic: Detects if the current 'Working' intent
+        collides with known risks in ANY memory layer.
+        """
+        # 1. Intent Extraction (Keyword-based for speed)
+        content_lower = content.lower()
+        
+        # Define intent clusters
+        intents = {
+            "deployment": ["deploy", "vercel", "production", "ship", "push"],
+            "security": ["auth", "token", "secret", "key", "access", "password"],
+            "infrastructure": ["database", "db", "server", "cluster", "aws", "gcp"]
+        }
+        
+        found_intents = [name for name, keywords in intents.items() if any(k in content_lower for k in keywords)]
+        
+        if not found_intents:
+            return []
+
+        # 2. Targeted Risk Search
+        # We construct a query that combines the found intent keywords with high-risk terms
+        risk_terms = "failed error expired warning deprecated issue problem"
+        search_query = f"{' '.join(found_intents)} {risk_terms}"
+        
+        # Use a high semantic weight to catch conceptual collisions
+        results = self.search_hybrid(search_query, tenant, project_id, limit=5, semantic_weight=0.6)
+
+        nudges = []
+        seen_messages = set()
+        
+        for r in results:
+            # Combine all textual fields for a thorough risk check
+            text_to_check = " ".join([
+                str(r.get('content', '')),
+                str(r.get('description', '')),
+                str(r.get('goal', '')),
+                str(r.get('outcome', ''))
+            ]).lower()
+            
+            # If historical context contains negative signals related to the intents
+            if any(term in text_to_check for term in ["expired", "failed", "warning", "error", "deprecated"]):
+                msg = f"Collision with {r.get('type', 'memory')}: {r['content'][:100]}..."
+                if msg not in seen_messages:
+                    nudges.append({
+                        "type": "proactive_nudge",
+                        "strength": "HIGH" if any(t in text_to_check for t in ["expired", "error"]) else "MEDIUM",
+                        "message": msg,
+                        "source_id": r['id'],
+                        "layer": r.get('type', 'procedural') if r.get('type') == 'procedural' else r.get('type', 'semantic')
+                    })
+                    seen_messages.add(msg)
+
+        return nudges
+
+    def working_add(self, content: str, tenant: str, project_id: str):
+        # Add to DB
+        res = self.db.add_working(content, tenant, project_id)
+        # Sniff for nudges
+        nudges = self.intent_sniff(content, tenant, project_id)
+        if nudges:
+            res['nudges'] = nudges
+        return res
 
     def retrieve_context(self, query: str, tenant: str, project_id: str, semantic_weight: float = 0.5) -> Dict[str, Any]:
         """
@@ -310,7 +380,7 @@ class MemoryService:
             "semantic": [],
             "episodic": [],
             "procedural": [],
-            "working": [] # TODO: Add working memory search
+            "working": []
         }
 
         for hit in hybrid_hits:
@@ -335,9 +405,6 @@ class MemoryService:
 
     def session_list(self, session_id: str, tenant: str, project_id: str, limit: int=100):
         return self.db.list_session(session_id, tenant, project_id, limit)
-
-    def working_add(self, content: str, tenant: str, project_id: str):
-        return self.db.add_working(content, tenant, project_id)
 
     def working_list(self, tenant: str, project_id: str, limit: int=100):
         return self.db.list_working(tenant, project_id, limit)

@@ -15,8 +15,8 @@ from app.services.memory_service import MemoryService
 
 @pytest.fixture(autouse=True)
 def _configure_environment(monkeypatch):
-    monkeypatch.setenv("PINAK_JWT_SECRET", "test-secret")
-    monkeypatch.setenv("PINAK_EMBEDDING_BACKEND", "dummy")
+    monkeypatch.setenv("JWT_SECRET", "test-secret")
+    monkeypatch.setenv("EMBEDDING_BACKEND", "dummy")
 
 
 @pytest.fixture

@@ -7,10 +7,10 @@ from fastapi.security import HTTPAuthorizationCredentials
 
 @pytest.fixture
 def jwt_secret():
-    os.environ["PINAK_JWT_SECRET"] = "test-secret"
+    os.environ["JWT_SECRET"] = "test-secret"
     yield "test-secret"
-    if "PINAK_JWT_SECRET" in os.environ:
-        del os.environ["PINAK_JWT_SECRET"]
+    if "JWT_SECRET" in os.environ:
+        del os.environ["JWT_SECRET"]
 
 def test_require_auth_context_missing_credentials():
     with pytest.raises(HTTPException) as exc:

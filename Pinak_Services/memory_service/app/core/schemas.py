@@ -28,12 +28,15 @@ class EpisodicCreate(BaseModel):
     plan: Optional[List[str]] = None
     outcome: Optional[str] = None
     tool_logs: Optional[List[Dict[str, Any]]] = None
+    embedding_id: Optional[int] = None
 
 class ProceduralCreate(BaseModel):
     skill_name: str
     steps: List[str]
+    description: Optional[str] = None
     trigger: Optional[str] = None
     code_snippet: Optional[str] = None
+    embedding_id: Optional[int] = None
 
 class RAGCreate(BaseModel):
     query: str
@@ -51,6 +54,21 @@ class SessionCreate(BaseModel):
 
 class WorkingCreate(BaseModel):
     content: str
+
+class Nudge(BaseModel):
+    type: str = "proactive_nudge"
+    strength: str
+    message: str
+    source_id: str
+    layer: str
+
+class WorkingRead(BaseModel):
+    id: str
+    content: str
+    tenant: str
+    project_id: str
+    created_at: str
+    nudges: List[Nudge] = []
 
 class ContextResponse(BaseModel):
     semantic: List[Dict[str, Any]]

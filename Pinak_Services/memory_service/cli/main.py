@@ -11,6 +11,9 @@ from pathlib import Path
 # Add app to path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../")))
 
+import datetime
+import jwt
+import httpx
 from app.core.database import DatabaseManager
 
 app = typer.Typer(name="pinak-memory", help="Pinak Memory Service CLI")
@@ -131,6 +134,53 @@ def tui():
     """Launch Real-time Dashboard."""
     from cli.tui import MemoryApp
     MemoryApp().run()
+
+@app.command()
+def mint(tenant: str, project: str = "default", secret: str = None):
+    """Mint a development JWT token."""
+    jwt_secret = secret or os.environ.get("PINAK_JWT_SECRET", "dev-secret-change-me")
+    payload = {
+        "sub": "local-dev",
+        "tenant": tenant,
+        "project_id": project,
+        "iat": datetime.datetime.utcnow(),
+        "exp": datetime.datetime.utcnow() + datetime.timedelta(days=30),
+    }
+    token = jwt.encode(payload, jwt_secret, algorithm="HS256")
+    typer.echo(token)
+
+@app.command()
+def search(query: str, tenant: str = "demo", project: str = "default", url: str = "http://localhost:8001"):
+    """Perform a hybrid search (RRF) across all memory layers."""
+    token_secret = os.environ.get("PINAK_JWT_SECRET", "dev-secret-change-me")
+    token_payload = {
+        "sub": "search-cli",
+        "tenant": tenant,
+        "project_id": project,
+        "iat": datetime.datetime.utcnow(),
+        "exp": datetime.datetime.utcnow() + datetime.timedelta(minutes=5),
+    }
+    token = jwt.encode(token_payload, token_secret, algorithm="HS256")
+    
+    headers = {"Authorization": f"Bearer {token}"}
+    try:
+        with httpx.Client() as client:
+            response = client.get(f"{url}/api/v1/memory/retrieve_context", params={"query": query}, headers=headers)
+            response.raise_for_status()
+            data = response.json()
+            
+            typer.echo(f"\n🔍 Hybrid Search Results for: '{query}'")
+            typer.echo("-" * 60)
+            
+            for layer, results in data.get("context_by_layer", {}).items():
+                if results:
+                    typer.echo(f"[{layer.upper()}]")
+                    for r in results:
+                        content = r.get("content") or r.get("steps") or str(r)
+                        typer.echo(f" • {content}")
+            
+    except Exception as e:
+        typer.echo(f"Error: {e}")
 
 if __name__ == "__main__":
     app()

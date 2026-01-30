@@ -2,6 +2,17 @@
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 import asyncio
+import logging
+import sys
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    stream=sys.stdout
+)
+logger = logging.getLogger(__name__)
+
 from app.api.v1 import endpoints
 from app.api.v1.endpoints import get_memory_service
 from app.services.background import cleanup_expired_memories

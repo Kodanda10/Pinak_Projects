@@ -91,7 +91,6 @@ ListItem.--highlight {
     text-style: bold;
     height: 1fr;
     content-align: center middle;
-    font-size: 2; # Not supported in standard terminal but logic holds
 }
 
 /* Log */

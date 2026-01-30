@@ -78,6 +78,7 @@ class DatabaseManager:
                         outcome TEXT,
                         tool_logs TEXT, -- JSON
                         salience INTEGER,
+                        embedding_id INTEGER, -- Link to FAISS
                         tenant TEXT NOT NULL,
                         project_id TEXT NOT NULL,
                         created_at TEXT NOT NULL
@@ -100,20 +101,22 @@ class DatabaseManager:
                         skill_name TEXT NOT NULL,
                         trigger TEXT,
                         steps TEXT, -- JSON
+                        description TEXT,
                         code_snippet TEXT,
+                        embedding_id INTEGER, -- Link to FAISS
                         tenant TEXT NOT NULL,
                         project_id TEXT NOT NULL,
                         created_at TEXT NOT NULL
                     );
                 """)
-                 # FTS for Procedural
+                # FTS for Procedural
                 conn.execute("""
                     CREATE VIRTUAL TABLE IF NOT EXISTS memories_procedural_fts
-                    USING fts5(skill_name, trigger, steps, content='memories_procedural', content_rowid='rowid');
+                    USING fts5(skill_name, trigger, steps, description, content='memories_procedural', content_rowid='rowid');
                 """)
                 conn.execute("""
                     CREATE TRIGGER IF NOT EXISTS memories_procedural_ai AFTER INSERT ON memories_procedural BEGIN
-                      INSERT INTO memories_procedural_fts(rowid, skill_name, trigger, steps) VALUES (new.rowid, new.skill_name, new.trigger, new.steps);
+                      INSERT INTO memories_procedural_fts(rowid, skill_name, trigger, steps, description) VALUES (new.rowid, new.skill_name, new.trigger, new.steps, new.description);
                     END;
                 """)
 
@@ -202,30 +205,30 @@ class DatabaseManager:
 
     def add_episodic(self, content: str, tenant: str, project_id: str,
                      goal: str = None, plan: List[str] = None, outcome: str = None,
-                     tool_logs: List[Dict] = None, salience: int = 0) -> Dict[str, Any]:
+                     tool_logs: List[Dict] = None, salience: int = 0, embedding_id: int = None) -> Dict[str, Any]:
         memory_id = str(uuid.uuid4())
         created_at = datetime.datetime.utcnow().isoformat()
         with self.get_cursor() as cur:
             cur.execute("""
-                INSERT INTO memories_episodic (id, content, goal, plan, outcome, tool_logs, salience, tenant, project_id, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO memories_episodic (id, content, goal, plan, outcome, tool_logs, salience, embedding_id, tenant, project_id, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (memory_id, content, goal, json.dumps(plan) if plan else None, outcome,
-                  json.dumps(tool_logs) if tool_logs else None, salience, tenant, project_id, created_at))
+                  json.dumps(tool_logs) if tool_logs else None, salience, embedding_id, tenant, project_id, created_at))
         return {
-            "id": memory_id, "content": content, "goal": goal, "outcome": outcome, "tenant": tenant, "project_id": project_id, "created_at": created_at
+            "id": memory_id, "content": content, "goal": goal, "outcome": outcome, "tenant": tenant, "project_id": project_id, "created_at": created_at, "embedding_id": embedding_id
         }
 
     def add_procedural(self, skill_name: str, steps: List[str], tenant: str, project_id: str,
-                       trigger: str = None, code_snippet: str = None) -> Dict[str, Any]:
+                       description: str = None, trigger: str = None, code_snippet: str = None, embedding_id: int = None) -> Dict[str, Any]:
         memory_id = str(uuid.uuid4())
         created_at = datetime.datetime.utcnow().isoformat()
         with self.get_cursor() as cur:
             cur.execute("""
-                INSERT INTO memories_procedural (id, skill_name, trigger, steps, code_snippet, tenant, project_id, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, (memory_id, skill_name, trigger, json.dumps(steps), code_snippet, tenant, project_id, created_at))
+                INSERT INTO memories_procedural (id, skill_name, trigger, steps, description, code_snippet, embedding_id, tenant, project_id, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (memory_id, skill_name, trigger, json.dumps(steps), description, code_snippet, embedding_id, tenant, project_id, created_at))
         return {
-            "id": memory_id, "skill_name": skill_name, "tenant": tenant, "project_id": project_id, "created_at": created_at
+            "id": memory_id, "skill_name": skill_name, "tenant": tenant, "project_id": project_id, "created_at": created_at, "embedding_id": embedding_id
         }
 
     def add_rag(self, query: str, external_source: str, content: str, tenant: str, project_id: str) -> Dict[str, Any]:
@@ -316,9 +319,9 @@ class DatabaseManager:
         """
         results = []
 
-        # Clean query for FTS5 (remove special chars usually, but sqlite handles some)
-        # Using simple tokenizer pattern
-        safe_query = f'"{query}"'
+        # Clean query for FTS5
+        # Instead of strict phrase match, allow multiple terms (AND logic or simple terms)
+        safe_query = query.replace('"', ' ').replace("'", " ")
 
         with self.get_cursor() as cur:
             # Semantic Search
@@ -363,21 +366,34 @@ class DatabaseManager:
 
         return results
 
-    def get_semantic_by_embedding_ids(self, embedding_ids: List[int], tenant: str, project_id: str) -> List[Dict[str, Any]]:
+    def get_memories_by_embedding_ids(self, embedding_ids: List[int], tenant: str, project_id: str) -> List[Dict[str, Any]]:
         if not embedding_ids:
             return []
         placeholders = ','.join('?' for _ in embedding_ids)
+        results = []
+        
+        tables = [
+            ("memories_semantic", "semantic"),
+            ("memories_episodic", "episodic"),
+            ("memories_procedural", "procedural")
+        ]
+        
         with self.get_cursor() as cur:
-            cur.execute(f"""
-                SELECT * FROM memories_semantic
-                WHERE embedding_id IN ({placeholders}) AND tenant = ? AND project_id = ?
-            """, (*embedding_ids, tenant, project_id))
-            rows = []
-            for row in cur.fetchall():
-                d = dict(row)
-                if d.get('tags'): d['tags'] = json.loads(d['tags'])
-                rows.append(d)
-            return rows
+            for table, mtype in tables:
+                # Note: procedural uses skill_name as content in our mapping
+                content_col = "skill_name" if mtype == "procedural" else "content"
+                cur.execute(f"""
+                    SELECT *, '{mtype}' as type FROM {table}
+                    WHERE embedding_id IN ({placeholders}) AND tenant = ? AND project_id = ?
+                """, (*embedding_ids, tenant, project_id))
+                for row in cur.fetchall():
+                    d = dict(row)
+                    if mtype == "procedural": d['content'] = d['skill_name']
+                    if d.get('tags'): d['tags'] = json.loads(d['tags'])
+                    if d.get('plan'): d['plan'] = json.loads(d['plan'])
+                    if d.get('steps'): d['steps'] = json.loads(d['steps'])
+                    results.append(d)
+        return results
 
     def add_event(self, event_type: str, payload: Dict, tenant: str, project_id: str) -> Dict[str, Any]:
         event_id = str(uuid.uuid4())
@@ -421,7 +437,13 @@ class DatabaseManager:
                 INSERT INTO working_memory (id, content, tenant, project_id, ts)
                 VALUES (?, ?, ?, ?, ?)
             """, (memory_id, content, tenant, project_id, ts))
-        return {"id": memory_id, "ts": ts}
+        return {
+            "id": memory_id,
+            "content": content,
+            "tenant": tenant,
+            "project_id": project_id,
+            "created_at": ts
+        }
 
     def list_working(self, tenant: str, project_id: str, limit: int = 100) -> List[Dict[str, Any]]:
         with self.get_cursor() as cur:
