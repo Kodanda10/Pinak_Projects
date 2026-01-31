@@ -43,7 +43,8 @@ async def lifespan(app: FastAPI):
         await cleanup_task
     except asyncio.CancelledError:
         pass
-    service.vector_store.save()
+    if getattr(service, "vector_store", None):
+        service.vector_store.save()
 
 app = FastAPI(title="Pinak Memory Service", lifespan=lifespan)
 
