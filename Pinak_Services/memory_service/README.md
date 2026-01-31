@@ -26,6 +26,13 @@ This service provides a unified, persistent memory layer for all AI agents opera
 
 ## 🛠️ Human Operations (Command Center)
 
+### ✅ Install
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -e .
+```
+
 ### 🟢 One-Command Startup
 Launch the full Memory Command Center (Server + TUI) with a single command:
 ```bash
