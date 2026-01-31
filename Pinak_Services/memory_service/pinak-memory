@@ -1,0 +1,37 @@
+#!/bin/bash
+# Pinak Memory Command Center Launcher
+
+set -euo pipefail
+
+BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$BASE_DIR"
+
+SERVER_PORT="${PINAK_BIND_PORT:-8000}"
+SERVER_HOST="${PINAK_BIND_HOST:-127.0.0.1}"
+VENV_PY="$BASE_DIR/.venv/bin/python"
+
+export PINAK_JWT_SECRET="${PINAK_JWT_SECRET:-secret}"
+export PINAK_API_URL="${PINAK_API_URL:-http://127.0.0.1:${SERVER_PORT}/api/v1}"
+export PINAK_PROJECT_ID="${PINAK_PROJECT_ID:-pinak-memory}"
+
+if [ ! -x "$VENV_PY" ]; then
+  echo "❌ Missing venv python at $VENV_PY"
+  exit 1
+fi
+
+if lsof -iTCP:${SERVER_PORT} -sTCP:LISTEN >/dev/null 2>&1; then
+  echo "🟢 Pinak Memory Server already running on port ${SERVER_PORT}."
+else
+  echo "🟡 Starting Pinak Memory Server..."
+  "$VENV_PY" -m uvicorn app.main:app --host "$SERVER_HOST" --port "$SERVER_PORT" > server.log 2>&1 &
+  SERVER_PID=$!
+  echo "⏳ Waiting for neural substrate initialization..."
+  sleep 2
+  if ! ps -p $SERVER_PID >/dev/null 2>&1; then
+    echo "❌ Server failed to start. Check server.log."
+    exit 1
+  fi
+fi
+
+echo "🚀 Launching Command Center..."
+"$VENV_PY" cli/main.py tui
