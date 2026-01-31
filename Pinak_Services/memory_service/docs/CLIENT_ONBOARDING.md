@@ -69,6 +69,27 @@ curl -sS \
 
 ---
 
+## Remote Access (Tailscale / SSH)
+
+### Tailscale (recommended)
+1) Install Tailscale on both machines and run:
+```bash
+tailscale up
+```
+2) On the server, bind the API to `0.0.0.0` (already configured in the LaunchAgent).
+3) On the client, use:
+```
+http://<tailscale-ip>:8000/api/v1/memory
+```
+
+### SSH Tunnel
+```bash
+ssh -L 8000:127.0.0.1:8000 <user>@<pinak-host>
+```
+Then use `http://127.0.0.1:8000/api/v1/memory` on the client.
+
+---
+
 ## Schemas & Templates
 
 Local canonical paths:
