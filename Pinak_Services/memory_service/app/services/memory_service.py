@@ -57,14 +57,19 @@ class MemoryService:
         self.schema_registry = SchemaRegistry()
 
         # Model
-        self.model = model or self._load_embedding_model(self.config.get("embedding_model"))
+        self.embedding_backend = (os.getenv("PINAK_EMBEDDING_BACKEND") or "").lower()
+        self.vector_enabled = self.embedding_backend not in ("qmd", "none", "off", "disabled")
+        if self.vector_enabled:
+            self.model = model or self._load_embedding_model(self.config.get("embedding_model"))
+        else:
+            self.model = model or _DeterministicEncoder()
         if hasattr(self.model, "get_sentence_embedding_dimension"):
             self.embedding_dim = self.model.get_sentence_embedding_dimension()
         else:
             self.embedding_dim = getattr(self.model, "embedding_dimension", 384)
 
         # Vector Store
-        self.vector_store = VectorStore(self.vector_path, self.embedding_dim)
+        self.vector_store = VectorStore(self.vector_path, self.embedding_dim) if self.vector_enabled else None
 
     def _normalize_client_ids(
         self,
@@ -193,6 +198,9 @@ class MemoryService:
         """
         Check consistency between DB and Vector Store. Rebuild if necessary.
         """
+        if not self.vector_enabled:
+            logger.info("Vector store disabled (backend=%s); skipping verify/recover", self.embedding_backend)
+            return
         # Simple heuristic: Count embeddings across all layers.
         db_count = 0
         with self.db.get_cursor() as conn:
@@ -214,6 +222,9 @@ class MemoryService:
 
     def _rebuild_index(self):
         """Re-encode all semantic/episodic/procedural memories and rebuild vector store."""
+        if not self.vector_enabled:
+            logger.info("Vector store disabled (backend=%s); rebuild skipped", self.embedding_backend)
+            return
         with self.vector_store.batch_add():
             with self.vector_store.lock:
                 self.vector_store.vectors = np.empty((0, self.embedding_dim), dtype=np.float32)
@@ -330,15 +341,17 @@ class MemoryService:
                 client_meta["child_client_id"],
             )
 
-            # 1. Generate Embedding
-            embedding = self.model.encode([content])[0].astype("float32")
+            embedding_id = None
+            if self.vector_enabled:
+                # 1. Generate Embedding
+                embedding = self.model.encode([content])[0].astype("float32")
 
-            # 2. Generate ID for Vector Store
-            # We use a hash or a simpler counter to avoid huge int issues
-            embedding_id = hash(content + str(time.time())) % (2**31 - 1)
+                # 2. Generate ID for Vector Store
+                # We use a hash or a simpler counter to avoid huge int issues
+                embedding_id = hash(content + str(time.time())) % (2**31 - 1)
 
-            # 3. Add to Vector Store
-            self.vector_store.add_vectors(np.array([embedding]), [embedding_id])
+                # 3. Add to Vector Store
+                self.vector_store.add_vectors(np.array([embedding]), [embedding_id])
 
             # 4. Add to DB
             result = self.db.add_semantic(
@@ -353,7 +366,8 @@ class MemoryService:
             )
 
             # 5. Save Vector Store (persist)
-            self.vector_store.save()
+            if self.vector_enabled:
+                self.vector_store.save()
 
             self.db.add_access_event(
                 event_type="write",
@@ -449,13 +463,15 @@ class MemoryService:
                 client_meta["parent_client_id"],
                 client_meta["child_client_id"],
             )
-            # 1. Generate Embedding from content + goal + outcome
-            search_blob = f"{content} {goal or ''} {outcome or ''}"
-            embedding = self.model.encode([search_blob])[0].astype("float32")
-            embedding_id = hash(search_blob + str(time.time())) % (2**31 - 1)
+            embedding_id = None
+            if self.vector_enabled:
+                # 1. Generate Embedding from content + goal + outcome
+                search_blob = f"{content} {goal or ''} {outcome or ''}"
+                embedding = self.model.encode([search_blob])[0].astype("float32")
+                embedding_id = hash(search_blob + str(time.time())) % (2**31 - 1)
 
-            # 2. Add to Vector Store
-            self.vector_store.add_vectors(np.array([embedding]), [embedding_id])
+                # 2. Add to Vector Store
+                self.vector_store.add_vectors(np.array([embedding]), [embedding_id])
 
             # 3. Add to DB
             result = self.db.add_episodic(
@@ -563,13 +579,15 @@ class MemoryService:
                 client_meta["parent_client_id"],
                 client_meta["child_client_id"],
             )
-            # 1. Generate Embedding from skill_name + trigger + description
-            search_blob = f"{skill_name} {trigger or ''} {description or ''}"
-            embedding = self.model.encode([search_blob])[0].astype("float32")
-            embedding_id = hash(search_blob + str(time.time())) % (2**31 - 1)
+            embedding_id = None
+            if self.vector_enabled:
+                # 1. Generate Embedding from skill_name + trigger + description
+                search_blob = f"{skill_name} {trigger or ''} {description or ''}"
+                embedding = self.model.encode([search_blob])[0].astype("float32")
+                embedding_id = hash(search_blob + str(time.time())) % (2**31 - 1)
 
-            # 2. Add to Vector Store
-            self.vector_store.add_vectors(np.array([embedding]), [embedding_id])
+                # 2. Add to Vector Store
+                self.vector_store.add_vectors(np.array([embedding]), [embedding_id])
 
             # 3. Add to DB
             result = self.db.add_procedural(
@@ -860,6 +878,8 @@ class MemoryService:
         return final_results
 
     def _safe_vector_search(self, query: str, limit: int) -> tuple:
+        if not self.vector_enabled or not self.vector_store:
+            return [], []
         if os.getenv("PINAK_VECTOR_SEARCH_DISABLED", "false").lower() in ("1", "true", "yes"):
             return [], []
         timeout_ms = int(os.getenv("PINAK_EMBEDDING_TIMEOUT_MS", "0") or "0")
@@ -1349,7 +1369,7 @@ class MemoryService:
         if not safe_updates:
             return False
 
-        if layer == "semantic" and "content" in safe_updates:
+        if layer == "semantic" and "content" in safe_updates and self.vector_enabled and self.vector_store:
             # 1. Fetch old record to get embedding_id
             old_item = self.db.get_memory(layer, memory_id, tenant, project_id)
             if old_item:
@@ -1377,7 +1397,7 @@ class MemoryService:
         return success
 
     def delete_memory(self, layer: str, memory_id: str, tenant: str, project_id: str) -> bool:
-        if layer == "semantic":
+        if layer == "semantic" and self.vector_enabled and self.vector_store:
             # Fetch embedding ID first
             item = self.db.get_memory(layer, memory_id, tenant, project_id)
             if item and item.get("embedding_id"):

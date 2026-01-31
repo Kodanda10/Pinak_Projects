@@ -13,36 +13,37 @@ import numpy as np
 # --- CSS with Visual Polish ---
 GLOBAL_CSS = """
 Screen {
-    background: #0B111E;
-    color: #E5E7EB;
+    background: #070A12;
+    color: #E2E8F0;
 }
 
 Header {
-    background: #111827;
-    color: #E5E7EB;
+    background: #0F172A;
+    color: #E2E8F0;
     dock: top;
     text-style: bold;
 }
 
 Footer {
-    background: #111827;
-    color: #9CA3AF;
+    background: #0F172A;
+    color: #94A3B8;
     dock: bottom;
 }
 
 #sidebar {
     dock: left;
     width: 26;
-    background: #0F172A;
-    border-right: solid #1F2937;
+    background: #0B1220;
+    border-right: solid #111827;
 }
 
 #sidebar Label {
     padding: 1;
-    background: #111827;
-    color: #E5E7EB;
+    background: #0F172A;
+    color: #E2E8F0;
     text-align: center;
     text-style: bold;
+    border-bottom: solid #1F2937;
 }
 
 ListView {
@@ -51,61 +52,63 @@ ListView {
 
 ListItem {
     padding: 1 2;
-    color: #9CA3AF;
+    color: #94A3B8;
 }
 
 ListItem:hover {
-    background: #1F2937;
-    color: #E5E7EB;
+    background: #111827;
+    color: #E2E8F0;
 }
 
 ListItem.--highlight {
-    background: #1D4ED8;
-    color: #FFFFFF;
+    background: #0EA5E9;
+    color: #0B1120;
     text-style: bold;
+    border-left: thick #38BDF8;
 }
 
 #main-content {
     padding: 1 2;
     height: 100%;
+    background: #0B111E;
 }
 
 .stat-card {
-    background: #111827;
-    border: solid #1F2937;
+    background: #0F172A;
+    border: solid #1E293B;
     height: 10;
     margin: 1;
     padding: 1 2;
     width: 1fr;
-    border-title-color: #3B82F6;
+    border-title-color: #38BDF8;
     border-title-style: bold;
 }
 
 .stat-title {
-    color: #93C5FD;
+    color: #7DD3FC;
     text-style: bold;
-    border-bottom: solid #1F2937;
+    border-bottom: solid #1E293B;
     margin-bottom: 1;
 }
 
 .stat-value {
     text-align: center;
-    color: #34D399;
+    color: #22D3EE;
     text-style: bold;
     margin-top: 1;
 }
 
 Log {
-    background: #0F172A;
-    border: solid #1F2937;
+    background: #0B1220;
+    border: solid #1E293B;
     height: 100%;
     color: #F59E0B;
 }
 
 DataTable {
-    background: #111827;
-    border: solid #1F2937;
-    color: #E5E7EB;
+    background: #0F172A;
+    border: solid #1E293B;
+    color: #E2E8F0;
 }
 
 .agent-active {
@@ -118,9 +121,9 @@ DataTable {
 }
 
 .section-header {
-    color: #60A5FA;
+    color: #38BDF8;
     text-style: bold;
-    border-bottom: solid #1D4ED8;
+    border-bottom: solid #0EA5E9;
     margin-bottom: 1;
 }
 
@@ -131,6 +134,19 @@ DataTable {
 
 .issue-resolved {
     color: #10B981;
+}
+
+Button {
+    background: #111827;
+    color: #E2E8F0;
+    border: solid #1E293B;
+}
+
+Button.-primary {
+    background: #0EA5E9;
+    color: #0B1120;
+    border: solid #38BDF8;
+    text-style: bold;
 }
 """
 

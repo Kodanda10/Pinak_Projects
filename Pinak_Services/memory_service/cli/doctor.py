@@ -147,6 +147,18 @@ def _ensure_backup(report: DoctorReport, fix: bool) -> None:
 
     if not shutil.which("rclone"):
         report.add_issue("rclone not installed; Google Drive backup will not run")
+    else:
+        try:
+            result = subprocess.run(
+                ["rclone", "listremotes"],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            if "gdrive:" not in (result.stdout or ""):
+                report.add_issue("rclone installed but gdrive remote not configured")
+        except Exception:
+            report.add_issue("rclone remote check failed")
 
 
 def _ensure_schema_assets(report: DoctorReport, fix: bool) -> None:
@@ -230,6 +242,13 @@ def _check_llm_runtime(report: DoctorReport) -> None:
         mlx_ok = True
     except Exception:
         mlx_ok = False
+    if not mlx_ok:
+        python = shutil.which("python3.14") or shutil.which("python3")
+        if python:
+            result = subprocess.run([python, "-c", "import mlx"], capture_output=True, text=True, check=False)
+            if result.returncode == 0:
+                mlx_ok = True
+                report.add_note(f"MLX available via {python}")
     if mlx_ok:
         report.add_note("MLX available for doctor agent")
     else:
@@ -237,6 +256,15 @@ def _check_llm_runtime(report: DoctorReport) -> None:
             report.add_note("MLX not found; gemini CLI available for doctor agent")
         else:
             report.add_issue("No local LLM runtime found (MLX missing; gemini CLI not found)")
+
+
+def _check_embedding_backend(report: DoctorReport) -> None:
+    backend = os.getenv("PINAK_EMBEDDING_BACKEND", "")
+    if backend.lower() == "qmd":
+        if not shutil.which("qmd"):
+            report.add_issue("PINAK_EMBEDDING_BACKEND=qmd but qmd is not installed")
+        else:
+            report.add_note("qmd embedding backend selected")
 
 
 def _ensure_db(report: DoctorReport, fix: bool) -> None:
