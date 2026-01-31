@@ -1,2 +1,0 @@
-{"project_id": "project-x", "skill_id": "vercel-deploy-fix", "steps": ["1. Check VERCEL_TOKEN", "2. Run vercel link", "3. Run vercel deploy --prod"], "tenant": "simba-corp", "ts": "2026-01-29T17:05:42.151870"}
-{"project_id": "project-x", "skill_id": "vercel-deploy-fix", "steps": ["1. Check VERCEL_TOKEN", "2. Run vercel link", "3. Run vercel deploy --prod"], "tenant": "simba-corp", "ts": "2026-01-29T17:05:59.339832"}
