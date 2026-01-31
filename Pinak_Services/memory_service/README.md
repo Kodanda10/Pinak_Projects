@@ -138,4 +138,9 @@ The following files have been automatically updated to include `pinak-memory`:
 
 ---
 
+## 📄 Client Onboarding
+See `docs/CLIENT_ONBOARDING.md` for copy‑paste curl examples and schema guidance.
+
+---
+
 **Status**: ✅ Active & Stable | **Memories**: 19 | **Vector Engine**: Numpy-Accelerated
