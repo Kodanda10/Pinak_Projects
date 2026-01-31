@@ -16,6 +16,8 @@ PINAK_CLIENT_ID = os.getenv("PINAK_CLIENT_ID", PINAK_CLIENT_NAME)
 PINAK_PARENT_CLIENT_ID = os.getenv("PINAK_PARENT_CLIENT_ID")
 PINAK_CHILD_CLIENT_ID = os.getenv("PINAK_CHILD_CLIENT_ID")
 PINAK_SCHEMA_DIR = os.getenv("PINAK_SCHEMA_DIR", os.path.expanduser("~/pinak-memory/schemas"))
+CLIENT_STATUS = None
+CLIENT_STATUS_MESSAGE_SHOWN = False
 
 
 def _encode_jwt_hs256(payload: Dict[str, Any], secret: str) -> str:
@@ -64,8 +66,13 @@ def _get_token() -> str:
 def _api_request(method: str, endpoint: str, json_data: dict = None, params: dict = None) -> Dict[str, Any]:
     token = _get_token()
     headers = {"Authorization": f"Bearer {token}"}
+    if PINAK_CLIENT_ID:
+        headers["X-Pinak-Client-Id"] = PINAK_CLIENT_ID
+    if PINAK_CLIENT_NAME:
+        headers["X-Pinak-Client-Name"] = PINAK_CLIENT_NAME
     if PINAK_CHILD_CLIENT_ID:
         headers["X-Pinak-Child-Id"] = PINAK_CHILD_CLIENT_ID
+        headers["X-Pinak-Child-Client-Id"] = PINAK_CHILD_CLIENT_ID
     url = f"{API_BASE_URL}{endpoint}"
 
     with httpx.Client(timeout=30.0) as client:
@@ -126,8 +133,9 @@ def _report_issue(error_code: str, message: str, layer: str = None, payload: Dic
 
 
 def _register_client() -> None:
+    global CLIENT_STATUS
     try:
-        _api_request(
+        res = _api_request(
             "POST",
             "/memory/client/register",
             json_data={
@@ -138,6 +146,8 @@ def _register_client() -> None:
                 "metadata": {"source": "mcp"},
             },
         )
+        if isinstance(res, dict) and res.get("status"):
+            CLIENT_STATUS = res.get("status")
         if PINAK_CHILD_CLIENT_ID:
             _api_request(
                 "POST",
@@ -200,6 +210,9 @@ def _recall_impl(query: str, limit: int = 5) -> str:
         if not data["semantic"] and not data["episodic"]:
             return "No relevant memories found."
 
+        notice = _status_notice()
+        if notice:
+            output.append(notice)
         return "\n".join(output)
     except Exception as e:
         _report_issue("recall_failed", str(e), layer="hybrid", payload={"query": query})
@@ -237,7 +250,11 @@ def _remember_episode_impl(goal: str, outcome: str, summary: str, tags: List[str
             return f"Schema validation failed: {', '.join(errors)}"
         # Write to quarantine by default for safety
         res = _api_request("POST", "/memory/quarantine/propose/episodic", json_data=payload)
-        return f"✅ Memory queued for review (id={res.get('id')})."
+        msg = f"✅ Memory queued for review (id={res.get('id')})."
+        notice = _status_notice()
+        if notice:
+            msg = f"{msg}\n{notice}"
+        return msg
     except Exception as e:
         _report_issue("episodic_propose_failed", str(e), layer="episodic", payload=payload)
         return f"Failed to store memory: {str(e)}"
@@ -257,6 +274,19 @@ def remember_episode(goal: str, outcome: str, summary: str, tags: List[str] = []
     """
     _heartbeat("active")
     return _remember_episode_impl(goal, outcome, summary, tags)
+
+
+def _status_notice() -> str:
+    global CLIENT_STATUS_MESSAGE_SHOWN
+    if CLIENT_STATUS_MESSAGE_SHOWN:
+        return ""
+    if CLIENT_STATUS and CLIENT_STATUS not in ("trusted",):
+        CLIENT_STATUS_MESSAGE_SHOWN = True
+        return (
+            f"⚠️ Client status is '{CLIENT_STATUS}'. Ask an admin to mark your client as trusted in the "
+            "TUI (Clients tab) to enable auto-approval and reduce review friction."
+        )
+    return ""
 
 
 @mcp.tool()

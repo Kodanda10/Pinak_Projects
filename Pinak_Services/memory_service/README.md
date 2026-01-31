@@ -148,6 +148,19 @@ The following files have been automatically updated to include `pinak-memory`:
 ## 📄 Client Onboarding
 See `docs/CLIENT_ONBOARDING.md` for copy‑paste curl examples and schema guidance.
 
+### Remote API (Tailscale)
+Current server Tailscale IP:
+```
+http://100.66.59.92:8000/api/v1/memory
+```
+Headers:
+- `Authorization: Bearer <token>`
+- `X-Pinak-Client-Id`
+- `X-Pinak-Client-Name`
+- `X-Pinak-Child-Client-Id` (optional)
+
+Manual approval: first‑time clients are `registered`. Mark them **trusted** in TUI → Clients tab.
+
 ---
 
 **Status**: ✅ Active & Stable | **Memories**: 19 | **Vector Engine**: Numpy-Accelerated

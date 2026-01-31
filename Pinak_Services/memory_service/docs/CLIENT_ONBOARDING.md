@@ -29,6 +29,14 @@ curl -sS -X POST \
 
 ---
 
+## Approval Workflow (Manual)
+When a client registers for the first time, its status is `registered`.
+Admins should mark the client as **trusted** in the TUI (Clients tab) to enable auto‑approval.
+
+If the MCP client is not trusted, it will show a warning telling the human to approve the registry entry.
+
+---
+
 ## 2) Write Memory (Semantic)
 
 ```bash
@@ -84,6 +92,17 @@ tailscale up
 http://<tailscale-ip>:8000/api/v1/memory
 ```
 
+**Current Tailscale IP (as of 2026-02-01):**
+```
+http://100.66.59.92:8000/api/v1/memory
+```
+
+Required headers:
+- `Authorization: Bearer <token>`
+- `X-Pinak-Client-Id`
+- `X-Pinak-Client-Name`
+- `X-Pinak-Child-Client-Id` (optional)
+
 ### SSH Tunnel
 ```bash
 ssh -L 8000:127.0.0.1:8000 <user>@<pinak-host>
@@ -105,4 +124,19 @@ API endpoints:
 Doctor syncs these:
 ```bash
 python -m cli.main doctor --fix
+```
+
+---
+
+## Lockdown / Unlock (Source Protection)
+Keep the repo locked in normal operations:
+```bash
+sudo scripts/pinak-lockdown.sh
+```
+
+If you need to change code:
+```bash
+sudo scripts/pinak-unlock.sh
+# make changes
+sudo scripts/pinak-lockdown.sh
 ```

@@ -4,11 +4,13 @@ from textual.widgets import Header, Footer, Static, DataTable, ListView, ListIte
 from textual.reactive import reactive
 from textual.screen import Screen
 from textual.message import Message
+from typing import Optional
 import sqlite3
 import os
 import datetime
 import json
 import numpy as np
+import subprocess
 
 # --- CSS with Visual Polish ---
 GLOBAL_CSS = """
@@ -147,6 +149,15 @@ Button.-primary {
     color: #0B1120;
     border: solid #38BDF8;
     text-style: bold;
+}
+
+.toolbar {
+    height: 3;
+    margin: 0 0 1 0;
+}
+
+.muted {
+    color: #94A3B8;
 }
 """
 
@@ -455,8 +466,15 @@ class ClientIssuesView(Container):
 
 
 class ClientRegistryView(Container):
+    selected_client_id: Optional[str] = None
+
     def compose(self) -> ComposeResult:
         yield Static("Client Registry (Observed / Registered / Trusted)", classes="stat-title")
+        with Horizontal(classes="toolbar"):
+            yield Button("Mark Trusted", id="btn_client_trusted", variant="primary")
+            yield Button("Mark Observed", id="btn_client_observed")
+            yield Button("Mark Blocked", id="btn_client_blocked")
+            yield Static("Selected: -", id="client-selected", classes="muted")
         yield DataTable(id="clients-table")
 
     def on_mount(self):
@@ -466,6 +484,40 @@ class ClientRegistryView(Container):
         table.zebra_stripes = True
         self.set_interval(5, self.refresh_clients)
         self.refresh_clients()
+
+    def on_data_table_row_selected(self, event: DataTable.RowSelected):
+        if event.data_table.id != "clients-table":
+            return
+        row = event.data_table.get_row_at(event.row_key)
+        if not row:
+            return
+        self.selected_client_id = row[2]
+        self.query_one("#client-selected", Static).update(f"Selected: {self.selected_client_id}")
+
+    def on_button_pressed(self, event: Button.Pressed):
+        if event.button.id == "btn_client_trusted":
+            self._update_client_status("trusted")
+        elif event.button.id == "btn_client_observed":
+            self._update_client_status("observed")
+        elif event.button.id == "btn_client_blocked":
+            self._update_client_status("blocked")
+
+    def _update_client_status(self, status: str):
+        if not self.selected_client_id:
+            return
+        db_path = "data/memory.db"
+        if not os.path.exists(db_path):
+            return
+        try:
+            with sqlite3.connect(db_path) as conn:
+                conn.execute(
+                    "UPDATE clients_registry SET status = ?, updated_at = datetime('now') WHERE client_id = ?",
+                    (status, self.selected_client_id),
+                )
+                conn.commit()
+            self.refresh_clients()
+        except Exception:
+            return
 
     def refresh_clients(self):
         db_path = "data/memory.db"
@@ -509,11 +561,20 @@ class HealthView(Container):
         yield Static("Substrate Self-Diagnostic", classes="stat-title")
         yield VerticalScroll(Static("Scanning bio-signatures...", id="health_report"))
         yield Button("Run Doctor", id="btn_doctor", variant="primary")
+        yield Static("LaunchAgent Health", classes="stat-title")
+        yield DataTable(id="launch-table")
 
     def on_button_pressed(self, event: Button.Pressed):
         if event.button.id == "btn_doctor": self.run_doctor(allow_heavy=True)
 
-    def on_mount(self): self.run_doctor(allow_heavy=True)
+    def on_mount(self):
+        self.run_doctor(allow_heavy=True)
+        table = self.query_one("#launch-table", DataTable)
+        table.clear(columns=True)
+        table.add_columns("Label", "State", "PID", "Notes")
+        table.zebra_stripes = True
+        self.set_interval(10, self.refresh_launch_agents)
+        self.refresh_launch_agents()
 
     def run_doctor(self, allow_heavy: bool = False):
         from cli.doctor import run_doctor
@@ -536,6 +597,43 @@ class HealthView(Container):
             lines.extend([f"[cyan]• {n}[/cyan]" for n in report.notes])
 
         self.query_one("#health_report", Static).update("\n".join(lines))
+
+    def refresh_launch_agents(self):
+        table = self.query_one("#launch-table", DataTable)
+        table.clear()
+        uid = os.getuid()
+        labels = [
+            ("Server", "com.pinak.memory.server"),
+            ("Watchdog", "com.pinak.memory.watchdog"),
+            ("Doctor", "com.pinak.memory.doctor"),
+            ("Backup", "com.pinak.memory.backup"),
+        ]
+        for title, label in labels:
+            state = "unloaded"
+            pid = "-"
+            notes = ""
+            try:
+                result = subprocess.run(
+                    ["/bin/launchctl", "print", f"gui/{uid}/{label}"],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                if result.returncode == 0:
+                    out = result.stdout or ""
+                    if "state = running" in out:
+                        state = "running"
+                    else:
+                        state = "loaded"
+                    for line in out.splitlines():
+                        if line.strip().startswith("pid ="):
+                            pid = line.split("=", 1)[-1].strip()
+                            break
+                else:
+                    notes = (result.stderr or result.stdout or "").strip()[:80]
+            except Exception as exc:
+                notes = str(exc)[:80]
+            table.add_row(f"{title} ({label})", state, pid, notes or "-")
 
 class MemoryApp(App):
     CSS = GLOBAL_CSS
