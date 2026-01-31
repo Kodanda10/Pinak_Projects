@@ -346,6 +346,70 @@ def _ensure_vectors(report: DoctorReport, fix: bool, allow_heavy: bool) -> None:
         report.add_note(f"vector index ok (size {index_size})")
 
 
+def _backfill_missing_clients(report: DoctorReport, fix: bool) -> None:
+    db_path = _get_db_path()
+    if not os.path.exists(db_path):
+        return
+
+    tables = [
+        "memories_semantic",
+        "memories_episodic",
+        "memories_procedural",
+        "memories_rag",
+        "memories_working",
+        "memories_session",
+    ]
+    missing_total = 0
+    updated_total = 0
+
+    with sqlite3.connect(db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        cur = conn.cursor()
+        for table in tables:
+            try:
+                cur.execute(f"PRAGMA table_info({table})")
+                cols = {row[1] for row in cur.fetchall()}
+            except Exception:
+                continue
+            if "client_id" not in cols:
+                continue
+            cur.execute(
+                f"""
+                SELECT count(*) FROM {table}
+                WHERE client_id IS NULL OR client_id = ''
+                """
+            )
+            missing = cur.fetchone()[0]
+            if not missing:
+                continue
+            missing_total += missing
+            if fix:
+                cur.execute(
+                    f"""
+                    UPDATE {table}
+                    SET client_id = 'unknown'
+                    WHERE client_id IS NULL OR client_id = ''
+                    """
+                )
+                updated_total += cur.rowcount
+                if "client_name" in cols:
+                    cur.execute(
+                        f"""
+                        UPDATE {table}
+                        SET client_name = 'unknown'
+                        WHERE client_name IS NULL OR client_name = ''
+                        """
+                    )
+
+        if fix:
+            conn.commit()
+
+    if missing_total and not fix:
+        report.add_issue(f"{missing_total} memory rows missing client_id (run doctor --fix)")
+    if fix and updated_total:
+        report.add_action(f"backfilled client_id for {updated_total} memory rows")
+
+
 def run_doctor(fix: bool = False, allow_heavy: bool = False) -> DoctorReport:
     report = DoctorReport()
     health_url = _get_health_url()
@@ -385,6 +449,7 @@ def run_doctor(fix: bool = False, allow_heavy: bool = False) -> DoctorReport:
     )
     _ensure_backup(report, fix)
     _ensure_db(report, fix)
+    _backfill_missing_clients(report, fix)
     _ensure_vectors(report, fix, allow_heavy)
     _ensure_schema_assets(report, fix)
     _ensure_lockdown_policy(report, fix)
