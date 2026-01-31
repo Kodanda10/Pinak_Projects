@@ -130,6 +130,25 @@ def _ensure_launch_agent(report: DoctorReport, label: str, plist_path: str, fix:
         report.add_issue(f"launch agent not loaded: {label}")
 
 
+def _ensure_backup(report: DoctorReport, fix: bool) -> None:
+    backup_script = "scripts/pinak-memory-backup.sh"
+    plist = "/Users/abhi-macmini/Library/LaunchAgents/com.pinak.memory.backup.plist"
+    if not os.path.exists(backup_script):
+        report.add_issue(f"backup script missing: {backup_script}")
+    elif not os.access(backup_script, os.X_OK):
+        if fix:
+            os.chmod(backup_script, 0o755)
+            report.add_action("set backup script executable")
+        else:
+            report.add_issue("backup script not executable")
+
+    if not os.path.exists(plist):
+        report.add_issue(f"backup launch agent missing: {plist}")
+
+    if not shutil.which("rclone"):
+        report.add_issue("rclone not installed; Google Drive backup will not run")
+
+
 def _ensure_schema_assets(report: DoctorReport, fix: bool) -> None:
     repo_root = Path(__file__).resolve().parent.parent
     repo_schema_dir = repo_root / "schemas"
@@ -330,6 +349,13 @@ def run_doctor(fix: bool = False, allow_heavy: bool = False) -> DoctorReport:
         "/Users/abhi-macmini/Library/LaunchAgents/com.pinak.memory.doctor.plist",
         fix,
     )
+    _ensure_launch_agent(
+        report,
+        "com.pinak.memory.backup",
+        "/Users/abhi-macmini/Library/LaunchAgents/com.pinak.memory.backup.plist",
+        fix,
+    )
+    _ensure_backup(report, fix)
     _ensure_db(report, fix)
     _ensure_vectors(report, fix, allow_heavy)
     _ensure_schema_assets(report, fix)
