@@ -25,6 +25,8 @@ curl -sS -X POST \
   }'
 ```
 
+> You can also embed `client_id` and `client_name` into the JWT. Headers are optional and only used for convenience/metadata.
+
 ---
 
 ## 2) Write Memory (Semantic)

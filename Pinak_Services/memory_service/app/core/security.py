@@ -6,6 +6,7 @@ import os
 
 import jwt
 from fastapi import Depends, HTTPException, status, Header
+from fastapi.params import Header as HeaderParam
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 
@@ -38,7 +39,11 @@ def _get_secret() -> str:
 
 def require_auth_context(
     credentials: HTTPAuthorizationCredentials = Depends(_http_bearer),
+    client_id_header: Optional[str] = Header(default=None, alias="X-Pinak-Client-Id"),
+    client_name_header: Optional[str] = Header(default=None, alias="X-Pinak-Client-Name"),
+    parent_client_id_header: Optional[str] = Header(default=None, alias="X-Pinak-Parent-Client-Id"),
     child_client_id: Optional[str] = Header(default=None, alias="X-Pinak-Child-Id"),
+    child_client_id_alt: Optional[str] = Header(default=None, alias="X-Pinak-Child-Client-Id"),
 ) -> AuthContext:
     """FastAPI dependency that validates a JWT and extracts tenant context."""
 
@@ -66,10 +71,22 @@ def require_auth_context(
     if not isinstance(roles, list):
         roles = [str(roles)]
 
-    client_name = payload.get("client_name") or payload.get("client")
-    client_id = payload.get("client_id") or payload.get("cid") or client_name
-    parent_client_id = payload.get("parent_client_id") or payload.get("parent_client")
-    effective_client_id = child_client_id or client_id or payload.get("sub") or "unknown"
+    def _normalize_header(value: Optional[str]) -> Optional[str]:
+        if isinstance(value, HeaderParam):
+            return None
+        return value
+
+    client_id_header = _normalize_header(client_id_header)
+    client_name_header = _normalize_header(client_name_header)
+    parent_client_id_header = _normalize_header(parent_client_id_header)
+    child_client_id = _normalize_header(child_client_id)
+    child_client_id_alt = _normalize_header(child_client_id_alt)
+
+    resolved_child_id = child_client_id or child_client_id_alt
+    client_name = client_name_header or payload.get("client_name") or payload.get("client")
+    client_id = client_id_header or payload.get("client_id") or payload.get("cid") or client_name
+    parent_client_id = parent_client_id_header or payload.get("parent_client_id") or payload.get("parent_client")
+    effective_client_id = resolved_child_id or client_id or payload.get("sub") or "unknown"
 
     return AuthContext(
         subject=payload.get("sub"),
@@ -80,7 +97,7 @@ def require_auth_context(
         client_name=client_name,
         client_id=client_id,
         parent_client_id=parent_client_id,
-        child_client_id=child_client_id,
+        child_client_id=resolved_child_id,
         effective_client_id=effective_client_id,
         token=token,
     )

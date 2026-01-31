@@ -7,10 +7,10 @@ from fastapi.security import HTTPAuthorizationCredentials
 
 @pytest.fixture
 def jwt_secret():
-    os.environ["JWT_SECRET"] = "test-secret"
+    os.environ["PINAK_JWT_SECRET"] = "test-secret"
     yield "test-secret"
-    if "JWT_SECRET" in os.environ:
-        del os.environ["JWT_SECRET"]
+    if "PINAK_JWT_SECRET" in os.environ:
+        del os.environ["PINAK_JWT_SECRET"]
 
 def test_require_auth_context_missing_credentials():
     with pytest.raises(HTTPException) as exc:
@@ -46,7 +46,9 @@ def test_require_auth_context_valid(jwt_secret):
         "sub": "user123",
         "tenant": "t1",
         "project_id": "p1",
-        "roles": "admin"
+        "roles": "admin",
+        "scopes": ["memory.read", "memory.write"],
+        "client_name": "codex"
     }
     token = jwt.encode(payload, jwt_secret, algorithm="HS256")
     creds = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
@@ -56,3 +58,31 @@ def test_require_auth_context_valid(jwt_secret):
     assert context.tenant_id == "t1"
     assert context.project_id == "p1"
     assert context.roles == ["admin"] # auto-converted to list
+    assert context.scopes == ["memory.read", "memory.write"]
+    assert context.client_name == "codex"
+
+def test_require_auth_context_header_overrides(jwt_secret):
+    payload = {
+        "sub": "user123",
+        "tenant": "t1",
+        "project_id": "p1",
+        "roles": ["agent"],
+        "scopes": ["memory.read"],
+        "client_name": "token-client",
+        "client_id": "token-client-id",
+    }
+    token = jwt.encode(payload, jwt_secret, algorithm="HS256")
+    creds = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
+    context = require_auth_context(
+        creds,
+        client_id_header="header-client-id",
+        client_name_header="header-client",
+        parent_client_id_header="parent-client",
+        child_client_id_alt="child-client",
+    )
+
+    assert context.client_id == "header-client-id"
+    assert context.client_name == "header-client"
+    assert context.parent_client_id == "parent-client"
+    assert context.child_client_id == "child-client"
+    assert context.effective_client_id == "child-client"
