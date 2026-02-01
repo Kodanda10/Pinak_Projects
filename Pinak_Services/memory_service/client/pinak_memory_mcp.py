@@ -16,8 +16,10 @@ PINAK_CLIENT_ID = os.getenv("PINAK_CLIENT_ID", PINAK_CLIENT_NAME)
 PINAK_PARENT_CLIENT_ID = os.getenv("PINAK_PARENT_CLIENT_ID")
 PINAK_CHILD_CLIENT_ID = os.getenv("PINAK_CHILD_CLIENT_ID")
 PINAK_SCHEMA_DIR = os.getenv("PINAK_SCHEMA_DIR", os.path.expanduser("~/pinak-memory/schemas"))
+PINAK_JWT_TOKEN = os.getenv("PINAK_JWT_TOKEN")
 CLIENT_STATUS = None
 CLIENT_STATUS_MESSAGE_SHOWN = False
+SESSION_BANNER_SHOWN = False
 
 
 def _encode_jwt_hs256(payload: Dict[str, Any], secret: str) -> str:
@@ -42,6 +44,11 @@ def _get_token() -> str:
     Mints a fresh JWT token for the Agent using the CLI logic.
     In prod, this might use a long-lived service token.
     """
+    if PINAK_JWT_TOKEN:
+        token = PINAK_JWT_TOKEN.strip()
+        if token.lower().startswith("bearer "):
+            token = token[7:].strip()
+        return token
     from datetime import datetime, timezone, timedelta
 
     payload = {
@@ -190,10 +197,15 @@ def _recall_impl(query: str, limit: int = 5) -> str:
     Implementation of recall logic.
     """
     try:
+        banner = _session_banner()
         data = _api_request("GET", "/memory/retrieve_context", params={"query": query, "limit": limit})
 
         # Format the output for the Agent's context window
-        output = [f"Found {len(data['semantic']) + len(data['episodic'])} memories for '{query}':\n"]
+        output = []
+        if banner:
+            output.append(banner)
+            output.append("")
+        output.append(f"Found {len(data['semantic']) + len(data['episodic'])} memories for '{query}':\n")
 
         if data["semantic"]:
             output.append("--- 🧠 RELEVANT CONCEPTS ---")
@@ -244,20 +256,23 @@ def _remember_episode_impl(goal: str, outcome: str, summary: str, tags: List[str
         "tags": tags,
     }
     try:
+        banner = _session_banner()
         errors = _validate_payload("episodic", payload)
         if errors:
             _report_issue("schema_validation_failed", "; ".join(errors), layer="episodic", payload=payload)
-            return f"Schema validation failed: {', '.join(errors)}"
+            msg = f"Schema validation failed: {', '.join(errors)}"
+            return f"{banner}\n{msg}" if banner else msg
         # Write to quarantine by default for safety
         res = _api_request("POST", "/memory/quarantine/propose/episodic", json_data=payload)
         msg = f"✅ Memory queued for review (id={res.get('id')})."
         notice = _status_notice()
         if notice:
             msg = f"{msg}\n{notice}"
-        return msg
+        return f"{banner}\n{msg}" if banner else msg
     except Exception as e:
         _report_issue("episodic_propose_failed", str(e), layer="episodic", payload=payload)
-        return f"Failed to store memory: {str(e)}"
+        msg = f"Failed to store memory: {str(e)}"
+        return f"{banner}\n{msg}" if banner else msg
 
 
 @mcp.tool()
@@ -287,6 +302,55 @@ def _status_notice() -> str:
             "TUI (Clients tab) to enable auto-approval and reduce review friction."
         )
     return ""
+
+
+def _format_summary_table(title: str, summary: Dict[str, Any]) -> List[str]:
+    lines = [title, "layer       count  last_write"]
+    for layer in ["semantic", "episodic", "procedural", "rag", "working"]:
+        count = summary["counts"].get(layer, 0)
+        last_write = summary["last_write"].get(layer) or "-"
+        lines.append(f"{layer:<11}{count:>6}  {last_write}")
+    lines.append(f"total       {summary.get('total', 0)}")
+    lines.append(f"open_issues {summary.get('open_issues', 0)} | pending_quarantine {summary.get('pending_quarantine', 0)}")
+    return lines
+
+
+def _session_banner() -> str:
+    global SESSION_BANNER_SHOWN
+    if SESSION_BANNER_SHOWN:
+        return ""
+    SESSION_BANNER_SHOWN = True
+    try:
+        summary = _api_request("GET", "/memory/client/summary", params={"include_children": True})
+    except Exception:
+        return ""
+
+    lines = []
+    client = summary.get("client", {})
+    client_id = client.get("client_id") or "unknown"
+    status = client.get("status") or "unknown"
+    lines.append(f"📊 Pinak Memory Summary (client_id={client_id}, status={status})")
+    lines.extend(_format_summary_table("You", summary.get("summary", {"counts": {}, "last_write": {}})))
+
+    children = summary.get("children") or []
+    for child in children:
+        child_title = f"Child {child.get('client_id') or 'unknown'}"
+        child_summary = {
+            "counts": child.get("counts", {}),
+            "last_write": child.get("last_write", {}),
+            "total": child.get("total", 0),
+            "open_issues": child.get("open_issues", 0),
+            "pending_quarantine": child.get("pending_quarantine", 0),
+        }
+        lines.append("")
+        lines.extend(_format_summary_table(child_title, child_summary))
+
+    lines.append("")
+    lines.append("Nudge: call recall() at session start and remember_episode() after significant work.")
+    notice = _status_notice()
+    if notice:
+        lines.append(notice)
+    return "\n".join(lines)
 
 
 @mcp.tool()

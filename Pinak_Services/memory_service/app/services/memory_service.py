@@ -1136,6 +1136,74 @@ class MemoryService:
     def list_clients(self, tenant: str, project_id: str, limit: int = 200) -> List[Dict[str, Any]]:
         return self.db.list_clients(tenant, project_id, limit)
 
+    def client_summary(self, client_id: str, tenant: str, project_id: str, include_children: bool = True) -> Dict[str, Any]:
+        if not client_id:
+            raise ValueError("client_id is required")
+        client = self.db.get_client(client_id, tenant, project_id) or {
+            "client_id": client_id,
+            "client_name": None,
+            "parent_client_id": None,
+            "status": "unknown",
+            "metadata": {},
+        }
+        summary = self.db.get_client_layer_stats(client_id, tenant, project_id)
+        summary["open_issues"] = self.db.count_client_issues(client_id, tenant, project_id, status="open")
+        summary["pending_quarantine"] = self.db.count_quarantine(client_id, tenant, project_id, status="pending")
+
+        children: List[Dict[str, Any]] = []
+        combined_counts = summary["counts"].copy()
+        combined_last_write = summary["last_write"].copy()
+        combined_total = summary["total"]
+
+        if include_children:
+            for child in self.db.list_child_clients(client_id, tenant, project_id):
+                child_id = child.get("client_id")
+                if not child_id:
+                    continue
+                child_summary = self.db.get_client_layer_stats(child_id, tenant, project_id)
+                child_summary["open_issues"] = self.db.count_client_issues(child_id, tenant, project_id, status="open")
+                child_summary["pending_quarantine"] = self.db.count_quarantine(child_id, tenant, project_id, status="pending")
+
+                for layer, count in child_summary["counts"].items():
+                    combined_counts[layer] = combined_counts.get(layer, 0) + count
+                    combined_total += count
+                    if child_summary["last_write"].get(layer):
+                        current = combined_last_write.get(layer)
+                        if not current or child_summary["last_write"][layer] > current:
+                            combined_last_write[layer] = child_summary["last_write"][layer]
+
+                children.append({
+                    "client_id": child_id,
+                    "client_name": child.get("client_name"),
+                    "status": child.get("status"),
+                    "parent_client_id": child.get("parent_client_id"),
+                    "last_seen": child.get("last_seen"),
+                    "counts": child_summary["counts"],
+                    "last_write": child_summary["last_write"],
+                    "total": child_summary["total"],
+                    "open_issues": child_summary["open_issues"],
+                    "pending_quarantine": child_summary["pending_quarantine"],
+                })
+
+        return {
+            "client": {
+                "client_id": client.get("client_id"),
+                "client_name": client.get("client_name"),
+                "status": client.get("status"),
+                "parent_client_id": client.get("parent_client_id"),
+                "last_seen": client.get("last_seen"),
+            },
+            "summary": summary,
+            "children": children,
+            "combined": {
+                "counts": combined_counts,
+                "last_write": combined_last_write,
+                "total": combined_total,
+                "open_issues": summary["open_issues"] + sum(c["open_issues"] for c in children),
+                "pending_quarantine": summary["pending_quarantine"] + sum(c["pending_quarantine"] for c in children),
+            },
+        }
+
     def add_client_issue(self, item: ClientIssueCreate, tenant: str, project_id: str,
                          agent_id: Optional[str] = None, client_name: Optional[str] = None,
                          client_id: Optional[str] = None, parent_client_id: Optional[str] = None,

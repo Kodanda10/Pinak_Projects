@@ -110,10 +110,20 @@ The MCP server is now registered in your local Claude Desktop configuration. To 
 1.  **Restart Claude Desktop completely**.
 2.  The tool `pinak-memory` will be available immediately.
 
+Before configuring agents, install the MCP client (no repo access required):
+```bash
+scripts/pinak-install-mcp.sh
+```
+
+Custom location:
+```bash
+PINAK_MCP_HOME=/Users/Shared/pinak-memory scripts/pinak-install-mcp.sh
+```
+
 ### 2. Manual Loading (Dev/Debug)
 You can also run the MCP server directly for testing or inspection:
 ```bash
-uv run fastmcp run client/pinak_memory_mcp.py
+~/pinak-memory/bin/pinak-mcp
 ```
 
 **Available Tools:**
@@ -160,6 +170,8 @@ Headers:
 - `X-Pinak-Child-Client-Id` (optional)
 
 Manual approval: first‑time clients are `registered`. Mark them **trusted** in TUI → Clients tab.
+
+Prefer `PINAK_JWT_TOKEN` for clients (no shared secret required).
 
 ---
 

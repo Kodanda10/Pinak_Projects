@@ -2,9 +2,10 @@
 
 ## Quick Start
 
-1) Obtain a JWT (admin or agent scope).
-2) Register your client once.
-3) Use write endpoints with `client_id` and optional child ID.
+1) Install the MCP client (no repo access required).
+2) Obtain a JWT (admin or agent scope).
+3) Register your client once.
+4) Use write endpoints with `client_id` and optional child ID.
 
 ---
 
@@ -26,6 +27,39 @@ curl -sS -X POST \
 ```
 
 > You can also embed `client_id` and `client_name` into the JWT. Headers are optional and only used for convenience/metadata.
+
+---
+
+## MCP Install (No Repo Access)
+
+Run once on the host to install the MCP client + schemas into `~/pinak-memory`:
+
+```bash
+scripts/pinak-install-mcp.sh
+```
+
+To install to a shared location:
+```bash
+PINAK_MCP_HOME=/Users/Shared/pinak-memory scripts/pinak-install-mcp.sh
+```
+
+Agents should point their MCP config to:
+
+```
+~/pinak-memory/bin/pinak-mcp
+```
+
+Recommended MCP env (token-based):
+
+```json
+{
+  "PINAK_API_URL": "http://100.66.59.92:8000/api/v1",
+  "PINAK_JWT_TOKEN": "<token>",
+  "PINAK_CLIENT_ID": "pi",
+  "PINAK_CLIENT_NAME": "pi",
+  "PINAK_PROJECT_ID": "pinak-memory"
+}
+```
 
 ---
 
@@ -79,6 +113,21 @@ curl -sS \
 
 ---
 
+## Client Summary (Session Banner)
+
+Agents can fetch their per‑layer counts and child status via:
+
+```
+GET /api/v1/memory/client/summary
+```
+
+The MCP client prints a one‑time banner at session start showing:
+- counts by layer
+- open issues / pending quarantine
+- child client stats
+
+---
+
 ## Remote Access (Tailscale / SSH)
 
 ### Tailscale (recommended)
@@ -102,6 +151,8 @@ Required headers:
 - `X-Pinak-Client-Id`
 - `X-Pinak-Client-Name`
 - `X-Pinak-Child-Client-Id` (optional)
+
+Prefer `PINAK_JWT_TOKEN` for clients (no shared secret required).
 
 ### SSH Tunnel
 ```bash
@@ -134,9 +185,16 @@ Keep the repo locked in normal operations:
 sudo scripts/pinak-lockdown.sh
 ```
 
-If you need to change code:
+Admin-only unlock flow:
 ```bash
 sudo scripts/pinak-unlock.sh
 # make changes
 sudo scripts/pinak-lockdown.sh
 ```
+
+---
+
+## Future Addition: Token Rotation Service
+Planned enhancement: add a short‑lived token issuer and rotation endpoint per client. This will allow
+token‑only MCP configs without distributing `PINAK_JWT_SECRET`, and supports automatic expiry/refresh
+for enterprise deployments.

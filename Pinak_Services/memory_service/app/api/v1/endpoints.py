@@ -287,6 +287,18 @@ def list_clients(
     require_scope(ctx, "memory.read")
     return service.list_clients(ctx.tenant_id, ctx.project_id, limit)
 
+@router.get("/client/summary")
+def client_summary(
+    include_children: bool = True,
+    ctx: AuthContext = Depends(require_auth_context),
+    service: MemoryService = Depends(get_memory_service),
+):
+    require_scope(ctx, "memory.read")
+    client_id = ctx.client_id or ctx.effective_client_id
+    if not client_id:
+        raise HTTPException(status_code=400, detail="client_id is required")
+    return service.client_summary(client_id, ctx.tenant_id, ctx.project_id, include_children=include_children)
+
 @router.get("/agent/list", response_model=List[AgentRead])
 def list_agents(
     limit: int = 200,

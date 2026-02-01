@@ -13,27 +13,21 @@ CONFIG_PATHS = [
     os.path.expanduser("~/.opencode/mcp_config.json"), 
     os.path.expanduser("~/.cursor/mcp.json")
 ]
-MCP_SCRIPT_PATH = "/Users/abhi-macmini/clawd-simba/Pinak_Projects/Pinak_Services/memory_service/client/pinak_memory_mcp.py"
-UV_PATH = "/opt/homebrew/bin/uv"
+PINAK_HOME = os.environ.get("PINAK_MCP_HOME", os.path.expanduser("~/pinak-memory"))
+MCP_SCRIPT_PATH = os.path.expanduser(f"{PINAK_HOME}/bin/pinak-mcp")
 
 def update_configs():
     # Define the Pinak Memory MCP config
     pinak_config = {
-        "command": UV_PATH,
-        "args": [
-            "run",
-            "--with",
-            "fastmcp",
-            "--with",
-            "httpx",
-            "--with",
-            "pyjwt",
-            MCP_SCRIPT_PATH
-        ],
+        "command": MCP_SCRIPT_PATH,
+        "args": [],
         "env": {
-            "PINAK_JWT_SECRET": "secret",
-            "UV_CACHE_DIR": os.path.join(os.path.dirname(MCP_SCRIPT_PATH), "../.uv_cache") 
-        }
+            "PINAK_API_URL": os.environ.get("PINAK_API_URL", "http://127.0.0.1:8000/api/v1"),
+            "PINAK_JWT_TOKEN": os.environ.get("PINAK_JWT_TOKEN", "SET_ME"),
+            "PINAK_CLIENT_ID": os.environ.get("PINAK_CLIENT_ID", "SET_ME"),
+            "PINAK_CLIENT_NAME": os.environ.get("PINAK_CLIENT_NAME", "SET_ME"),
+            "PINAK_PROJECT_ID": os.environ.get("PINAK_PROJECT_ID", "pinak-memory"),
+        },
     }
 
     for config_path in CONFIG_PATHS:

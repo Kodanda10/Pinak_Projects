@@ -12,8 +12,9 @@ fi
 
 /bin/echo "Locking $BASE_DIR (requires macOS admin password)" 
 
-# Remove write permissions for all users
-sudo /bin/chmod -R a-w "$BASE_DIR"
+# Remove ACLs and strip group/other permissions
+sudo /bin/chmod -R -N "$BASE_DIR" || true
+sudo /bin/chmod -R go-rwx "$BASE_DIR"
 # Apply system immutable flag (requires admin password to remove)
 sudo /usr/bin/chflags -R schg "$BASE_DIR"
 

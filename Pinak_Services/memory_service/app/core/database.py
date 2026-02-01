@@ -949,6 +949,68 @@ class DatabaseManager:
                 rows.append(data)
             return rows
 
+    def list_child_clients(self, parent_client_id: str, tenant: str, project_id: str, limit: int = 200) -> List[Dict[str, Any]]:
+        with self.get_cursor() as conn:
+            cur = conn.execute("""
+                SELECT * FROM clients_registry
+                WHERE parent_client_id = ? AND tenant = ? AND project_id = ?
+                ORDER BY (last_seen IS NULL), last_seen DESC, updated_at DESC
+                LIMIT ?
+            """, (parent_client_id, tenant, project_id, limit))
+            rows = []
+            for row in cur.fetchall():
+                data = dict(row)
+                if data.get("metadata"):
+                    try:
+                        data["metadata"] = json.loads(data["metadata"])
+                    except Exception:
+                        data["metadata"] = {}
+                rows.append(data)
+            return rows
+
+    def get_client_layer_stats(self, client_id: str, tenant: str, project_id: str) -> Dict[str, Any]:
+        tables = {
+            "semantic": ("memories_semantic", "created_at"),
+            "episodic": ("memories_episodic", "created_at"),
+            "procedural": ("memories_procedural", "created_at"),
+            "rag": ("memories_rag", "created_at"),
+            "working": ("working_memory", "updated_at"),
+        }
+        counts: Dict[str, int] = {}
+        last_write: Dict[str, Optional[str]] = {}
+        with self.get_cursor() as conn:
+            for layer, (table, ts_col) in tables.items():
+                cur = conn.execute(
+                    f"SELECT COUNT(*), MAX({ts_col}) FROM {table} WHERE tenant = ? AND project_id = ? AND client_id = ?",
+                    (tenant, project_id, client_id),
+                )
+                row = cur.fetchone()
+                counts[layer] = int(row[0] or 0)
+                last_write[layer] = row[1]
+        return {
+            "counts": counts,
+            "last_write": last_write,
+            "total": sum(counts.values()),
+        }
+
+    def count_client_issues(self, client_id: str, tenant: str, project_id: str, status: str = "open") -> int:
+        with self.get_cursor() as conn:
+            cur = conn.execute("""
+                SELECT COUNT(*) FROM logs_client_issues
+                WHERE client_id = ? AND tenant = ? AND project_id = ? AND status = ?
+            """, (client_id, tenant, project_id, status))
+            row = cur.fetchone()
+            return int(row[0] or 0)
+
+    def count_quarantine(self, client_id: str, tenant: str, project_id: str, status: str = "pending") -> int:
+        with self.get_cursor() as conn:
+            cur = conn.execute("""
+                SELECT COUNT(*) FROM memory_quarantine
+                WHERE client_id = ? AND tenant = ? AND project_id = ? AND status = ?
+            """, (client_id, tenant, project_id, status))
+            row = cur.fetchone()
+            return int(row[0] or 0)
+
     def add_working(self, content: str, tenant: str, project_id: str,
                     agent_id: Optional[str] = None, client_id: Optional[str] = None,
                     client_name: Optional[str] = None) -> Dict[str, Any]:

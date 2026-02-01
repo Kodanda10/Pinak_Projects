@@ -14,7 +14,8 @@ fi
 
 # Remove system immutable flag, then restore user write permissions
 sudo /usr/bin/chflags -R noschg "$BASE_DIR"
-sudo /bin/chmod -R u+w "$BASE_DIR"
+sudo /bin/chmod -R u+rwX "$BASE_DIR"
+sudo /bin/chmod -R go-rwx "$BASE_DIR"
 
 /bin/rm -f "$LOCK_MARK"
 /bin/echo "Unlocked."
