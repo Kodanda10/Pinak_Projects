@@ -25,14 +25,14 @@ class _DeterministicEncoder:
         self.embedding_dimension = dimension
 
     def encode(self, sentences: List[str]) -> np.ndarray:
-        import itertools
         vectors = []
         for sentence in sentences:
-            digest = hashlib.sha256(sentence.encode("utf-8")).digest()
-            needed_bytes = self.embedding_dimension * 4
-            if len(digest) < needed_bytes:
-                digest = bytes(itertools.islice(itertools.cycle(digest), needed_bytes))
-            vectors.append(np.frombuffer(digest[:needed_bytes], dtype=np.float32))
+            # Seed generator with hash of sentence for determinism
+            seed = int(hashlib.sha256(sentence.encode("utf-8")).hexdigest(), 16) % (2**32)
+            rng = np.random.default_rng(seed)
+            # Generate random floats in [0, 1)
+            vector = rng.random(self.embedding_dimension, dtype=np.float32)
+            vectors.append(vector)
         return np.array(vectors, dtype=np.float32)
 
 class MemoryService:
