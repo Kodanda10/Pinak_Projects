@@ -15,7 +15,7 @@ from app.services.memory_service import MemoryService
 
 @pytest.fixture(autouse=True)
 def _configure_environment(monkeypatch):
-    monkeypatch.setenv("JWT_SECRET", "test-secret")
+    monkeypatch.setenv("PINAK_JWT_SECRET", "test-secret")
     monkeypatch.setenv("EMBEDDING_BACKEND", "dummy")
 
 
@@ -44,6 +44,7 @@ def _issue_token(tenant: str, project: str, subject: str = "tester") -> str:
         "sub": subject,
         "tenant": tenant,
         "project_id": project,
+        "scopes": ["memory.read", "memory.write"],
         "iat": datetime.datetime.utcnow(),
         "exp": datetime.datetime.utcnow() + datetime.timedelta(minutes=5),
     }
