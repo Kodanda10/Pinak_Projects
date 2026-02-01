@@ -155,8 +155,65 @@ The following files have been automatically updated to include `pinak-memory`:
 
 ---
 
-## 📄 Client Onboarding
-See `docs/CLIENT_ONBOARDING.md` for copy‑paste curl examples and schema guidance.
+## 📄 Client Onboarding (Quickstart)
+
+### 1) Register Client
+```bash
+export PINAK_JWT_SECRET="secret"
+TOKEN=$(python -m cli.main mint)
+
+curl -sS -X POST \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  http://127.0.0.1:8000/api/v1/memory/client/register \
+  -d '{
+    "client_id": "codex",
+    "client_name": "codex-cli",
+    "status": "trusted"
+  }'
+```
+
+### 2) Write Memory (Semantic)
+```bash
+curl -sS -X POST \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -H "X-Pinak-Client-Id: codex" \
+  -H "X-Pinak-Client-Name: codex-cli" \
+  http://127.0.0.1:8000/api/v1/memory/add \
+  -d '{
+    "content": "User prefers single-sprint delivery.",
+    "tags": ["preference", "delivery"]
+  }'
+```
+
+### 3) Child Agent (optional)
+```bash
+curl -sS -X POST \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -H "X-Pinak-Client-Id: codex" \
+  -H "X-Pinak-Child-Client-Id: codex-subagent-1" \
+  http://127.0.0.1:8000/api/v1/memory/episodic/add \
+  -d '{
+    "content": "Summarized the deployment plan.",
+    "timestamp": "2026-01-31T12:00:00Z"
+  }'
+```
+
+### 4) Retrieve Context
+```bash
+curl -sS \
+  -H "Authorization: Bearer $TOKEN" \
+  "http://127.0.0.1:8000/api/v1/memory/retrieve_context?query=deployment plan"
+```
+
+### 5) Client Summary (Session Banner)
+```bash
+curl -sS \
+  -H "Authorization: Bearer $TOKEN" \
+  "http://127.0.0.1:8000/api/v1/memory/client/summary"
+```
 
 ### Remote API (Tailscale)
 Current server Tailscale IP:
@@ -172,6 +229,24 @@ Headers:
 Manual approval: first‑time clients are `registered`. Mark them **trusted** in TUI → Clients tab.
 
 Prefer `PINAK_JWT_TOKEN` for clients (no shared secret required).
+
+### Schemas & Templates
+- Local canonical: `~/pinak-memory/schemas`, `~/pinak-memory/templates`
+- API: `/api/v1/memory/schema`, `/api/v1/memory/schema/{layer}`
+
+Doctor syncs these automatically:
+```bash
+python -m cli.main doctor --fix
+```
+
+### Lockdown / Unlock (Source Protection)
+```bash
+sudo scripts/pinak-lockdown.sh
+sudo scripts/pinak-unlock.sh
+```
+
+### Future: Token Rotation
+Planned: short‑lived token issuer + rotation endpoint per client.
 
 ---
 
