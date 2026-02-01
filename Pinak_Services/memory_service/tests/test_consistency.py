@@ -27,7 +27,7 @@ async def test_concurrent_vector_adds_no_race(memory_service):
     # Let's test vector_store thread safety directly.
 
     async def add_one(i):
-        embedding = np.random.rand(8).astype(np.float32)
+        embedding = np.random.rand(vector_store.dimension).astype(np.float32)
         # Using loop runner to run sync method
         await asyncio.to_thread(vector_store.add_vectors, np.array([embedding]), [i])
 

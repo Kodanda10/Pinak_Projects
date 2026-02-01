@@ -204,11 +204,10 @@ class MemoryService:
         # Simple heuristic: Count embeddings across all layers.
         db_count = 0
         with self.db.get_cursor() as conn:
-            cur = conn.cursor()
             for table in ["memories_semantic", "memories_episodic", "memories_procedural"]:
                 try:
-                    cur.execute(f"SELECT count(*) FROM {table} WHERE embedding_id IS NOT NULL")
-                    db_count += cur.fetchone()[0]
+                    conn.execute(f"SELECT count(*) FROM {table} WHERE embedding_id IS NOT NULL")
+                    db_count += conn.fetchone()[0]
                 except sqlite3.OperationalError:
                     continue
 
@@ -232,9 +231,8 @@ class MemoryService:
 
             def _page_rows(query: str, params: tuple):
                 with self.db.get_cursor() as conn:
-                    cur = conn.cursor()
-                    cur.execute(query, params)
-                    return cur.fetchall()
+                    conn.execute(query, params)
+                    return conn.fetchall()
 
             def _ingest_rows(rows, build_text):
                 texts = []

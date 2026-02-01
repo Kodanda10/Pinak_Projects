@@ -5,6 +5,8 @@ import json
 import uuid
 import datetime
 import logging
+import re
+from contextlib import contextmanager
 from typing import List, Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
@@ -313,6 +315,7 @@ class DatabaseManager:
                 ON logs_client_issues (created_at);
             """)
             self._ensure_column(conn, "working_memory", "expires_at", "TEXT")
+            self._ensure_column(conn, "working_memory", "updated_at", "TEXT")
             self._ensure_column(conn, "logs_session", "expires_at", "TEXT")
             self._ensure_column(conn, "logs_session", "agent_id", "TEXT")
             self._ensure_column(conn, "logs_session", "client_id", "TEXT")
@@ -366,10 +369,31 @@ class DatabaseManager:
         with self.get_cursor() as conn:
             return self._column_exists(conn, table, column)
 
+    @contextmanager
     def get_cursor(self):
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
-        return conn
+        cur = conn.cursor()
+        try:
+            yield cur
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
+
+    def _sanitize_fts_query(self, query: str) -> str:
+        terms = []
+        for raw in (query or "").split():
+            token = raw.strip().replace('"', "").replace("'", "")
+            if not token:
+                continue
+            if re.search(r"[^A-Za-z0-9_]", token):
+                terms.append(f"\"{token}\"")
+            else:
+                terms.append(token)
+        return " ".join(terms) if terms else (query or "")
 
     # --- CRUD Operations ---
 
@@ -400,25 +424,15 @@ class DatabaseManager:
         # Returns unified list of results
         results = []
         with self.get_cursor() as conn:
-            # Semantic
-            cur = conn.execute("""
-                SELECT rowid, *, 'semantic' as type FROM memories_semantic_fts 
-                WHERE memories_semantic_fts MATCH ? 
-                ORDER BY rank LIMIT ?
-            """, (query, limit))
-            # We need to join back to main table to get metadata not in FTS
-            # Simplified: FTS virtual table only has indexed cols.
-            # In production, join rowid to main table.
-            # Here: simplistic approach.
-            
-            # Better approach:
+            fts_query = self._sanitize_fts_query(query)
+
             cur = conn.execute("""
                 SELECT m.id, m.content, m.tags, 'semantic' as type
                 FROM memories_semantic m
                 JOIN memories_semantic_fts f ON m.rowid = f.rowid
                 WHERE memories_semantic_fts MATCH ? AND m.tenant = ? AND m.project_id = ?
                 ORDER BY f.rank LIMIT ?
-            """, (query, tenant, project_id, limit))
+            """, (fts_query, tenant, project_id, limit))
             sem_rows = [dict(row) for row in cur.fetchall()]
             for row in sem_rows:
                 if row.get("tags"):
@@ -435,7 +449,7 @@ class DatabaseManager:
                 JOIN memories_episodic_fts f ON m.rowid = f.rowid
                 WHERE memories_episodic_fts MATCH ? AND m.tenant = ? AND m.project_id = ?
                 ORDER BY f.rank LIMIT ?
-            """, (query, tenant, project_id, limit))
+            """, (fts_query, tenant, project_id, limit))
             epi_rows = [dict(row) for row in cur.fetchall()]
             for row in epi_rows:
                 if row.get("plan"):
@@ -458,7 +472,7 @@ class DatabaseManager:
                 JOIN memories_procedural_fts f ON m.rowid = f.rowid
                 WHERE memories_procedural_fts MATCH ? AND m.tenant = ? AND m.project_id = ?
                 ORDER BY f.rank LIMIT ?
-            """, (query, tenant, project_id, limit))
+            """, (fts_query, tenant, project_id, limit))
             proc_rows = [dict(row) for row in cur.fetchall()]
             for row in proc_rows:
                 if row.get("steps"):
@@ -626,16 +640,15 @@ class DatabaseManager:
     def resolve_quarantine(self, item_id: str, status: str, reviewer: str) -> Optional[Dict[str, Any]]:
         reviewed_at = datetime.datetime.now().isoformat()
         with self.get_cursor() as conn:
-            cur = conn.cursor()
-            cur.execute("""
+            conn.execute("""
                 SELECT layer, payload, tenant, project_id, agent_id, client_id, client_name
                 FROM memory_quarantine
                 WHERE id = ?
             """, (item_id,))
-            row = cur.fetchone()
+            row = conn.fetchone()
             if not row:
                 return None
-            cur.execute("""
+            conn.execute("""
                 UPDATE memory_quarantine
                 SET status = ?, reviewed_at = ?, reviewed_by = ?
                 WHERE id = ?
@@ -657,13 +670,12 @@ class DatabaseManager:
         ts = datetime.datetime.now().isoformat()
         payload_json = json.dumps(payload, sort_keys=True)
         with self.get_cursor() as conn:
-            cur = conn.cursor()
-            cur.execute("SELECT hash FROM logs_audit ORDER BY ts DESC LIMIT 1")
-            prev = cur.fetchone()
+            conn.execute("SELECT hash FROM logs_audit ORDER BY ts DESC LIMIT 1")
+            prev = conn.fetchone()
             prev_hash = prev[0] if prev else ""
             import hashlib
             h = hashlib.sha256(f"{prev_hash}|{event_type}|{payload_json}|{ts}".encode("utf-8")).hexdigest()
-            cur.execute("""
+            conn.execute("""
                 INSERT INTO logs_audit (id, event_type, payload, prev_hash, hash, ts)
                 VALUES (?, ?, ?, ?, ?, ?)
             """, (mid, event_type, payload_json, prev_hash, h, ts))
