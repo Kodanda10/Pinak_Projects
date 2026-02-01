@@ -7,7 +7,12 @@ from app.main import app
 @pytest.fixture
 def auth_token():
     secret = "test-secret"
-    payload = {"tenant": "t1", "project_id": "p1", "roles": ["user"]}
+    payload = {
+        "tenant": "t1",
+        "project_id": "p1",
+        "roles": ["user", "admin"],
+        "scopes": ["memory.read", "memory.write", "memory.admin"]
+    }
     token = jwt.encode(payload, secret, algorithm="HS256")
     return token
 
