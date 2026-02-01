@@ -1,0 +1,15 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ProceduralMemory",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"type": "string"},
+    "skill_name": {"type": "string", "minLength": 1},
+    "steps": {"type": "array", "items": {"type": "string"}},
+    "description": {"type": "string"},
+    "trigger": {"type": "string"},
+    "code_snippet": {"type": "string"}
+  },
+  "required": ["skill_name", "steps"]
+}

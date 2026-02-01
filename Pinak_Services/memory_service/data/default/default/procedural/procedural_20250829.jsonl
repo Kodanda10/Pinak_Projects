@@ -1,5 +1,0 @@
-{"skill_id": "test skill", "steps": ["a", "b"], "project_id": "default", "ts": "2025-08-29T07:10:32.597180"}
-{"skill_id": "build", "steps": ["step1", "step2"], "project_id": "default", "ts": "2025-08-29T07:11:53.883636"}
-{"skill_id": "test skill", "steps": ["a", "b"], "project_id": "default", "ts": "2025-08-29T07:12:05.163313"}
-{"skill_id": "python_debug", "steps": ["print", "debug"], "project_id": "default", "ts": "2025-08-29T07:13:26.857625"}
-{"skill_id": "test", "steps": ["a"], "project_id": "default", "ts": "2025-08-29T07:13:41.517633"}

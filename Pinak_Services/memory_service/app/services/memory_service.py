@@ -1,16 +1,19 @@
 import json
+import sqlite3
 import os
 import hashlib
 import datetime
 import logging
 import time
+import concurrent.futures
 from typing import Dict, List, Optional, Any, Union
 
 import numpy as np
 from sentence_transformers import SentenceTransformer
 
-from app.core.schemas import MemoryCreate, MemoryRead, MemorySearchResult
+from app.core.schemas import MemoryCreate, MemoryRead, MemorySearchResult, ClientIssueCreate
 from app.core.database import DatabaseManager
+from app.core.schema_registry import SchemaRegistry
 from app.services.vector_store import VectorStore
 
 logger = logging.getLogger(__name__)
@@ -18,7 +21,7 @@ logger = logging.getLogger(__name__)
 class _DeterministicEncoder:
     """Lightweight embedding encoder used for tests and local development."""
 
-    def __init__(self, dimension: int = 8):
+    def __init__(self, dimension: int = 384):
         self.embedding_dimension = dimension
 
     def encode(self, sentences: List[str]) -> np.ndarray:
@@ -47,33 +50,167 @@ class MemoryService:
         self.data_root = self.config.get("data_root", "data")
         os.makedirs(self.data_root, exist_ok=True)
         self.db_path = os.path.join(self.data_root, "memory.db")
-        self.vector_path = os.path.join(self.data_root, "vectors.index")
+        self.vector_path = os.path.join(self.data_root, "vectors.index.npy")
 
         # Components
         self.db = DatabaseManager(self.db_path)
+        self.schema_registry = SchemaRegistry()
 
         # Model
-        self.model = model or self._load_embedding_model(self.config.get("embedding_model"))
-        self.embedding_dim = getattr(self.model, "embedding_dimension", None)
-        if self.embedding_dim is None and hasattr(self.model, "get_sentence_embedding_dimension"):
+        self.embedding_backend = (os.getenv("PINAK_EMBEDDING_BACKEND") or "").lower()
+        self.vector_enabled = self.embedding_backend not in ("qmd", "none", "off", "disabled")
+        if self.vector_enabled:
+            self.model = model or self._load_embedding_model(self.config.get("embedding_model"))
+        else:
+            self.model = model or _DeterministicEncoder()
+        if hasattr(self.model, "get_sentence_embedding_dimension"):
             self.embedding_dim = self.model.get_sentence_embedding_dimension()
-        if self.embedding_dim is None:
-             # Fallback for deterministic encoder
-             self.embedding_dim = getattr(self.model, "embedding_dimension", 384)
+        else:
+            self.embedding_dim = getattr(self.model, "embedding_dimension", 384)
 
         # Vector Store
-        self.vector_store = VectorStore(self.vector_path, self.embedding_dim)
+        self.vector_store = VectorStore(self.vector_path, self.embedding_dim) if self.vector_enabled else None
+
+    def _normalize_client_ids(
+        self,
+        client_id: Optional[str],
+        client_name: Optional[str],
+        agent_id: Optional[str],
+        tenant: str,
+        project_id: str,
+        parent_client_id: Optional[str] = None,
+        child_client_id: Optional[str] = None,
+    ) -> Dict[str, Optional[str]]:
+        effective_client_id = child_client_id or client_id or agent_id or "unknown"
+        # Observe/track clients for registry visibility
+        try:
+            observe_target = client_id or effective_client_id
+            if observe_target:
+                self.db.observe_client(
+                    client_id=observe_target,
+                    client_name=client_name,
+                    parent_client_id=parent_client_id,
+                    tenant=tenant,
+                    project_id=project_id,
+                    metadata={"agent_id": agent_id},
+                )
+            if child_client_id:
+                existing_child = self.db.get_client(child_client_id, tenant, project_id)
+                self.db.observe_client(
+                    client_id=child_client_id,
+                    client_name=client_name,
+                    parent_client_id=parent_client_id or client_id,
+                    tenant=tenant,
+                    project_id=project_id,
+                    metadata={"agent_id": agent_id, "observed_via": "child_header"},
+                )
+                if not existing_child or existing_child.get("status") == "observed":
+                    try:
+                        self.db.add_client_issue(
+                            client_id=child_client_id,
+                            client_name=client_name,
+                            agent_id=agent_id,
+                            parent_client_id=parent_client_id or client_id,
+                            child_client_id=child_client_id,
+                            layer=None,
+                            error_code="child_client_unregistered",
+                            message="Child client_id observed but not registered; please register child client.",
+                            payload={"child_client_id": child_client_id},
+                            tenant=tenant,
+                            project_id=project_id,
+                        )
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+        if not client_id:
+            try:
+                self.db.add_client_issue(
+                    client_id=effective_client_id,
+                    client_name=client_name,
+                    agent_id=agent_id,
+                    parent_client_id=parent_client_id,
+                    child_client_id=child_client_id,
+                    layer=None,
+                    error_code="missing_client_id",
+                    message="Client ID missing; generated effective_client_id. Please register client_id.",
+                    payload={"client_name": client_name, "agent_id": agent_id},
+                    tenant=tenant,
+                    project_id=project_id,
+                )
+            except Exception:
+                pass
+        return {
+            "client_id": effective_client_id,
+            "parent_client_id": parent_client_id,
+            "child_client_id": child_client_id,
+            "client_name": client_name,
+        }
+
+    def _trusted_clients_env(self) -> List[str]:
+        raw = os.getenv("PINAK_TRUSTED_CLIENTS", "")
+        return [c.strip() for c in raw.split(",") if c.strip()]
+
+    def _is_trusted_client(self, client_id: Optional[str], tenant: str, project_id: str) -> bool:
+        if not client_id:
+            return False
+        if client_id in self._trusted_clients_env():
+            return True
+        try:
+            entry = self.db.get_client(client_id, tenant, project_id)
+            return bool(entry and entry.get("status") == "trusted")
+        except Exception:
+            return False
+
+    def _log_schema_errors(
+        self,
+        layer: str,
+        errors: List[str],
+        payload: Dict[str, Any],
+        tenant: str,
+        project_id: str,
+        agent_id: Optional[str],
+        client_name: Optional[str],
+        client_id: Optional[str],
+        parent_client_id: Optional[str],
+        child_client_id: Optional[str],
+    ) -> None:
+        if not errors:
+            return
+        try:
+            self.db.add_client_issue(
+                client_id=client_id or agent_id or "unknown",
+                client_name=client_name,
+                agent_id=agent_id,
+                parent_client_id=parent_client_id,
+                child_client_id=child_client_id,
+                layer=layer,
+                error_code="schema_validation_failed",
+                message="Schema validation failed",
+                payload={**payload, "errors": errors},
+                tenant=tenant,
+                project_id=project_id,
+            )
+        except Exception:
+            pass
 
     def verify_and_recover(self):
         """
         Check consistency between DB and Vector Store. Rebuild if necessary.
         """
-        # Simple heuristic: Count check
-        # We need to count ALL semantic memories in DB.
+        if not self.vector_enabled:
+            logger.info("Vector store disabled (backend=%s); skipping verify/recover", self.embedding_backend)
+            return
+        # Simple heuristic: Count embeddings across all layers.
         db_count = 0
-        with self.db.get_cursor() as cur:
-            cur.execute("SELECT count(*) FROM memories_semantic")
-            db_count = cur.fetchone()[0]
+        with self.db.get_cursor() as conn:
+            cur = conn.cursor()
+            for table in ["memories_semantic", "memories_episodic", "memories_procedural"]:
+                try:
+                    cur.execute(f"SELECT count(*) FROM {table} WHERE embedding_id IS NOT NULL")
+                    db_count += cur.fetchone()[0]
+                except sqlite3.OperationalError:
+                    continue
 
         vec_count = self.vector_store.total
 
@@ -84,38 +221,73 @@ class MemoryService:
             logger.info(f"System Consistent. {vec_count} memories loaded.")
 
     def _rebuild_index(self):
-        """Re-encode all semantic memories and populate FAISS."""
-        # 1. Reset Index (handled by create in store or we can manually reset if we expose it)
-        # VectorStore doesn't expose reset, but we can delete file and reload or just loop add.
-        # Better: Create new index in memory and swap.
-
-        # We will use batch_add context
+        """Re-encode all semantic/episodic/procedural memories and rebuild vector store."""
+        if not self.vector_enabled:
+            logger.info("Vector store disabled (backend=%s); rebuild skipped", self.embedding_backend)
+            return
         with self.vector_store.batch_add():
-            # Clear existing logic?
-            # self.vector_store.index.reset() # We need to expose this or access protected.
             with self.vector_store.lock:
-                self.vector_store.index.reset()
+                self.vector_store.vectors = np.empty((0, self.embedding_dim), dtype=np.float32)
+                self.vector_store.ids = np.array([], dtype=np.int64)
 
-            # Page through DB
+            def _page_rows(query: str, params: tuple):
+                with self.db.get_cursor() as conn:
+                    cur = conn.cursor()
+                    cur.execute(query, params)
+                    return cur.fetchall()
+
+            def _ingest_rows(rows, build_text):
+                texts = []
+                ids = []
+                for row in rows:
+                    embedding_id = row["embedding_id"]
+                    if embedding_id is None:
+                        continue
+                    texts.append(build_text(row))
+                    ids.append(embedding_id)
+                if texts:
+                    embeddings = self.model.encode(texts)
+                    self.vector_store.add_vectors(embeddings, ids)
+
+            # Semantic
             offset = 0
             limit = 100
             while True:
-                with self.db.get_cursor() as cur:
-                    cur.execute("SELECT content, embedding_id FROM memories_semantic LIMIT ? OFFSET ?", (limit, offset))
-                    rows = cur.fetchall()
-
+                rows = _page_rows(
+                    "SELECT content, embedding_id FROM memories_semantic LIMIT ? OFFSET ?",
+                    (limit, offset),
+                )
                 if not rows:
                     break
-
-                # Batch Encode
-                texts = [r['content'] for r in rows]
-                ids = [r['embedding_id'] for r in rows]
-
-                embeddings = self.model.encode(texts)
-                self.vector_store.add_vectors(embeddings, ids)
-
+                _ingest_rows(rows, lambda r: r["content"])
                 offset += len(rows)
-                logger.info(f"Rebuilt {offset} vectors...")
+                logger.info("Rebuilt %s semantic vectors...", offset)
+
+            # Episodic
+            offset = 0
+            while True:
+                rows = _page_rows(
+                    "SELECT content, goal, outcome, embedding_id FROM memories_episodic LIMIT ? OFFSET ?",
+                    (limit, offset),
+                )
+                if not rows:
+                    break
+                _ingest_rows(rows, lambda r: f"{r['content']} {r['goal'] or ''} {r['outcome'] or ''}")
+                offset += len(rows)
+                logger.info("Rebuilt %s episodic vectors...", offset)
+
+            # Procedural
+            offset = 0
+            while True:
+                rows = _page_rows(
+                    "SELECT skill_name, trigger, description, embedding_id FROM memories_procedural LIMIT ? OFFSET ?",
+                    (limit, offset),
+                )
+                if not rows:
+                    break
+                _ingest_rows(rows, lambda r: f"{r['skill_name']} {r['trigger'] or ''} {r['description'] or ''}")
+                offset += len(rows)
+                logger.info("Rebuilt %s procedural vectors...", offset)
 
     def _load_config(self, path):
         if not os.path.exists(path):
@@ -135,65 +307,450 @@ class MemoryService:
 
     # --- Core Memory Operations ---
 
-    def add_memory(self, memory_data: MemoryCreate, tenant: str, project_id: str) -> MemoryRead:
+    def add_memory(self, memory_data: MemoryCreate, tenant: str, project_id: str,
+                   agent_id: Optional[str] = None, client_name: Optional[str] = None,
+                   client_id: Optional[str] = None, parent_client_id: Optional[str] = None,
+                   child_client_id: Optional[str] = None) -> MemoryRead:
         """Adds a semantic memory (Vector + DB)."""
-        content = memory_data.content
-        tags = memory_data.tags or []
+        try:
+            client_meta = self._normalize_client_ids(
+                client_id=client_id,
+                client_name=client_name,
+                agent_id=agent_id,
+                tenant=tenant,
+                project_id=project_id,
+                parent_client_id=parent_client_id,
+                child_client_id=child_client_id,
+            )
+            content = memory_data.content
+            tags = memory_data.tags or []
+            schema_errors = self.schema_registry.validate_payload(
+                "semantic",
+                {"content": content, "tags": tags},
+            )
+            self._log_schema_errors(
+                "semantic",
+                schema_errors,
+                {"content": content, "tags": tags},
+                tenant,
+                project_id,
+                agent_id,
+                client_meta["client_name"],
+                client_meta["client_id"],
+                client_meta["parent_client_id"],
+                client_meta["child_client_id"],
+            )
 
-        # 1. Generate Embedding
-        embedding = self.model.encode([content])[0].astype("float32")
+            embedding_id = None
+            if self.vector_enabled:
+                # 1. Generate Embedding
+                embedding = self.model.encode([content])[0].astype("float32")
 
-        # 2. Generate ID for Vector Store (using simple int hash or sequence could be risky for collisions if not managed,
-        # but for now we use a high-precision timestamp based int to avoid collisions in valid range)
-        # Better: use a dedicated counter in DB. For simplicity/speed without extra DB hit: Time-based.
-        # SQLite RowID is nice but we don't have it until we insert.
-        # Strategy: Insert into DB first? No, we need embedding_id.
-        # Strategy: Use UUID -> Int mapping? No.
-        # Strategy: Use Time (ns).
-        embedding_id = int(time.time_ns()) # 64-bit int, fits in FAISS ID
+                # 2. Generate ID for Vector Store
+                # We use a hash or a simpler counter to avoid huge int issues
+                embedding_id = hash(content + str(time.time())) % (2**31 - 1)
 
-        # 3. Add to Vector Store
-        self.vector_store.add_vectors(np.array([embedding]), [embedding_id])
+                # 3. Add to Vector Store
+                self.vector_store.add_vectors(np.array([embedding]), [embedding_id])
 
-        # 4. Add to DB
-        result = self.db.add_semantic(content, tags, tenant, project_id, embedding_id)
+            # 4. Add to DB
+            result = self.db.add_semantic(
+                content,
+                tags,
+                tenant,
+                project_id,
+                embedding_id,
+                agent_id=agent_id,
+                client_id=client_meta["client_id"],
+                client_name=client_meta["client_name"],
+            )
 
-        # 5. Save Vector Store (persist)
-        self.vector_store.save()
+            # 5. Save Vector Store (persist)
+            if self.vector_enabled:
+                self.vector_store.save()
 
-        return MemoryRead(**result)
+            self.db.add_access_event(
+                event_type="write",
+                status="ok",
+                tenant=tenant,
+                project_id=project_id,
+                agent_id=agent_id,
+                client_name=client_meta["client_name"],
+                client_id=client_meta["client_id"],
+                parent_client_id=client_meta["parent_client_id"],
+                child_client_id=client_meta["child_client_id"],
+                target_layer="semantic",
+                memory_id=result.get("id"),
+                detail="semantic_add",
+            )
+            return MemoryRead(**result)
+        except Exception as e:
+            self.db.add_access_event(
+                event_type="write",
+                status="error",
+                tenant=tenant,
+                project_id=project_id,
+                agent_id=agent_id,
+                client_name=client_name,
+                client_id=client_id,
+                parent_client_id=parent_client_id,
+                child_client_id=child_client_id,
+                target_layer="semantic",
+                detail=str(e),
+            )
+            try:
+                self.db.add_client_issue(
+                    client_id=client_id or agent_id or "unknown",
+                    client_name=client_name,
+                    agent_id=agent_id,
+                    parent_client_id=parent_client_id,
+                    child_client_id=child_client_id,
+                    layer="semantic",
+                    error_code="semantic_add_failed",
+                    message=str(e),
+                    payload={"content": memory_data.content},
+                    tenant=tenant,
+                    project_id=project_id,
+                )
+            except Exception:
+                pass
+            raise e
 
     def add_episodic(self, content: str, tenant: str, project_id: str,
                      salience: int = 0, goal: str = None, plan: List[str] = None,
-                     outcome: str = None, tool_logs: List[Dict] = None) -> Dict[str, Any]:
-        """Add episodic memory (DB only for now, can add vectors later if needed)."""
-        # Note: If we want vector search on episodes, we should add embedding here too.
-        # For V2, we stick to DB + FTS for episodes as per design docs,
-        # unless we want to embed the description.
-        # Let's auto-embed content for Hybrid search on episodes too?
-        # The schema has `memories_episodic` separate from `memories_semantic`.
-        # If we want vector search on ALL layers, we should embed this.
-        # But `memories_episodic` table doesn't have `embedding_id` in my schema.
-        # I'll stick to FTS for Episodic for now to match Schema, or update schema?
-        # Plan said "All layers to be vector indexed" was a goal.
-        # But schema in `database.py` only put `embedding_id` on `semantic`.
-        # Correction: The user asked "Do you want ALL layers to be vector-indexed? ... recommend what to do".
-        # I recommended Hybrid. Hybrid usually implies Vectors for everything.
-        # However, for now, let's implement FTS-based Episodic and Semantic Vector-based.
-        # Changing Schema now might be tricky without migration logic, but `init_db` checks `IF NOT EXISTS`.
-        # I will rely on FTS for Episodic for this iteration.
-        return self.db.add_episodic(content, tenant, project_id, goal, plan, outcome, tool_logs, salience)
+                     outcome: str = None, tool_logs: List[Dict] = None,
+                     agent_id: Optional[str] = None, client_name: Optional[str] = None,
+                     client_id: Optional[str] = None, parent_client_id: Optional[str] = None,
+                     child_client_id: Optional[str] = None) -> Dict[str, Any]:
+        """Add episodic memory (Vector + DB)."""
+        try:
+            client_meta = self._normalize_client_ids(
+                client_id=client_id,
+                client_name=client_name,
+                agent_id=agent_id,
+                tenant=tenant,
+                project_id=project_id,
+                parent_client_id=parent_client_id,
+                child_client_id=child_client_id,
+            )
+            schema_errors = self.schema_registry.validate_payload(
+                "episodic",
+                {
+                    "content": content,
+                    "salience": salience,
+                    "goal": goal,
+                    "plan": plan,
+                    "outcome": outcome,
+                    "tool_logs": tool_logs,
+                },
+            )
+            self._log_schema_errors(
+                "episodic",
+                schema_errors,
+                {
+                    "content": content,
+                    "salience": salience,
+                    "goal": goal,
+                    "plan": plan,
+                    "outcome": outcome,
+                    "tool_logs": tool_logs,
+                },
+                tenant,
+                project_id,
+                agent_id,
+                client_meta["client_name"],
+                client_meta["client_id"],
+                client_meta["parent_client_id"],
+                client_meta["child_client_id"],
+            )
+            embedding_id = None
+            if self.vector_enabled:
+                # 1. Generate Embedding from content + goal + outcome
+                search_blob = f"{content} {goal or ''} {outcome or ''}"
+                embedding = self.model.encode([search_blob])[0].astype("float32")
+                embedding_id = hash(search_blob + str(time.time())) % (2**31 - 1)
+
+                # 2. Add to Vector Store
+                self.vector_store.add_vectors(np.array([embedding]), [embedding_id])
+
+            # 3. Add to DB
+            result = self.db.add_episodic(
+                content,
+                tenant,
+                project_id,
+                salience,
+                goal,
+                plan,
+                tool_logs,
+                outcome,
+                embedding_id,
+                agent_id=agent_id,
+                client_id=client_meta["client_id"],
+                client_name=client_meta["client_name"],
+            )
+            self.db.add_access_event(
+                event_type="write",
+                status="ok",
+                tenant=tenant,
+                project_id=project_id,
+                agent_id=agent_id,
+                client_name=client_meta["client_name"],
+                client_id=client_meta["client_id"],
+                parent_client_id=client_meta["parent_client_id"],
+                child_client_id=client_meta["child_client_id"],
+                target_layer="episodic",
+                memory_id=result.get("id"),
+                detail="episodic_add",
+            )
+            return result
+        except Exception as exc:
+            self.db.add_access_event(
+                event_type="write",
+                status="error",
+                tenant=tenant,
+                project_id=project_id,
+                agent_id=agent_id,
+                client_name=client_name,
+                client_id=client_id,
+                parent_client_id=parent_client_id,
+                child_client_id=child_client_id,
+                target_layer="episodic",
+                detail=str(exc),
+            )
+            try:
+                self.db.add_client_issue(
+                    client_id=client_id or agent_id or "unknown",
+                    client_name=client_name,
+                    agent_id=agent_id,
+                    parent_client_id=parent_client_id,
+                    child_client_id=child_client_id,
+                    layer="episodic",
+                    error_code="episodic_add_failed",
+                    message=str(exc),
+                    payload={"content": content, "goal": goal, "outcome": outcome},
+                    tenant=tenant,
+                    project_id=project_id,
+                )
+            except Exception:
+                pass
+            raise
 
     def add_procedural(self, skill_name: str, steps: List[str], tenant: str, project_id: str,
-                       trigger: str = None, code_snippet: str = None) -> Dict[str, Any]:
-        return self.db.add_procedural(skill_name, steps, tenant, project_id, trigger, code_snippet)
+                       description: str = None, trigger: str = None, code_snippet: str = None,
+                       agent_id: Optional[str] = None, client_name: Optional[str] = None,
+                       client_id: Optional[str] = None, parent_client_id: Optional[str] = None,
+                       child_client_id: Optional[str] = None) -> Dict[str, Any]:
+        """Add procedural memory (Vector + DB)."""
+        try:
+            client_meta = self._normalize_client_ids(
+                client_id=client_id,
+                client_name=client_name,
+                agent_id=agent_id,
+                tenant=tenant,
+                project_id=project_id,
+                parent_client_id=parent_client_id,
+                child_client_id=child_client_id,
+            )
+            schema_errors = self.schema_registry.validate_payload(
+                "procedural",
+                {
+                    "skill_name": skill_name,
+                    "steps": steps,
+                    "description": description,
+                    "trigger": trigger,
+                    "code_snippet": code_snippet,
+                },
+            )
+            self._log_schema_errors(
+                "procedural",
+                schema_errors,
+                {
+                    "skill_name": skill_name,
+                    "steps": steps,
+                    "description": description,
+                    "trigger": trigger,
+                    "code_snippet": code_snippet,
+                },
+                tenant,
+                project_id,
+                agent_id,
+                client_meta["client_name"],
+                client_meta["client_id"],
+                client_meta["parent_client_id"],
+                client_meta["child_client_id"],
+            )
+            embedding_id = None
+            if self.vector_enabled:
+                # 1. Generate Embedding from skill_name + trigger + description
+                search_blob = f"{skill_name} {trigger or ''} {description or ''}"
+                embedding = self.model.encode([search_blob])[0].astype("float32")
+                embedding_id = hash(search_blob + str(time.time())) % (2**31 - 1)
 
-    def add_rag(self, query: str, external_source: str, content: str, tenant: str, project_id: str) -> Dict[str, Any]:
-        return self.db.add_rag(query, external_source, content, tenant, project_id)
+                # 2. Add to Vector Store
+                self.vector_store.add_vectors(np.array([embedding]), [embedding_id])
+
+            # 3. Add to DB
+            result = self.db.add_procedural(
+                skill_name,
+                steps,
+                tenant,
+                project_id,
+                description,
+                trigger,
+                code_snippet,
+                embedding_id,
+                agent_id=agent_id,
+                client_id=client_meta["client_id"],
+                client_name=client_meta["client_name"],
+            )
+            self.db.add_access_event(
+                event_type="write",
+                status="ok",
+                tenant=tenant,
+                project_id=project_id,
+                agent_id=agent_id,
+                client_name=client_meta["client_name"],
+                client_id=client_meta["client_id"],
+                parent_client_id=client_meta["parent_client_id"],
+                child_client_id=client_meta["child_client_id"],
+                target_layer="procedural",
+                memory_id=result.get("id"),
+                detail="procedural_add",
+            )
+            return result
+        except Exception as exc:
+            self.db.add_access_event(
+                event_type="write",
+                status="error",
+                tenant=tenant,
+                project_id=project_id,
+                agent_id=agent_id,
+                client_name=client_name,
+                client_id=client_id,
+                parent_client_id=parent_client_id,
+                child_client_id=child_client_id,
+                target_layer="procedural",
+                detail=str(exc),
+            )
+            try:
+                self.db.add_client_issue(
+                    client_id=client_id or agent_id or "unknown",
+                    client_name=client_name,
+                    agent_id=agent_id,
+                    parent_client_id=parent_client_id,
+                    child_client_id=child_client_id,
+                    layer="procedural",
+                    error_code="procedural_add_failed",
+                    message=str(exc),
+                    payload={"skill_name": skill_name},
+                    tenant=tenant,
+                    project_id=project_id,
+                )
+            except Exception:
+                pass
+            raise
+
+    def add_rag(self, query: str, external_source: str, content: str, tenant: str, project_id: str,
+                agent_id: Optional[str] = None, client_name: Optional[str] = None,
+                client_id: Optional[str] = None, parent_client_id: Optional[str] = None,
+                child_client_id: Optional[str] = None) -> Dict[str, Any]:
+        try:
+            client_meta = self._normalize_client_ids(
+                client_id=client_id,
+                client_name=client_name,
+                agent_id=agent_id,
+                tenant=tenant,
+                project_id=project_id,
+                parent_client_id=parent_client_id,
+                child_client_id=child_client_id,
+            )
+            schema_errors = self.schema_registry.validate_payload(
+                "rag",
+                {
+                    "query": query,
+                    "external_source": external_source,
+                    "content": content,
+                },
+            )
+            self._log_schema_errors(
+                "rag",
+                schema_errors,
+                {
+                    "query": query,
+                    "external_source": external_source,
+                    "content": content,
+                },
+                tenant,
+                project_id,
+                agent_id,
+                client_meta["client_name"],
+                client_meta["client_id"],
+                client_meta["parent_client_id"],
+                client_meta["child_client_id"],
+            )
+            result = self.db.add_rag(
+                query,
+                external_source,
+                content,
+                tenant,
+                project_id,
+                agent_id=agent_id,
+                client_id=client_meta["client_id"],
+                client_name=client_meta["client_name"],
+            )
+            self.db.add_access_event(
+                event_type="write",
+                status="ok",
+                tenant=tenant,
+                project_id=project_id,
+                agent_id=agent_id,
+                client_name=client_meta["client_name"],
+                client_id=client_meta["client_id"],
+                parent_client_id=client_meta["parent_client_id"],
+                child_client_id=client_meta["child_client_id"],
+                target_layer="rag",
+                memory_id=result.get("id"),
+                detail="rag_add",
+            )
+            return result
+        except Exception as exc:
+            self.db.add_access_event(
+                event_type="write",
+                status="error",
+                tenant=tenant,
+                project_id=project_id,
+                agent_id=agent_id,
+                client_name=client_name,
+                client_id=client_id,
+                parent_client_id=parent_client_id,
+                child_client_id=child_client_id,
+                target_layer="rag",
+                detail=str(exc),
+            )
+            try:
+                self.db.add_client_issue(
+                    client_id=client_id or agent_id or "unknown",
+                    client_name=client_name,
+                    agent_id=agent_id,
+                    parent_client_id=parent_client_id,
+                    child_client_id=child_client_id,
+                    layer="rag",
+                    error_code="rag_add_failed",
+                    message=str(exc),
+                    payload={"query": query},
+                    tenant=tenant,
+                    project_id=project_id,
+                )
+            except Exception:
+                pass
+            raise
 
     # --- Hybrid Search (The "Magic") ---
 
-    def search_memory(self, query: str, tenant: str, project_id: str, k: int = 5) -> List[MemorySearchResult]:
+    def search_memory(self, query: str, tenant: str, project_id: str, k: int = 5,
+                      agent_id: Optional[str] = None, client_name: Optional[str] = None,
+                      client_id: Optional[str] = None, parent_client_id: Optional[str] = None,
+                      child_client_id: Optional[str] = None) -> List[MemorySearchResult]:
         """
         Legacy Semantic Search Endpoint.
         We upgrade this to use the Hybrid logic but filter for 'semantic' type to maintain backward compatibility if needed.
@@ -211,11 +768,26 @@ class MemoryService:
                 content=r['content'],
                 tags=[r['type']], # Use type as tag
                 distance=1.0 - r['score'], # Fake distance from score (0..1)
-                created_at=r['created_at'],
+                created_at=r.get('created_at', ""),
                 tenant=r.get('tenant', tenant),
                 project_id=r.get('project_id', project_id),
                 metadata=r
             ))
+        self.db.add_access_event(
+            event_type="read",
+            status="ok",
+            tenant=tenant,
+            project_id=project_id,
+            agent_id=agent_id,
+            client_name=client_name,
+            client_id=client_id,
+            parent_client_id=parent_client_id,
+            child_client_id=child_client_id,
+            target_layer="semantic",
+            query=query,
+            result_count=len(out),
+            detail="search_memory",
+        )
         return out
 
     def search_hybrid(self, query: str, tenant: str, project_id: str, limit: int = 10, semantic_weight: float = 0.5) -> List[Dict[str, Any]]:
@@ -226,37 +798,46 @@ class MemoryService:
         # 1. Keyword Search (SQLite FTS)
         keyword_results = self.db.search_keyword(query, tenant, project_id, limit=limit * 2)
 
-        # 2. Vector Search (FAISS)
-        embedding = self.model.encode([query])[0].astype("float32")
-        dists, ids = self.vector_store.search(embedding, k=limit * 2)
+        # 2. Vector Search (Semantic)
+        distances, ids = self._safe_vector_search(query, limit)
+        
+        
+        # Note: VectorStore search now returns flat lists (unlike nested FAISS)
+        # Flatten the arrays to handle both 1D and 2D outputs robustly
+        flat_ids = ids.flatten() if isinstance(ids, np.ndarray) else np.array(ids).flatten()
+        flat_dists = distances.flatten() if isinstance(distances, np.ndarray) else np.array(distances).flatten()
 
-        vector_results_db = self.db.get_semantic_by_embedding_ids(ids, tenant, project_id)
+        valid_ids = [int(i) for i in flat_ids if i != -1]
+        valid_distances = [float(d) for d in flat_dists[:len(valid_ids)]]
+
+        # Unified result retrieval (Semantic, Episodic, Procedural)
+        vector_results_db = self.db.get_memories_by_embedding_ids(valid_ids, tenant, project_id)
         vector_map = {item['embedding_id']: item for item in vector_results_db}
 
-        # 3. Score Normalization
+        # 4. Score Normalization & Weighted Fusion
         fts_scores = {}
         for i, item in enumerate(keyword_results):
             # Rank based score: 1.0 for first, decaying
-            # Normalize to [0,1]
             score = 1.0 - (i / len(keyword_results))
             fts_scores[item['id']] = score
 
         vector_scores = {}
-        for i, (dist, idx) in enumerate(zip(dists, ids)):
+        for i, idx_raw in enumerate(valid_ids):
+            idx = int(idx_raw)
+            if idx == -1: continue
+            
             if idx in vector_map:
                 item = vector_map[idx]
                 mid = item['id']
-                # Distance based score (inverted)
-                # Ensure dist is normalized if possible, but for L2 usually unbounded.
-                # Heuristic: 1 / (1 + dist) or exp(-dist) or simple rank decay
-                # Review suggested: 1.0 - (dist / 100) clipping at 0.
-                # Or simple rank decay since we don't know dist range well without stats.
-                # Let's use Rank Decay for consistency with FTS if dist is wild.
-                # But Dist is better. Let's use rank decay to be safe.
-                # score = 1.0 - (i / len(ids))
-                # Reviewer code: 1.0 - (r['distance'] / 100).
-                # I'll stick to rank decay for robust merging unless distance is calibrated.
-                score = 1.0 - (i / len(ids))
+                dist = valid_distances[i]
+                
+                # Heuristic: 1 / (1 + dist)
+                # Handle inf or huge dists (as 0.1 score baseline)
+                if np.isinf(dist) or dist > 1e12:
+                    score = 0.1
+                else:
+                    score = 1.0 / (1.0 + dist)
+                
                 vector_scores[mid] = score
 
         # 4. Weighted Fusion
@@ -273,10 +854,7 @@ class MemoryService:
 
             if not item and mid in vector_scores:
                 # Find in vector results
-                # vector_map keys are embedding_id, we need mapping by memory_id
-                # Inefficient loop but safe
                 item = next((x for x in vector_results_db if x['id'] == mid), None)
-                if item: item['type'] = 'semantic'
 
             if item:
                 if mid not in merged:
@@ -285,7 +863,8 @@ class MemoryService:
                 s_vec = vector_scores.get(mid, 0.0)
                 s_fts = fts_scores.get(mid, 0.0)
 
-                final_scores[mid] = (semantic_weight * s_vec) + ((1.0 - semantic_weight) * s_fts)
+                score = (semantic_weight * s_vec) + ((1.0 - semantic_weight) * s_fts)
+                final_scores[mid] = score
 
         # Sort by Score DESC
         sorted_ids = sorted(final_scores.keys(), key=lambda x: final_scores[x], reverse=True)
@@ -298,7 +877,138 @@ class MemoryService:
 
         return final_results
 
-    def retrieve_context(self, query: str, tenant: str, project_id: str, semantic_weight: float = 0.5) -> Dict[str, Any]:
+    def _safe_vector_search(self, query: str, limit: int) -> tuple:
+        if not self.vector_enabled or not self.vector_store:
+            return [], []
+        if os.getenv("PINAK_VECTOR_SEARCH_DISABLED", "false").lower() in ("1", "true", "yes"):
+            return [], []
+        timeout_ms = int(os.getenv("PINAK_EMBEDDING_TIMEOUT_MS", "0") or "0")
+
+        def _compute():
+            embedding = self.model.encode([query])[0].astype("float32")
+            return self.vector_store.search(np.array([embedding]), k=limit * 2)
+
+        if timeout_ms <= 0:
+            try:
+                return _compute()
+            except Exception as exc:
+                logger.warning("Vector search failed: %s", exc)
+                return [], []
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(_compute)
+            try:
+                return future.result(timeout=timeout_ms / 1000.0)
+            except concurrent.futures.TimeoutError:
+                logger.warning("Vector search timed out after %sms; falling back to keyword search", timeout_ms)
+                return [], []
+            except Exception as exc:
+                logger.warning("Vector search failed: %s", exc)
+                return [], []
+
+    def intent_sniff(self, content: str, tenant: str, project_id: str) -> List[Dict[str, Any]]:
+        """
+        Background Observer Logic: Detects if the current 'Working' intent
+        collides with known risks in ANY memory layer.
+        """
+        # 1. Intent Extraction (Keyword-based for speed)
+        content_lower = content.lower()
+        
+        # Define intent clusters
+        intents = {
+            "deployment": ["deploy", "vercel", "production", "ship", "push"],
+            "security": ["auth", "token", "secret", "key", "access", "password"],
+            "infrastructure": ["database", "db", "server", "cluster", "aws", "gcp"]
+        }
+        
+        found_intents = [name for name, keywords in intents.items() if any(k in content_lower for k in keywords)]
+        
+        if not found_intents:
+            return []
+
+        # 2. Targeted Risk Search
+        # We construct a query that combines the found intent keywords with high-risk terms
+        risk_terms = "failed error expired warning deprecated issue problem"
+        search_query = f"{' '.join(found_intents)} {risk_terms}"
+        
+        # Use a high semantic weight to catch conceptual collisions
+        results = self.search_hybrid(search_query, tenant, project_id, limit=5, semantic_weight=0.6)
+
+        nudges = []
+        seen_messages = set()
+        
+        for r in results:
+            # Combine all textual fields for a thorough risk check
+            text_to_check = " ".join([
+                str(r.get('content', '')),
+                str(r.get('description', '')),
+                str(r.get('goal', '')),
+                str(r.get('outcome', ''))
+            ]).lower()
+            
+            # If historical context contains negative signals related to the intents
+            if any(term in text_to_check for term in ["expired", "failed", "warning", "error", "deprecated"]):
+                msg = f"Collision with {r.get('type', 'memory')}: {r['content'][:100]}..."
+                if msg not in seen_messages:
+                    nudges.append({
+                        "type": "proactive_nudge",
+                        "strength": "HIGH" if any(t in text_to_check for t in ["expired", "error"]) else "MEDIUM",
+                        "message": msg,
+                        "source_id": r['id'],
+                        "layer": r.get('type', 'procedural') if r.get('type') == 'procedural' else r.get('type', 'semantic')
+                    })
+                    seen_messages.add(msg)
+
+        return nudges
+
+    def working_add(self, content: str, tenant: str, project_id: str,
+                    agent_id: Optional[str] = None, client_name: Optional[str] = None,
+                    client_id: Optional[str] = None, parent_client_id: Optional[str] = None,
+                    child_client_id: Optional[str] = None):
+        client_meta = self._normalize_client_ids(
+            client_id=client_id,
+            client_name=client_name,
+            agent_id=agent_id,
+            tenant=tenant,
+            project_id=project_id,
+            parent_client_id=parent_client_id,
+            child_client_id=child_client_id,
+        )
+        schema_errors = self.schema_registry.validate_payload(
+            "working",
+            {"content": content},
+        )
+        self._log_schema_errors(
+            "working",
+            schema_errors,
+            {"content": content},
+            tenant,
+            project_id,
+            agent_id,
+            client_meta["client_name"],
+            client_meta["client_id"],
+            client_meta["parent_client_id"],
+            client_meta["child_client_id"],
+        )
+        # Add to DB
+        res = self.db.add_working(
+            content,
+            tenant,
+            project_id,
+            agent_id=agent_id,
+            client_id=client_meta["client_id"],
+            client_name=client_meta["client_name"],
+        )
+        # Sniff for nudges
+        nudges = self.intent_sniff(content, tenant, project_id)
+        if nudges:
+            res['nudges'] = nudges
+        return res
+
+    def retrieve_context(self, query: str, tenant: str, project_id: str, semantic_weight: float = 0.5,
+                         agent_id: Optional[str] = None, client_name: Optional[str] = None,
+                         client_id: Optional[str] = None, parent_client_id: Optional[str] = None,
+                         child_client_id: Optional[str] = None) -> Dict[str, Any]:
         """
         Unified Context Retrieval for Agents.
         Returns categorized memory relevant to the query.
@@ -310,7 +1020,7 @@ class MemoryService:
             "semantic": [],
             "episodic": [],
             "procedural": [],
-            "working": [] # TODO: Add working memory search
+            "working": []
         }
 
         for hit in hybrid_hits:
@@ -321,6 +1031,22 @@ class MemoryService:
                 # Fallback
                 context["semantic"].append(hit)
 
+        total_hits = sum(len(v) for v in context.values())
+        self.db.add_access_event(
+            event_type="read",
+            status="ok",
+            tenant=tenant,
+            project_id=project_id,
+            agent_id=agent_id,
+            client_name=client_name,
+            client_id=client_id,
+            parent_client_id=parent_client_id,
+            child_client_id=child_client_id,
+            target_layer="hybrid",
+            query=query,
+            result_count=total_hits,
+            detail="retrieve_context",
+        )
         return context
 
     # --- Other Operations (Logs) ---
@@ -330,17 +1056,375 @@ class MemoryService:
     def list_events(self, tenant: str, project_id: str, limit: int=100):
         return self.db.list_events(tenant, project_id, limit)
 
-    def session_add(self, session_id: str, content: str, role: str, tenant: str, project_id: str):
-        return self.db.add_session(session_id, content, role, tenant, project_id)
+    def session_add(self, session_id: str, content: str, role: str, tenant: str, project_id: str,
+                    agent_id: Optional[str] = None, client_name: Optional[str] = None,
+                    client_id: Optional[str] = None, parent_client_id: Optional[str] = None,
+                    child_client_id: Optional[str] = None):
+        client_meta = self._normalize_client_ids(
+            client_id=client_id,
+            client_name=client_name,
+            agent_id=agent_id,
+            tenant=tenant,
+            project_id=project_id,
+            parent_client_id=parent_client_id,
+            child_client_id=child_client_id,
+        )
+        return self.db.add_session(
+            session_id,
+            content,
+            role,
+            tenant,
+            project_id,
+            agent_id=agent_id,
+            client_id=client_meta["client_id"],
+            client_name=client_meta["client_name"],
+            parent_client_id=client_meta["parent_client_id"],
+            child_client_id=client_meta["child_client_id"],
+        )
 
     def session_list(self, session_id: str, tenant: str, project_id: str, limit: int=100):
         return self.db.list_session(session_id, tenant, project_id, limit)
 
-    def working_add(self, content: str, tenant: str, project_id: str):
-        return self.db.add_working(content, tenant, project_id)
-
     def working_list(self, tenant: str, project_id: str, limit: int=100):
         return self.db.list_working(tenant, project_id, limit)
+
+    # --- Observability ---
+    def register_agent(self, agent_id: str, client_name: str, status: str, tenant: str, project_id: str,
+                       hostname: Optional[str] = None, pid: Optional[str] = None,
+                       meta: Optional[Dict[str, Any]] = None,
+                       client_id: Optional[str] = None, parent_client_id: Optional[str] = None) -> Dict[str, Any]:
+        return self.db.upsert_agent(
+            agent_id=agent_id,
+            client_name=client_name,
+            status=status,
+            tenant=tenant,
+            project_id=project_id,
+            hostname=hostname,
+            pid=pid,
+            meta=meta,
+            client_id=client_id,
+            parent_client_id=parent_client_id,
+        )
+
+    def list_agents(self, tenant: str, project_id: str, limit: int = 200) -> List[Dict[str, Any]]:
+        return self.db.list_agents(tenant, project_id, limit)
+
+    def list_access_events(self, tenant: str, project_id: str, limit: int = 200) -> List[Dict[str, Any]]:
+        return self.db.list_access_events(tenant, project_id, limit)
+
+    def register_client(self, client_id: str, tenant: str, project_id: str,
+                        client_name: Optional[str] = None, parent_client_id: Optional[str] = None,
+                        status: str = "registered", metadata: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        self.db.register_client(
+            client_id=client_id,
+            client_name=client_name,
+            parent_client_id=parent_client_id,
+            status=status,
+            metadata=metadata,
+            tenant=tenant,
+            project_id=project_id,
+        )
+        return self.db.get_client(client_id, tenant, project_id) or {
+            "client_id": client_id,
+            "client_name": client_name,
+            "parent_client_id": parent_client_id,
+            "status": status,
+            "tenant": tenant,
+            "project_id": project_id,
+        }
+
+    def list_clients(self, tenant: str, project_id: str, limit: int = 200) -> List[Dict[str, Any]]:
+        return self.db.list_clients(tenant, project_id, limit)
+
+    def client_summary(self, client_id: str, tenant: str, project_id: str, include_children: bool = True) -> Dict[str, Any]:
+        if not client_id:
+            raise ValueError("client_id is required")
+        client = self.db.get_client(client_id, tenant, project_id) or {
+            "client_id": client_id,
+            "client_name": None,
+            "parent_client_id": None,
+            "status": "unknown",
+            "metadata": {},
+        }
+        summary = self.db.get_client_layer_stats(client_id, tenant, project_id)
+        summary["open_issues"] = self.db.count_client_issues(client_id, tenant, project_id, status="open")
+        summary["pending_quarantine"] = self.db.count_quarantine(client_id, tenant, project_id, status="pending")
+
+        children: List[Dict[str, Any]] = []
+        combined_counts = summary["counts"].copy()
+        combined_last_write = summary["last_write"].copy()
+        combined_total = summary["total"]
+
+        if include_children:
+            for child in self.db.list_child_clients(client_id, tenant, project_id):
+                child_id = child.get("client_id")
+                if not child_id:
+                    continue
+                child_summary = self.db.get_client_layer_stats(child_id, tenant, project_id)
+                child_summary["open_issues"] = self.db.count_client_issues(child_id, tenant, project_id, status="open")
+                child_summary["pending_quarantine"] = self.db.count_quarantine(child_id, tenant, project_id, status="pending")
+
+                for layer, count in child_summary["counts"].items():
+                    combined_counts[layer] = combined_counts.get(layer, 0) + count
+                    combined_total += count
+                    if child_summary["last_write"].get(layer):
+                        current = combined_last_write.get(layer)
+                        if not current or child_summary["last_write"][layer] > current:
+                            combined_last_write[layer] = child_summary["last_write"][layer]
+
+                children.append({
+                    "client_id": child_id,
+                    "client_name": child.get("client_name"),
+                    "status": child.get("status"),
+                    "parent_client_id": child.get("parent_client_id"),
+                    "last_seen": child.get("last_seen"),
+                    "counts": child_summary["counts"],
+                    "last_write": child_summary["last_write"],
+                    "total": child_summary["total"],
+                    "open_issues": child_summary["open_issues"],
+                    "pending_quarantine": child_summary["pending_quarantine"],
+                })
+
+        return {
+            "client": {
+                "client_id": client.get("client_id"),
+                "client_name": client.get("client_name"),
+                "status": client.get("status"),
+                "parent_client_id": client.get("parent_client_id"),
+                "last_seen": client.get("last_seen"),
+            },
+            "summary": summary,
+            "children": children,
+            "combined": {
+                "counts": combined_counts,
+                "last_write": combined_last_write,
+                "total": combined_total,
+                "open_issues": summary["open_issues"] + sum(c["open_issues"] for c in children),
+                "pending_quarantine": summary["pending_quarantine"] + sum(c["pending_quarantine"] for c in children),
+            },
+        }
+
+    def add_client_issue(self, item: ClientIssueCreate, tenant: str, project_id: str,
+                         agent_id: Optional[str] = None, client_name: Optional[str] = None,
+                         client_id: Optional[str] = None, parent_client_id: Optional[str] = None,
+                         child_client_id: Optional[str] = None) -> Dict[str, Any]:
+        client_meta = self._normalize_client_ids(
+            client_id=client_id,
+            client_name=client_name,
+            agent_id=agent_id,
+            tenant=tenant,
+            project_id=project_id,
+            parent_client_id=parent_client_id,
+            child_client_id=child_client_id,
+        )
+        issue = self.db.add_client_issue(
+            client_id=client_meta["client_id"],
+            message=item.message,
+            tenant=tenant,
+            project_id=project_id,
+            error_code=item.error_code,
+            client_name=client_meta["client_name"],
+            agent_id=agent_id,
+            parent_client_id=client_meta["parent_client_id"],
+            child_client_id=client_meta["child_client_id"],
+            layer=item.layer,
+            payload=item.payload,
+            metadata=item.metadata,
+        )
+        auto_resolve = os.getenv("PINAK_AUTO_RESOLVE_ISSUES", "")
+        auto_codes = [c.strip() for c in auto_resolve.split(",") if c.strip()]
+        if item.error_code in auto_codes and self._is_trusted_client(client_meta["client_id"], tenant, project_id):
+            return self.resolve_client_issue(issue.get("id"), "auto-resolved by policy", "auto-policy")
+        return issue
+
+    def list_client_issues(self, tenant: str, project_id: str, status: str = "open", limit: int = 200) -> List[Dict[str, Any]]:
+        return self.db.list_client_issues(tenant, project_id, status, limit)
+
+    def resolve_client_issue(self, issue_id: str, resolution: str, reviewer: str) -> Dict[str, Any]:
+        resolved = self.db.resolve_client_issue(issue_id, resolution, reviewer)
+        if not resolved:
+            return {"id": issue_id, "status": "missing"}
+        return resolved
+
+    def propose_memory(self, layer: str, payload: Dict[str, Any], tenant: str, project_id: str,
+                       agent_id: Optional[str] = None, client_name: Optional[str] = None,
+                       client_id: Optional[str] = None, parent_client_id: Optional[str] = None,
+                       child_client_id: Optional[str] = None) -> Dict[str, Any]:
+        client_meta = self._normalize_client_ids(
+            client_id=client_id,
+            client_name=client_name,
+            agent_id=agent_id,
+            tenant=tenant,
+            project_id=project_id,
+            parent_client_id=parent_client_id,
+            child_client_id=child_client_id,
+        )
+        validation_errors = self.schema_registry.validate_payload(layer, payload)
+        if validation_errors:
+            try:
+                self.db.add_client_issue(
+                    client_id=client_meta["client_id"],
+                    client_name=client_meta["client_name"],
+                    agent_id=agent_id,
+                    parent_client_id=client_meta["parent_client_id"],
+                    child_client_id=client_meta["child_client_id"],
+                    layer=layer,
+                    error_code="schema_validation_failed",
+                    message="Payload failed schema validation",
+                    payload=payload,
+                    metadata={"errors": validation_errors},
+                    tenant=tenant,
+                    project_id=project_id,
+                )
+            except Exception:
+                pass
+        auto_approve = os.getenv("PINAK_QUARANTINE_AUTO_APPROVE", "false").lower() in ("1", "true", "yes")
+        if auto_approve and not validation_errors and self._is_trusted_client(client_meta["client_id"], tenant, project_id):
+            self._apply_quarantine_payload(
+                layer,
+                payload,
+                tenant,
+                project_id,
+                agent_id,
+                client_meta["client_name"],
+                client_id=client_meta["client_id"],
+                parent_client_id=client_meta["parent_client_id"],
+                child_client_id=client_meta["child_client_id"],
+            )
+            self.db.add_access_event(
+                event_type="write",
+                status="ok",
+                tenant=tenant,
+                project_id=project_id,
+                agent_id=agent_id,
+                client_name=client_meta["client_name"],
+                client_id=client_meta["client_id"],
+                parent_client_id=client_meta["parent_client_id"],
+                child_client_id=client_meta["child_client_id"],
+                target_layer=layer,
+                detail="auto_approved",
+            )
+            return {"status": "approved", "layer": layer, "auto_approved": True}
+        res = self.db.add_quarantine(
+            layer,
+            payload,
+            tenant,
+            project_id,
+            agent_id=agent_id,
+            client_id=client_meta["client_id"],
+            client_name=client_meta["client_name"],
+            validation_errors=validation_errors,
+        )
+        self.db.add_access_event(
+            event_type="propose",
+            status="ok" if not validation_errors else "error",
+            tenant=tenant,
+            project_id=project_id,
+            agent_id=agent_id,
+            client_name=client_meta["client_name"],
+            client_id=client_meta["client_id"],
+            parent_client_id=client_meta["parent_client_id"],
+            child_client_id=client_meta["child_client_id"],
+            target_layer=layer,
+            detail="quarantine_propose",
+        )
+        return res
+
+    def list_quarantine(self, tenant: str, project_id: str, status: str = "pending", limit: int = 100) -> List[Dict[str, Any]]:
+        return self.db.list_quarantine(tenant, project_id, status, limit)
+
+    def resolve_quarantine(self, item_id: str, status: str, reviewer: str,
+                           tenant: str, project_id: str,
+                           agent_id: Optional[str] = None, client_name: Optional[str] = None,
+                           client_id: Optional[str] = None, parent_client_id: Optional[str] = None,
+                           child_client_id: Optional[str] = None) -> Dict[str, Any]:
+        item = self.db.resolve_quarantine(item_id, status, reviewer)
+        if not item:
+            return {"status": "missing", "id": item_id}
+        layer = item.get("layer")
+        payload = item.get("payload") or {}
+        if status == "approved":
+            self._apply_quarantine_payload(
+                layer,
+                payload,
+                tenant,
+                project_id,
+                agent_id,
+                client_name,
+                client_id=item.get("client_id") or client_id,
+                parent_client_id=parent_client_id,
+                child_client_id=child_client_id,
+            )
+        self.db.add_access_event(
+            event_type="write",
+            status="ok",
+            tenant=tenant,
+            project_id=project_id,
+            agent_id=agent_id,
+            client_name=client_name,
+            client_id=client_id,
+            parent_client_id=parent_client_id,
+            child_client_id=child_client_id,
+            target_layer=layer,
+            detail=f"quarantine_{status}",
+        )
+        return {"status": status, "id": item_id, "layer": layer}
+
+    def _apply_quarantine_payload(self, layer: str, payload: Dict[str, Any], tenant: str, project_id: str,
+                                  agent_id: Optional[str], client_name: Optional[str],
+                                  client_id: Optional[str] = None, parent_client_id: Optional[str] = None,
+                                  child_client_id: Optional[str] = None) -> None:
+        if layer == "semantic":
+            memory = MemoryCreate(content=payload.get("content", ""), tags=payload.get("tags") or [])
+            self.add_memory(memory, tenant, project_id, agent_id, client_name, client_id, parent_client_id, child_client_id)
+            return
+        if layer == "episodic":
+            self.add_episodic(
+                payload.get("content", ""),
+                tenant,
+                project_id,
+                payload.get("salience", 0),
+                payload.get("goal"),
+                payload.get("plan"),
+                payload.get("outcome"),
+                payload.get("tool_logs"),
+                agent_id,
+                client_name,
+                client_id,
+                parent_client_id,
+                child_client_id,
+            )
+            return
+        if layer == "procedural":
+            self.add_procedural(
+                payload.get("skill_name", ""),
+                payload.get("steps") or [],
+                tenant,
+                project_id,
+                payload.get("description"),
+                payload.get("trigger"),
+                payload.get("code_snippet"),
+                agent_id,
+                client_name,
+                client_id,
+                parent_client_id,
+                child_client_id,
+            )
+            return
+        if layer == "rag":
+            self.add_rag(
+                payload.get("query", ""),
+                payload.get("external_source", ""),
+                payload.get("content", ""),
+                tenant,
+                project_id,
+                agent_id,
+                client_name,
+                client_id,
+                parent_client_id,
+                child_client_id,
+            )
+            return
 
     def update_memory(self, layer: str, memory_id: str, updates: Dict[str, Any], tenant: str, project_id: str) -> bool:
         """
@@ -353,7 +1437,7 @@ class MemoryService:
         if not safe_updates:
             return False
 
-        if layer == "semantic" and "content" in safe_updates:
+        if layer == "semantic" and "content" in safe_updates and self.vector_enabled and self.vector_store:
             # 1. Fetch old record to get embedding_id
             old_item = self.db.get_memory(layer, memory_id, tenant, project_id)
             if old_item:
@@ -368,17 +1452,37 @@ class MemoryService:
                     self.vector_store.add_vectors(np.array([new_embedding]), [emb_id])
                     self.vector_store.save()
 
-        return self.db.update_memory(layer, memory_id, safe_updates, tenant, project_id)
+        success = self.db.update_memory(layer, memory_id, safe_updates, tenant, project_id)
+        self.db.add_access_event(
+            event_type="update",
+            status="ok" if success else "error",
+            tenant=tenant,
+            project_id=project_id,
+            target_layer=layer,
+            memory_id=memory_id,
+            detail="update_memory",
+        )
+        return success
 
     def delete_memory(self, layer: str, memory_id: str, tenant: str, project_id: str) -> bool:
-        if layer == "semantic":
+        if layer == "semantic" and self.vector_enabled and self.vector_store:
             # Fetch embedding ID first
             item = self.db.get_memory(layer, memory_id, tenant, project_id)
             if item and item.get("embedding_id"):
                 self.vector_store.remove_ids([item["embedding_id"]])
                 self.vector_store.save()
 
-        return self.db.delete_memory(layer, memory_id, tenant, project_id)
+        success = self.db.delete_memory(layer, memory_id, tenant, project_id)
+        self.db.add_access_event(
+            event_type="delete",
+            status="ok" if success else "error",
+            tenant=tenant,
+            project_id=project_id,
+            target_layer=layer,
+            memory_id=memory_id,
+            detail="delete_memory",
+        )
+        return success
 
 # Functional adapters for compatibility with existing endpoints.py which calls 'svc_add_episodic' etc.
 # Ideally endpoints should call service instance methods.

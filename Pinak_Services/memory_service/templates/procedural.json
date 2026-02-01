@@ -1,0 +1,7 @@
+{
+  "skill_name": "...",
+  "steps": ["step1", "step2"],
+  "description": "...",
+  "trigger": "...",
+  "code_snippet": "..."
+}
