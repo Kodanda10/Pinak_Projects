@@ -4,7 +4,7 @@ from textual.widgets import Header, Footer, Static, DataTable, ListView, ListIte
 from textual.reactive import reactive
 from textual.screen import Screen
 from textual.message import Message
-from typing import Optional
+from typing import Optional, Dict, Tuple
 import sqlite3
 import os
 import datetime
@@ -15,58 +15,64 @@ import subprocess
 # --- CSS with Visual Polish ---
 GLOBAL_CSS = """
 Screen {
-    background: #070A12;
-    color: #E2E8F0;
+    background: #05070D;
+    color: #E5E7EB;
 }
 
 Header {
-    background: #0F172A;
-    color: #E2E8F0;
+    background: #0B1220;
+    color: #E5E7EB;
     dock: top;
     text-style: bold;
 }
 
 Footer {
-    background: #0F172A;
-    color: #94A3B8;
+    background: #0B1220;
+    color: #9CA3AF;
     dock: bottom;
 }
 
 #sidebar {
     dock: left;
-    width: 26;
-    background: #0B1220;
+    width: 28;
+    background: #0A0F1A;
     border-right: solid #111827;
 }
 
-#sidebar Label {
+#sidebar .brand {
     padding: 1;
     background: #0F172A;
-    color: #E2E8F0;
+    color: #E5E7EB;
     text-align: center;
     text-style: bold;
     border-bottom: solid #1F2937;
 }
 
-ListView {
+#sidebar .nav-title {
+    padding: 1 2;
+    color: #64748B;
+    text-style: bold;
+}
+
+ListView.nav-list {
     height: 100%;
 }
 
-ListItem {
+ListItem.nav-item {
     padding: 1 2;
-    color: #94A3B8;
+    color: #A3B0C2;
 }
 
-ListItem:hover {
-    background: #111827;
-    color: #E2E8F0;
+ListItem.nav-item:hover {
+    background: #0E1628;
+    color: #E5E7EB;
 }
 
-ListItem.--highlight {
-    background: #0EA5E9;
-    color: #0B1120;
+ListItem.nav-item.--highlight {
+    background: #F97316;
+    color: #0B0F17;
     text-style: bold;
-    border-left: thick #38BDF8;
+    border-left: thick #FDBA74;
 }
 
 #main-content {
@@ -75,19 +81,42 @@ ListItem.--highlight {
     background: #0B111E;
 }
 
+#topbar {
+    height: 4;
+    padding: 0 1;
+    background: #0F172A;
+    border: solid #1E293B;
+    margin: 0 0 1 0;
+}
+
+#topbar-title {
+    color: #F59E0B;
+    text-style: bold;
+}
+
+#topbar-subtitle {
+    color: #94A3B8;
+}
+
+#topbar-status {
+    color: #22D3EE;
+    text-style: bold;
+    text-align: right;
+}
+
 .stat-card {
     background: #0F172A;
     border: solid #1E293B;
-    height: 10;
+    height: 9;
     margin: 1;
     padding: 1 2;
     width: 1fr;
-    border-title-color: #38BDF8;
+    border-title-color: #F59E0B;
     border-title-style: bold;
 }
 
 .stat-title {
-    color: #7DD3FC;
+    color: #FDBA74;
     text-style: bold;
     border-bottom: solid #1E293B;
     margin-bottom: 1;
@@ -100,54 +129,35 @@ ListItem.--highlight {
     margin-top: 1;
 }
 
-Log {
-    background: #0B1220;
+.panel {
+    background: #0F172A;
     border: solid #1E293B;
-    height: 100%;
-    color: #F59E0B;
+    padding: 1 2;
 }
 
 DataTable {
     background: #0F172A;
     border: solid #1E293B;
-    color: #E2E8F0;
-}
-
-.agent-active {
-    color: #34D399;
-    text-style: bold;
-}
-
-.agent-idle {
-    color: #FBBF24;
+    color: #E5E7EB;
 }
 
 .section-header {
-    color: #38BDF8;
+    color: #F59E0B;
     text-style: bold;
-    border-bottom: solid #0EA5E9;
+    border-bottom: solid #F59E0B;
     margin-bottom: 1;
-}
-
-.issue-open {
-    color: #F97316;
-    text-style: bold;
-}
-
-.issue-resolved {
-    color: #10B981;
 }
 
 Button {
     background: #111827;
-    color: #E2E8F0;
+    color: #E5E7EB;
     border: solid #1E293B;
 }
 
 Button.-primary {
-    background: #0EA5E9;
-    color: #0B1120;
-    border: solid #38BDF8;
+    background: #F97316;
+    color: #0B0F17;
+    border: solid #FDBA74;
     text-style: bold;
 }
 
@@ -159,18 +169,24 @@ Button.-primary {
 .muted {
     color: #94A3B8;
 }
+
+.mono {
+    color: #A3B0C2;
+}
 """
 
 class Sidebar(Container):
     def compose(self) -> ComposeResult:
-        yield Label("🏹  PINAK OS")
+        yield Label("🏹  PINAK OS", classes="brand")
+        yield Label("CORE", classes="nav-title")
         yield ListView(
-            ListItem(Label("📊  System Mesh"), id="nav-dashboard"),
-            ListItem(Label("📡  Memory Access"), id="nav-access"),
-            ListItem(Label("👥  Agent Swarm"), id="nav-agents"),
-            ListItem(Label("🧷  Client Issues"), id="nav-issues"),
-            ListItem(Label("🧭  Client Registry"), id="nav-clients"),
-            ListItem(Label("❤️   Bio-Health"), id="nav-health"),
+            ListItem(Label("📊  System Mesh"), id="nav-dashboard", classes="nav-item"),
+            ListItem(Label("📡  Memory Access"), id="nav-access", classes="nav-item"),
+            ListItem(Label("👥  Agent Swarm"), id="nav-agents", classes="nav-item"),
+            ListItem(Label("🧷  Client Issues"), id="nav-issues", classes="nav-item"),
+            ListItem(Label("🧭  Client Registry"), id="nav-clients", classes="nav-item"),
+            ListItem(Label("❤️   Bio-Health"), id="nav-health", classes="nav-item"),
+            classes="nav-list",
         )
 
 class DashboardView(Container):
@@ -637,6 +653,14 @@ class HealthView(Container):
 
 class MemoryApp(App):
     CSS = GLOBAL_CSS
+    TAB_META: Dict[str, Tuple[str, str]] = {
+        "dashboard": ("System Mesh", "Global signals and memory substrate"),
+        "access": ("Memory Access", "Read/write stream across layers"),
+        "agents": ("Agent Swarm", "Live presence and activity deltas"),
+        "issues": ("Client Issues", "Ingestion, schema, and auth anomalies"),
+        "clients": ("Client Registry", "Observed, registered, trusted"),
+        "health": ("Bio-Health", "Doctor status and launch agents"),
+    }
     BINDINGS = [
         ("q", "quit", "Shutdown"),
         ("1", "show_dashboard", "Mesh"),
@@ -652,6 +676,10 @@ class MemoryApp(App):
         with Horizontal():
             yield Sidebar(id="sidebar")
             with Container(id="main-content"):
+                with Horizontal(id="topbar"):
+                    yield Static("System Mesh", id="topbar-title")
+                    yield Static("Global signals and memory substrate", id="topbar-subtitle")
+                    yield Static("booting…", id="topbar-status")
                 yield DashboardView(id="view-dashboard")
                 yield AccessView(id="view-access")
                 yield AgentsView(id="view-agents")
@@ -663,6 +691,8 @@ class MemoryApp(App):
     def on_mount(self):
         self.title = "Pinak Command Center"
         self.switch_tab("dashboard")
+        self.set_interval(3, self.refresh_topbar_status)
+        self.refresh_topbar_status()
 
     def action_show_dashboard(self):
         self.switch_tab("dashboard")
@@ -698,6 +728,30 @@ class MemoryApp(App):
         self.query_one("#view-issues").display = (tab == "issues")
         self.query_one("#view-clients").display = (tab == "clients")
         self.query_one("#view-health").display = (tab == "health")
+        title, subtitle = self.TAB_META.get(tab, ("Pinak Command Center", ""))
+        self.query_one("#topbar-title", Static).update(title)
+        self.query_one("#topbar-subtitle", Static).update(subtitle)
+
+    def refresh_topbar_status(self):
+        db_path = "data/memory.db"
+        status = "offline"
+        if os.path.exists(db_path):
+            try:
+                conn = sqlite3.connect(db_path)
+                cur = conn.cursor()
+                total = 0
+                for t in ["memories_semantic", "memories_episodic", "memories_procedural", "memories_rag", "working_memory"]:
+                    cur.execute(f"SELECT count(*) FROM {t}")
+                    total += cur.fetchone()[0]
+                cur.execute("SELECT count(*) FROM logs_agents WHERE last_seen >= datetime('now','-60 seconds')")
+                active_agents = cur.fetchone()[0]
+                cur.execute("SELECT count(*) FROM logs_client_issues WHERE status = 'open'")
+                open_issues = cur.fetchone()[0]
+                conn.close()
+                status = f"mem {total} • agents {active_agents} • issues {open_issues}"
+            except Exception:
+                status = "db error"
+        self.query_one("#topbar-status", Static).update(status)
 
 if __name__ == "__main__":
     MemoryApp().run()
