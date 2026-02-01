@@ -3,12 +3,27 @@
 
 set -euo pipefail
 
-BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_PATH="${BASH_SOURCE[0]}"
+if [ -z "${PINAK_HOME:-}" ]; then
+  if command -v realpath >/dev/null 2>&1; then
+    SCRIPT_PATH="$(realpath "$SCRIPT_PATH")"
+  else
+    SCRIPT_PATH="$(python3 - <<'PY'
+import os, sys
+print(os.path.realpath(sys.argv[1]))
+PY
+"$SCRIPT_PATH")"
+  fi
+  BASE_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
+else
+  BASE_DIR="$PINAK_HOME"
+fi
+
 cd "$BASE_DIR"
 
 SERVER_PORT="${PINAK_BIND_PORT:-8000}"
 SERVER_HOST="${PINAK_BIND_HOST:-127.0.0.1}"
-VENV_PY="$BASE_DIR/.venv/bin/python"
+VENV_PY="${PINAK_VENV_PY:-$BASE_DIR/.venv/bin/python}"
 
 export PINAK_JWT_SECRET="${PINAK_JWT_SECRET:-secret}"
 export PINAK_API_URL="${PINAK_API_URL:-http://127.0.0.1:${SERVER_PORT}/api/v1}"
@@ -16,6 +31,7 @@ export PINAK_PROJECT_ID="${PINAK_PROJECT_ID:-pinak-memory}"
 
 if [ ! -x "$VENV_PY" ]; then
   echo "❌ Missing venv python at $VENV_PY"
+  echo "Set PINAK_HOME to the repo path or PINAK_VENV_PY to the venv python."
   exit 1
 fi
 

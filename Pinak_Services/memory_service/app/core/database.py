@@ -334,6 +334,7 @@ class DatabaseManager:
             self._ensure_column(conn, "memories_episodic", "agent_id", "TEXT")
             self._ensure_column(conn, "memories_episodic", "client_id", "TEXT")
             self._ensure_column(conn, "memories_episodic", "client_name", "TEXT")
+            self._ensure_column(conn, "memories_episodic", "steps", "TEXT")
             self._ensure_column(conn, "memories_procedural", "agent_id", "TEXT")
             self._ensure_column(conn, "memories_procedural", "client_id", "TEXT")
             self._ensure_column(conn, "memories_procedural", "client_name", "TEXT")
@@ -1076,7 +1077,26 @@ class DatabaseManager:
                 "ts": created_at,
             },
         )
-        return {"id": issue_id, "status": "open", "created_at": created_at}
+        return {
+            "id": issue_id,
+            "client_id": client_id,
+            "client_name": client_name,
+            "agent_id": agent_id,
+            "parent_client_id": parent_client_id,
+            "child_client_id": child_client_id,
+            "layer": layer,
+            "error_code": error_code,
+            "message": message,
+            "payload": payload,
+            "metadata": metadata,
+            "status": "open",
+            "tenant": tenant,
+            "project_id": project_id,
+            "created_at": created_at,
+            "resolved_at": None,
+            "resolved_by": None,
+            "resolution": None,
+        }
 
     def list_client_issues(self, tenant: str, project_id: str, status: str = "open", limit: int = 200) -> List[Dict[str, Any]]:
         with self.get_cursor() as conn:

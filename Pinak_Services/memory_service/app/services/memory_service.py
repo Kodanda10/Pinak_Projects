@@ -1013,6 +1013,15 @@ class MemoryService:
         Unified Context Retrieval for Agents.
         Returns categorized memory relevant to the query.
         """
+        client_meta = self._normalize_client_ids(
+            client_id=client_id,
+            client_name=client_name,
+            agent_id=agent_id,
+            tenant=tenant,
+            project_id=project_id,
+            parent_client_id=parent_client_id,
+            child_client_id=child_client_id,
+        )
         hybrid_hits = self.search_hybrid(query, tenant, project_id, limit=20, semantic_weight=semantic_weight)
 
         # Categorize
@@ -1038,10 +1047,10 @@ class MemoryService:
             tenant=tenant,
             project_id=project_id,
             agent_id=agent_id,
-            client_name=client_name,
-            client_id=client_id,
-            parent_client_id=parent_client_id,
-            child_client_id=child_client_id,
+            client_name=client_meta["client_name"],
+            client_id=client_meta["client_id"],
+            parent_client_id=client_meta["parent_client_id"],
+            child_client_id=client_meta["child_client_id"],
             target_layer="hybrid",
             query=query,
             result_count=total_hits,
