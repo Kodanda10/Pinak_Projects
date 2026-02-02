@@ -8,6 +8,10 @@ def setup_test_env():
     with patch.dict(os.environ, {
         "PINAK_JWT_SECRET": "test-secret",
         "PINAK_JWT_ALGORITHM": "HS256",
-        "EMBEDDING_BACKEND": "dummy"
+        "PINAK_EMBEDDING_BACKEND": "dummy",
+        # Backward-compat keys for any legacy test usage
+        "JWT_SECRET": "test-secret",
+        "JWT_ALGORITHM": "HS256",
+        "EMBEDDING_BACKEND": "dummy",
     }):
         yield

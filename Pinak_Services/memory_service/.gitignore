@@ -3,5 +3,6 @@
 server.log
 summaries.json
 search_output.json
+data/
 data/*.db-wal
 data/*.db-shm

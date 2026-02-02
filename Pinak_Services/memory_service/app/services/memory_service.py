@@ -204,11 +204,10 @@ class MemoryService:
         # Simple heuristic: Count embeddings across all layers.
         db_count = 0
         with self.db.get_cursor() as conn:
-            cur = conn.cursor()
             for table in ["memories_semantic", "memories_episodic", "memories_procedural"]:
                 try:
-                    cur.execute(f"SELECT count(*) FROM {table} WHERE embedding_id IS NOT NULL")
-                    db_count += cur.fetchone()[0]
+                    conn.execute(f"SELECT count(*) FROM {table} WHERE embedding_id IS NOT NULL")
+                    db_count += conn.fetchone()[0]
                 except sqlite3.OperationalError:
                     continue
 
@@ -232,9 +231,8 @@ class MemoryService:
 
             def _page_rows(query: str, params: tuple):
                 with self.db.get_cursor() as conn:
-                    cur = conn.cursor()
-                    cur.execute(query, params)
-                    return cur.fetchall()
+                    conn.execute(query, params)
+                    return conn.fetchall()
 
             def _ingest_rows(rows, build_text):
                 texts = []
@@ -1013,6 +1011,15 @@ class MemoryService:
         Unified Context Retrieval for Agents.
         Returns categorized memory relevant to the query.
         """
+        client_meta = self._normalize_client_ids(
+            client_id=client_id,
+            client_name=client_name,
+            agent_id=agent_id,
+            tenant=tenant,
+            project_id=project_id,
+            parent_client_id=parent_client_id,
+            child_client_id=child_client_id,
+        )
         hybrid_hits = self.search_hybrid(query, tenant, project_id, limit=20, semantic_weight=semantic_weight)
 
         # Categorize
@@ -1038,10 +1045,10 @@ class MemoryService:
             tenant=tenant,
             project_id=project_id,
             agent_id=agent_id,
-            client_name=client_name,
-            client_id=client_id,
-            parent_client_id=parent_client_id,
-            child_client_id=child_client_id,
+            client_name=client_meta["client_name"],
+            client_id=client_meta["client_id"],
+            parent_client_id=client_meta["parent_client_id"],
+            child_client_id=client_meta["child_client_id"],
             target_layer="hybrid",
             query=query,
             result_count=total_hits,
