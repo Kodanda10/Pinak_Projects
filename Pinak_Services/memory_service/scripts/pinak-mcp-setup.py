@@ -17,6 +17,36 @@ AGENT_CONFIGS = {
 }
 
 
+def _ensure_pi_skill() -> None:
+    skill_dir = Path("~/.pi/agent/skills/pinak-memory").expanduser()
+    skill_dir.mkdir(parents=True, exist_ok=True)
+    skill_path = skill_dir / "SKILL.md"
+    content = """---
+name: pinak-memory
+description: Use pinak-memory when MCP tools are unavailable in Pi. Provides CLI commands for recall and remember.
+alias: Pinak Memory
+---
+
+# Pinak Memory (Pi Skill Wrapper)
+
+Pi does not natively support MCP tools. Use the pinak-memory CLI wrapper:
+
+## Commands
+- Status / summary:
+  - ~/pinak-memory/bin/pinak-mcp status
+- Recall:
+  - ~/pinak-memory/bin/pinak-mcp recall "query"
+- Remember episode:
+  - ~/pinak-memory/bin/pinak-mcp remember-episode "goal" "outcome" "content" --tags tag1 tag2
+
+## Notes
+- The wrapper reads ~/pinak-memory/pinak.env for API URL and auth.
+- If the wrapper is missing, run:
+  - /path/to/memory_service/scripts/pinak-install-mcp.sh
+"""
+    skill_path.write_text(content)
+
+
 def _load_json(path: Path) -> Dict[str, Any]:
     if not path.exists():
         return {}
@@ -116,6 +146,8 @@ def main() -> int:
         _ensure_mcp_server(data, "pinak-memory", per_def)
         _save_json(path, data)
         print(f"updated {path}")
+        if agent == "pi":
+            _ensure_pi_skill()
 
     return 0
 

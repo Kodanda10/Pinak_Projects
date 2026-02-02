@@ -163,6 +163,8 @@ The following files have been automatically updated to include `pinak-memory`:
 | **OpenCode** | `~/.opencode/mcp_config.json` |
 | **Cursor** | `~/.cursor/mcp.json` |
 
+Pi note: Pi does not natively support MCP tools; `setup-mcp --agents pi` installs a Pi Skill wrapper that uses the `pinak-mcp` CLI.
+
 ---
 
 ## 🛡️ Pinak Memory Protocol (PMP)

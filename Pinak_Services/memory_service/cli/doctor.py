@@ -404,7 +404,7 @@ def _resolve_mcp_issues(report: DoctorReport, fix: bool) -> None:
         cur = conn.cursor()
         if not fix:
             cur.execute(
-                "SELECT count(*) FROM logs_client_issues WHERE status = 'open' AND error_code IN ('parameter_signature_mismatch','env_var_isolation','automation_gap')"
+                "SELECT count(*) FROM logs_client_issues WHERE status = 'open' AND error_code IN ('parameter_signature_mismatch','env_var_isolation','automation_gap','mcp_loading_failed')"
             )
             count = cur.fetchone()[0]
             if count:
@@ -444,6 +444,16 @@ def _resolve_mcp_issues(report: DoctorReport, fix: bool) -> None:
             """,
             (resolution_time, "doctor", "quarantine write probe ok"),
         )
+        pi_skill = Path("~/.pi/agent/skills/pinak-memory/SKILL.md").expanduser()
+        if pi_skill.exists():
+            cur.execute(
+                """
+                UPDATE logs_client_issues
+                SET status = 'resolved', resolved_at = ?, resolved_by = ?, resolution = ?
+                WHERE status = 'open' AND error_code = 'mcp_loading_failed'
+                """,
+                (resolution_time, "doctor", "pi skill wrapper installed"),
+            )
         cur.execute(
             """
             UPDATE logs_client_issues

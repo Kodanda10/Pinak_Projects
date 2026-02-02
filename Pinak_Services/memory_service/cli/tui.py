@@ -4,7 +4,7 @@ from textual.widgets import Footer, Static, DataTable, Label, Button
 from textual.reactive import reactive
 from textual.screen import Screen
 from textual.message import Message
-from typing import Optional, Dict, Tuple
+from typing import Optional, Dict, Tuple, Any
 import sqlite3
 import os
 import datetime
@@ -331,9 +331,17 @@ class DashboardView(Container):
         self.query_one("#stat-ingest-rate", Static).update(str(ingest_rate))
 
 class AccessView(Container):
+    def __init__(self) -> None:
+        super().__init__()
+        self._access_rows: Dict[str, Dict[str, Any]] = {}
+
     def compose(self) -> ComposeResult:
-        yield Static("Memory Access Stream", classes="stat-title")
-        yield DataTable(id="access-table")
+        with Vertical():
+            yield Static("Memory Access Stream", classes="stat-title")
+            yield DataTable(id="access-table")
+        with Vertical(id="access-detail", classes="panel"):
+            yield Static("Access Detail", classes="stat-title")
+            yield VerticalScroll(Static("Select a row to view memory details.", id="access-detail-text"))
 
     def on_mount(self):
         table = self.query_one("#access-table", DataTable)
@@ -342,6 +350,14 @@ class AccessView(Container):
         table.zebra_stripes = True
         self.set_interval(2, self.refresh_access)
         self.refresh_access()
+
+    def on_data_table_row_selected(self, event: DataTable.RowSelected):
+        if event.data_table.id != "access-table":
+            return
+        row_key = str(event.row_key)
+        row = self._access_rows.get(row_key)
+        if row:
+            self.show_access_detail(row)
 
     def refresh_access(self):
         db_path = "data/memory.db"
@@ -352,7 +368,7 @@ class AccessView(Container):
             conn.row_factory = sqlite3.Row
             cur = conn.cursor()
             cur.execute("""
-                SELECT ts, client_name, agent_id, event_type, target_layer, query, memory_id, status
+                SELECT id, ts, client_name, client_id, agent_id, event_type, target_layer, query, memory_id, result_count, status, detail
                 FROM logs_access
                 ORDER BY ts DESC
                 LIMIT 50
@@ -362,9 +378,12 @@ class AccessView(Container):
 
             table = self.query_one("#access-table", DataTable)
             table.clear()
+            self._access_rows = {}
             for row in rows:
+                row_id = row["id"]
+                self._access_rows[str(row_id)] = dict(row)
                 ts = _format_ts(row["ts"])
-                client = row["client_name"] or "unknown"
+                client = row["client_name"] or row["client_id"] or "unknown"
                 agent = row["agent_id"] or "unknown"
                 etype = row["event_type"]
                 layer = row["target_layer"] or "-"
@@ -374,9 +393,119 @@ class AccessView(Container):
                     etype = "✳ write"
                 elif etype == "read":
                     etype = "• read"
-                table.add_row(ts, client, agent, etype, layer, payload[:40], status)
+                elif etype == "propose":
+                    etype = "◇ propose"
+                table.add_row(ts, client, agent, etype, layer, payload[:40], status, key=str(row_id))
         except Exception:
             return
+
+    def _format_jsonish(self, value: Any) -> str:
+        if value is None:
+            return "-"
+        if isinstance(value, (dict, list)):
+            return json.dumps(value, ensure_ascii=True, indent=2)
+        if isinstance(value, str):
+            s = value.strip()
+            if (s.startswith("{") and s.endswith("}")) or (s.startswith("[") and s.endswith("]")):
+                try:
+                    parsed = json.loads(s)
+                    return json.dumps(parsed, ensure_ascii=True, indent=2)
+                except Exception:
+                    return value
+        return str(value)
+
+    def _load_memory_row(self, table: str, memory_id: str) -> Optional[Dict[str, Any]]:
+        db_path = "data/memory.db"
+        try:
+            with sqlite3.connect(db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                cur = conn.cursor()
+                cur.execute(f"SELECT * FROM {table} WHERE id = ?", (memory_id,))
+                row = cur.fetchone()
+            if not row:
+                return None
+            return dict(row)
+        except Exception:
+            return None
+
+    def _load_quarantine_row(self, row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        db_path = "data/memory.db"
+        try:
+            with sqlite3.connect(db_path) as conn:
+                conn.row_factory = sqlite3.Row
+                cur = conn.cursor()
+                cur.execute(
+                    """
+                    SELECT * FROM memory_quarantine
+                    WHERE layer = ?
+                      AND (client_id = ? OR client_name = ? OR agent_id = ?)
+                    ORDER BY ABS(strftime('%s', created_at) - strftime('%s', ?)) ASC
+                    LIMIT 1
+                    """,
+                    (
+                        row.get("target_layer"),
+                        row.get("client_id") or "",
+                        row.get("client_name") or "",
+                        row.get("agent_id") or "",
+                        row.get("ts") or "",
+                    ),
+                )
+                item = cur.fetchone()
+            if not item:
+                return None
+            return dict(item)
+        except Exception:
+            return None
+
+    def show_access_detail(self, row: Dict[str, Any]) -> None:
+        lines = []
+        lines.append(f"[bold #F8B24B]Access Detail[/bold #F8B24B]")
+        lines.append(f"[#9CA3AF]Time:[/#9CA3AF] {_format_ts(row.get('ts'), with_date=True)}")
+        lines.append(f"[#9CA3AF]Client:[/#9CA3AF] {row.get('client_name') or row.get('client_id') or '-'}")
+        lines.append(f"[#9CA3AF]Agent:[/#9CA3AF] {row.get('agent_id') or '-'}")
+        lines.append(f"[#9CA3AF]Type:[/#9CA3AF] {row.get('event_type') or '-'}")
+        lines.append(f"[#9CA3AF]Layer:[/#9CA3AF] {row.get('target_layer') or '-'}")
+        lines.append(f"[#9CA3AF]Status:[/#9CA3AF] {row.get('status') or '-'}")
+        if row.get("query"):
+            lines.append(f"[#9CA3AF]Query:[/#9CA3AF] {row.get('query')}")
+        if row.get("detail"):
+            lines.append(f"[#9CA3AF]Detail:[/#9CA3AF] {row.get('detail')}")
+
+        memory_id = row.get("memory_id")
+        layer = row.get("target_layer") or ""
+        table_map = {
+            "semantic": "memories_semantic",
+            "episodic": "memories_episodic",
+            "procedural": "memories_procedural",
+            "rag": "memories_rag",
+            "working": "working_memory",
+        }
+
+        if row.get("event_type") == "propose":
+            item = self._load_quarantine_row(row)
+            if item:
+                lines.append("")
+                lines.append("[bold #F59E0B]Quarantine Payload[/bold #F59E0B]")
+                lines.append(self._format_jsonish(item.get("payload")))
+            else:
+                lines.append("")
+                lines.append("[#9CA3AF]No quarantine payload matched.[/#9CA3AF]")
+        elif memory_id and layer in table_map:
+            mem = self._load_memory_row(table_map[layer], memory_id)
+            if mem:
+                lines.append("")
+                lines.append("[bold #F59E0B]Memory Record[/bold #F59E0B]")
+                for key in ["content", "goal", "outcome", "skill_name", "steps", "tags", "plan", "tool_logs", "metadata"]:
+                    if key in mem and mem.get(key) is not None:
+                        lines.append(f"[#9CA3AF]{key}:[/#9CA3AF] {self._format_jsonish(mem.get(key))}")
+            else:
+                lines.append("")
+                lines.append("[#9CA3AF]Memory record not found.[/#9CA3AF]")
+        else:
+            lines.append("")
+            lines.append("[#9CA3AF]No memory payload for this access event.[/#9CA3AF]")
+
+        self.query_one("#access-detail-text", Static).update("\n".join(lines))
 
 class AgentsView(Container):
     def compose(self) -> ComposeResult:
