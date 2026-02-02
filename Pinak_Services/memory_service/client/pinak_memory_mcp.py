@@ -1,8 +1,10 @@
 from fastmcp import FastMCP
 import httpx
 import os
+import sys
 import json
-from typing import List, Dict, Any
+import argparse
+from typing import List, Dict, Any, Optional
 
 # Initialize the MCP Server
 mcp = FastMCP("Pinak Memory")
@@ -11,8 +13,8 @@ mcp = FastMCP("Pinak Memory")
 API_BASE_URL = os.getenv("PINAK_API_URL", "http://localhost:8000/api/v1")
 PINAK_SECRET = os.getenv("PINAK_JWT_SECRET", "secret")  # Default for dev
 PINAK_PROJECT_ID = os.getenv("PINAK_PROJECT_ID", "pinak-memory")
-PINAK_CLIENT_NAME = os.getenv("PINAK_CLIENT_NAME", "unknown-client")
-PINAK_CLIENT_ID = os.getenv("PINAK_CLIENT_ID", PINAK_CLIENT_NAME)
+PINAK_CLIENT_NAME = os.getenv("PINAK_CLIENT_NAME", "")
+PINAK_CLIENT_ID = os.getenv("PINAK_CLIENT_ID", "")
 PINAK_PARENT_CLIENT_ID = os.getenv("PINAK_PARENT_CLIENT_ID")
 PINAK_CHILD_CLIENT_ID = os.getenv("PINAK_CHILD_CLIENT_ID")
 PINAK_SCHEMA_DIR = os.getenv("PINAK_SCHEMA_DIR", os.path.expanduser("~/pinak-memory/schemas"))
@@ -20,6 +22,31 @@ PINAK_JWT_TOKEN = os.getenv("PINAK_JWT_TOKEN")
 CLIENT_STATUS = None
 CLIENT_STATUS_MESSAGE_SHOWN = False
 SESSION_BANNER_SHOWN = False
+
+
+def _truthy(value: Optional[str]) -> bool:
+    return str(value or "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def _load_runtime_config() -> None:
+    global API_BASE_URL, PINAK_SECRET, PINAK_PROJECT_ID, PINAK_CLIENT_NAME
+    global PINAK_CLIENT_ID, PINAK_PARENT_CLIENT_ID, PINAK_CHILD_CLIENT_ID
+    global PINAK_SCHEMA_DIR, PINAK_JWT_TOKEN
+
+    API_BASE_URL = os.getenv("PINAK_API_URL", API_BASE_URL)
+    PINAK_SECRET = os.getenv("PINAK_JWT_SECRET", PINAK_SECRET)
+    PINAK_PROJECT_ID = os.getenv("PINAK_PROJECT_ID", PINAK_PROJECT_ID)
+    PINAK_CLIENT_NAME = os.getenv("PINAK_CLIENT_NAME", PINAK_CLIENT_NAME)
+    PINAK_CLIENT_ID = os.getenv("PINAK_CLIENT_ID", PINAK_CLIENT_ID)
+    PINAK_PARENT_CLIENT_ID = os.getenv("PINAK_PARENT_CLIENT_ID", PINAK_PARENT_CLIENT_ID)
+    PINAK_CHILD_CLIENT_ID = os.getenv("PINAK_CHILD_CLIENT_ID", PINAK_CHILD_CLIENT_ID)
+    PINAK_SCHEMA_DIR = os.getenv("PINAK_SCHEMA_DIR", PINAK_SCHEMA_DIR)
+    PINAK_JWT_TOKEN = os.getenv("PINAK_JWT_TOKEN", PINAK_JWT_TOKEN)
+
+    if not PINAK_CLIENT_NAME:
+        PINAK_CLIENT_NAME = PINAK_CLIENT_ID or "unknown-client"
+    if not PINAK_CLIENT_ID:
+        PINAK_CLIENT_ID = PINAK_CLIENT_NAME or "unknown-client"
 
 
 def _encode_jwt_hs256(payload: Dict[str, Any], secret: str) -> str:
@@ -44,6 +71,7 @@ def _get_token() -> str:
     Mints a fresh JWT token for the Agent using the CLI logic.
     In prod, this might use a long-lived service token.
     """
+    _load_runtime_config()
     if PINAK_JWT_TOKEN:
         token = PINAK_JWT_TOKEN.strip()
         if token.lower().startswith("bearer "):
@@ -71,6 +99,7 @@ def _get_token() -> str:
 
 
 def _api_request(method: str, endpoint: str, json_data: dict = None, params: dict = None) -> Dict[str, Any]:
+    _load_runtime_config()
     token = _get_token()
     headers = {"Authorization": f"Bearer {token}"}
     if PINAK_CLIENT_ID:
@@ -245,12 +274,26 @@ def recall(query: str, limit: int = 5) -> str:
     return _recall_impl(query, limit)
 
 
-def _remember_episode_impl(goal: str, outcome: str, summary: str, tags: List[str] = []) -> str:
+def _status_impl() -> str:
+    _heartbeat("active")
+    banner = _session_banner()
+    return banner or "Pinak memory online."
+
+
+@mcp.tool()
+def status() -> str:
+    """
+    Show the current memory summary for this client.
+    """
+    return _status_impl()
+
+
+def _remember_episode_impl(goal: str, outcome: str, content: str, tags: List[str] = []) -> str:
     """
     Implementation of remember_episode logic.
     """
     payload = {
-        "content": summary,
+        "content": content,
         "goal": goal,
         "outcome": outcome,
         "tags": tags,
@@ -276,7 +319,13 @@ def _remember_episode_impl(goal: str, outcome: str, summary: str, tags: List[str
 
 
 @mcp.tool()
-def remember_episode(goal: str, outcome: str, summary: str, tags: List[str] = []) -> str:
+def remember_episode(
+    goal: str,
+    outcome: str,
+    content: Optional[str] = None,
+    summary: Optional[str] = None,
+    tags: List[str] = [],
+) -> str:
     """
     Store an execution episode into long-term memory.
     Call this AFTER completing a significant task.
@@ -284,11 +333,13 @@ def remember_episode(goal: str, outcome: str, summary: str, tags: List[str] = []
     Args:
         goal: What you tried to do
         outcome: What happened (success/failure)
-        summary: Detailed explanation of steps
+        content: Detailed explanation of steps (preferred)
+        summary: Legacy alias for content
         tags: List of keywords
     """
     _heartbeat("active")
-    return _remember_episode_impl(goal, outcome, summary, tags)
+    body = content or summary or ""
+    return _remember_episode_impl(goal, outcome, body, tags)
 
 
 def _status_notice() -> str:
@@ -353,6 +404,19 @@ def _session_banner() -> str:
     return "\n".join(lines)
 
 
+def _startup() -> None:
+    _load_runtime_config()
+    if _truthy(os.getenv("PINAK_AUTO_HEARTBEAT", "1")):
+        _heartbeat("active")
+    if _truthy(os.getenv("PINAK_STARTUP_BANNER", "1")):
+        banner = _session_banner()
+        if banner:
+            try:
+                print(banner, file=sys.stderr)
+            except Exception:
+                pass
+
+
 @mcp.tool()
 def reflect_and_condense() -> str:
     """
@@ -368,5 +432,52 @@ def reflect_and_condense() -> str:
         return f"Reflection failed: {str(e)}"
 
 
+def _cli_main(argv: List[str]) -> int:
+    parser = argparse.ArgumentParser(description="Pinak Memory MCP CLI")
+    parser.add_argument("--api-url", dest="api_url")
+    parser.add_argument("--token", dest="token")
+    parser.add_argument("--secret", dest="secret")
+    parser.add_argument("--client-id", dest="client_id")
+    parser.add_argument("--client-name", dest="client_name")
+
+    sub = parser.add_subparsers(dest="command", required=True)
+    p_status = sub.add_parser("status", help="Show memory summary")
+    p_recall = sub.add_parser("recall", help="Recall memories")
+    p_recall.add_argument("query")
+    p_recall.add_argument("--limit", type=int, default=5)
+    p_episode = sub.add_parser("remember-episode", help="Store episodic memory")
+    p_episode.add_argument("goal")
+    p_episode.add_argument("outcome")
+    p_episode.add_argument("content")
+    p_episode.add_argument("--tags", nargs="*", default=[])
+
+    args = parser.parse_args(argv)
+    if args.api_url:
+        os.environ["PINAK_API_URL"] = args.api_url
+    if args.token:
+        os.environ["PINAK_JWT_TOKEN"] = args.token
+    if args.secret:
+        os.environ["PINAK_JWT_SECRET"] = args.secret
+    if args.client_id:
+        os.environ["PINAK_CLIENT_ID"] = args.client_id
+    if args.client_name:
+        os.environ["PINAK_CLIENT_NAME"] = args.client_name
+
+    _load_runtime_config()
+    if args.command == "status":
+        print(_status_impl())
+        return 0
+    if args.command == "recall":
+        print(_recall_impl(args.query, args.limit))
+        return 0
+    if args.command == "remember-episode":
+        print(_remember_episode_impl(args.goal, args.outcome, args.content, args.tags))
+        return 0
+    return 1
+
+
 if __name__ == "__main__":
+    if len(sys.argv) > 1 and sys.argv[1] not in ("--mcp",):
+        raise SystemExit(_cli_main(sys.argv[1:]))
+    _startup()
     mcp.run()

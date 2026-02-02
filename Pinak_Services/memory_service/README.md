@@ -28,9 +28,9 @@ This service provides a unified, persistent memory layer for all AI agents opera
 
 ### ✅ Install
 ```bash
-python -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
-pip install -e .
+./.venv/bin/python -m pip install -e .
 ```
 
 ### 🟢 One-Command Startup
@@ -39,18 +39,26 @@ Launch the full Memory Command Center (Server + TUI) with a single command:
 ./pinak-memory
 ```
 *This handles server startup, port checking, and UI visualization automatically.*
+If `pinak-memory` is installed in PATH and cannot find the venv, set:
+```bash
+export PINAK_HOME="/path/to/memory_service"
+```
+Optional alias:
+```bash
+./pinak_memory
+```
 
 ### 🔍 Quick Context Search (CLI)
 Query your persistent context directly without the UI:
 ```bash
 export PINAK_JWT_SECRET="secret"
-uv run python cli/main.py search "disk cleanup strategies"
+./.venv/bin/python -m cli.main search "disk cleanup strategies"
 ```
 
 ### 🩺 System Diagnostics
 Run a full integrity check on the neural substrate:
 ```bash
-uv run python cli/main.py doctor
+./.venv/bin/python -m cli.main doctor
 ```
 
 ---
@@ -103,6 +111,17 @@ scripts/pinak-unlock.sh
 ## 🤖 Agent Operations (MCP Integration)
 
 Agents interface with memory via the **Model Context Protocol (MCP)**. This abstracts authentication and vector complexity into simple tools.
+
+### 0) One‑Command MCP Setup (All Agents)
+This is the fastest path for Codex, Gemini, Cursor, OpenCode, Kiro, Antigravity, and Pi:
+```bash
+./pinak-memory setup-mcp --agents all \
+  --api-url "http://127.0.0.1:8000/api/v1" \
+  --token "<jwt-token>" \
+  --client-id "codex" \
+  --client-name "codex"
+```
+This updates MCP configs and writes `~/pinak-memory/pinak.env` (used by `pinak-mcp`).
 
 ### 1. Live Loading (Configuration)
 The MCP server is now registered in your local Claude Desktop configuration. To activate it:
@@ -229,6 +248,7 @@ Headers:
 Manual approval: first‑time clients are `registered`. Mark them **trusted** in TUI → Clients tab.
 
 Prefer `PINAK_JWT_TOKEN` for clients (no shared secret required).
+Session banner is enabled by default (`PINAK_STARTUP_BANNER=1`). Set to `0` to disable.
 
 ### Schemas & Templates
 - Local canonical: `~/pinak-memory/schemas`, `~/pinak-memory/templates`

@@ -22,10 +22,17 @@ PYTHON_BIN="${PINAK_MCP_PYTHON:-python3}"
 #!/bin/bash
 set -euo pipefail
 
-PYTHON_BIN="${PINAK_MCP_PYTHON:-python3}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ENV_FILE="${PINAK_ENV_FILE:-$SCRIPT_DIR/../pinak.env}"
 
-exec "$PYTHON_BIN" "$SCRIPT_DIR/pinak_memory_mcp.py"
+if [ -f "$ENV_FILE" ]; then
+  set -a
+  . "$ENV_FILE"
+  set +a
+fi
+
+PYTHON_BIN="${PINAK_MCP_PYTHON:-python3}"
+exec "$PYTHON_BIN" "$SCRIPT_DIR/pinak_memory_mcp.py" "$@"
 EOF
 
 /bin/chmod 755 "$TARGET_DIR/pinak-mcp"

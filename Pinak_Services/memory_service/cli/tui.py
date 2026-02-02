@@ -34,7 +34,7 @@ Footer {
 
 #sidebar {
     dock: left;
-    width: 30;
+    width: 34;
     background: #0A0F1A;
     border-right: solid #111827;
 }
@@ -51,12 +51,13 @@ Footer {
 
 Button.nav-button {
     margin: 0 1;
-    padding: 1 2;
+    padding: 1 1;
     width: 1fr;
     background: #0A0F1A;
     color: #A3B0C2;
     border: none;
     text-align: left;
+    text-wrap: nowrap;
 }
 
 Button.nav-button:hover {
@@ -68,7 +69,7 @@ Button.nav-button.--highlight {
     background: #F97316;
     color: #0B0F17;
     text-style: bold;
-    border-left: thick #FDBA74;
+    border-left: solid #FDBA74;
 }
 
 #main-content {
@@ -78,15 +79,15 @@ Button.nav-button.--highlight {
 }
 
 #topbar {
-    height: 6;
-    padding: 1 1;
+    height: 7;
+    padding: 1 2;
     background: #0F172A;
     border: solid #1E293B;
     margin: 0 0 1 0;
 }
 
 #topbar-spacer {
-    width: 20;
+    width: 28;
 }
 
 #topbar-center {
@@ -95,7 +96,7 @@ Button.nav-button.--highlight {
 }
 
 #topbar-title {
-    color: #F8B24B;
+    color: #FBBF24;
     text-style: bold;
     text-align: center;
     padding-top: 1;
@@ -104,14 +105,15 @@ Button.nav-button.--highlight {
 #topbar-subtitle {
     color: #A5B4D0;
     text-align: center;
+    padding-bottom: 1;
 }
 
 #topbar-status {
-    width: 42;
-    background: #0B1B2A;
-    border: solid #1E293B;
-    color: #67E8F9;
-    text-style: bold;
+    width: 28;
+    background: #0B1C2A;
+    border: round #1E293B;
+    color: #93C5FD;
+    text-style: dim;
     text-align: center;
     padding: 0 2;
 }
@@ -119,9 +121,9 @@ Button.nav-button.--highlight {
 .stat-card {
     background: #0F172A;
     border: solid #1E293B;
-    height: 8;
+    height: 7;
     margin: 1;
-    padding: 1 1;
+    padding: 0 1;
     width: 1fr;
     border-title-color: #F59E0B;
     border-title-style: bold;
@@ -179,15 +181,11 @@ Button.-primary {
     align: left middle;
 }
 
-#toolbar-spacer {
-    width: 1fr;
-}
-
 #client-selected {
-    padding-left: 1;
+    padding-right: 1;
     color: #A5B4D0;
     text-align: right;
-    width: 24;
+    width: 1fr;
 }
 
 .muted {
@@ -531,10 +529,9 @@ class ClientRegistryView(Container):
     def compose(self) -> ComposeResult:
         yield Static("Client Registry (Observed / Registered / Trusted)", classes="stat-title")
         with Horizontal(classes="toolbar"):
-            yield Button("Mark Trusted", id="btn_client_trusted", variant="primary")
+            yield Button("Mark Trusted", id="btn_client_trusted", classes="-primary")
             yield Button("Mark Observed", id="btn_client_observed")
             yield Button("Mark Blocked", id="btn_client_blocked")
-            yield Static("", id="toolbar-spacer")
             yield Static("Selected: -", id="client-selected", classes="muted")
         yield DataTable(id="clients-table")
 
@@ -814,8 +811,8 @@ class MemoryApp(App):
                 cur.execute("SELECT count(*) FROM logs_client_issues WHERE status = 'open'")
                 open_issues = cur.fetchone()[0]
                 conn.close()
-                now_ist = datetime.datetime.now(IST).strftime("%H:%M:%S IST")
-                status = f"{now_ist} • mem {total} • agents {active_agents} • issues {open_issues}"
+                now_ist = datetime.datetime.now(IST).strftime("%H:%M IST")
+                status = f"{now_ist} • m{total} • a{active_agents} • i{open_issues}"
             except Exception:
                 status = "db error"
         self.query_one("#topbar-status", Static).update(status)

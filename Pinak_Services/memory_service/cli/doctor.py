@@ -1,6 +1,7 @@
 import os
 import hashlib
 import sqlite3
+import json
 import subprocess
 import time
 import shutil
@@ -331,6 +332,133 @@ def _check_llm_runtime(report: DoctorReport) -> None:
             report.add_issue("No local LLM runtime found (MLX missing; gemini CLI not found)")
 
 
+def _mint_doctor_token() -> Optional[str]:
+    token = os.getenv("PINAK_JWT_TOKEN")
+    if token:
+        return token
+    secret = os.getenv("PINAK_JWT_SECRET") or "secret"
+    payload = {
+        "sub": "doctor",
+        "tenant": "default",
+        "project_id": "pinak-memory",
+        "roles": ["admin"],
+        "scopes": ["memory.read", "memory.write", "memory.admin"],
+        "iat": datetime.datetime.now(datetime.timezone.utc),
+        "exp": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=5),
+    }
+    try:
+        import jwt  # type: ignore
+        return jwt.encode(payload, secret, algorithm="HS256")
+    except Exception:
+        import base64
+        import hashlib
+        import hmac
+
+        def b64url(data: bytes) -> str:
+            return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
+
+        header = {"alg": "HS256", "typ": "JWT"}
+        header_b64 = b64url(json.dumps(header, separators=(",", ":")).encode())
+        payload_b64 = b64url(json.dumps(payload, default=str, separators=(",", ":")).encode())
+        msg = f"{header_b64}.{payload_b64}".encode()
+        sig = hmac.new(secret.encode(), msg, hashlib.sha256).digest()
+        return f"{header_b64}.{payload_b64}.{b64url(sig)}"
+
+
+def _check_quarantine_write(report: DoctorReport, fix: bool) -> bool:
+    token = _mint_doctor_token()
+    if not token:
+        report.add_issue("doctor could not mint JWT token for write probe")
+        return False
+    url = os.getenv("PINAK_API_URL", "http://127.0.0.1:8000/api/v1")
+    payload = {"content": "doctor probe", "goal": "health", "outcome": "ok", "salience": 0}
+    try:
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "X-Pinak-Client-Id": "doctor",
+            "X-Pinak-Client-Name": "doctor",
+        }
+        with httpx.Client(timeout=3.0) as client:
+            resp = client.post(
+                f"{url}/memory/quarantine/propose/episodic",
+                headers=headers,
+                json=payload,
+            )
+        if resp.status_code >= 200 and resp.status_code < 300:
+            report.add_note("quarantine write probe ok")
+            return True
+        report.add_issue(f"quarantine write probe failed ({resp.status_code})")
+        return False
+    except Exception as exc:
+        report.add_issue(f"quarantine write probe failed ({exc})")
+        return False
+
+
+def _resolve_mcp_issues(report: DoctorReport, fix: bool) -> None:
+    db_path = _get_db_path()
+    if not os.path.exists(db_path):
+        return
+    env_path = Path(os.path.expanduser("~/pinak-memory/pinak.env"))
+    with sqlite3.connect(db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        cur = conn.cursor()
+        if not fix:
+            cur.execute(
+                "SELECT count(*) FROM logs_client_issues WHERE status = 'open' AND error_code IN ('parameter_signature_mismatch','env_var_isolation','automation_gap')"
+            )
+            count = cur.fetchone()[0]
+            if count:
+                report.add_issue(f"{count} open MCP workflow issues (run doctor --fix)")
+            return
+        resolution_time = datetime.datetime.now().isoformat()
+        if env_path.exists():
+            cur.execute(
+                """
+                UPDATE logs_client_issues
+                SET status = 'resolved', resolved_at = ?, resolved_by = ?, resolution = ?
+                WHERE status = 'open' AND error_code = 'env_var_isolation'
+                """,
+                (resolution_time, "doctor", "pinak.env available for shell usage"),
+            )
+        cur.execute(
+            """
+            UPDATE logs_client_issues
+            SET status = 'resolved', resolved_at = ?, resolved_by = ?, resolution = ?
+            WHERE status = 'open' AND error_code = 'parameter_signature_mismatch'
+            """,
+            (resolution_time, "doctor", "remember_episode now accepts content/summary"),
+        )
+        cur.execute(
+            """
+            UPDATE logs_client_issues
+            SET status = 'resolved', resolved_at = ?, resolved_by = ?, resolution = ?
+            WHERE status = 'open' AND error_code = 'automation_gap'
+            """,
+            (resolution_time, "doctor", "status tool + startup banner available"),
+        )
+        cur.execute(
+            """
+            UPDATE logs_client_issues
+            SET status = 'resolved', resolved_at = ?, resolved_by = ?, resolution = ?
+            WHERE status = 'open' AND error_code IN ('episodic_propose_failed','ingestion_failed_500')
+            """,
+            (resolution_time, "doctor", "quarantine write probe ok"),
+        )
+        cur.execute(
+            """
+            UPDATE logs_client_issues
+            SET status = 'resolved', resolved_at = ?, resolved_by = ?, resolution = ?
+            WHERE status = 'open' AND error_code = 'missing_client_id'
+              AND client_id IN (
+                SELECT client_id FROM clients_registry
+                WHERE status IN ('observed','registered','trusted')
+              )
+            """,
+            (resolution_time, "doctor", "client_id now present in registry"),
+        )
+        conn.commit()
+
+
 def _check_embedding_backend(report: DoctorReport) -> None:
     backend = os.getenv("PINAK_EMBEDDING_BACKEND", "")
     if backend.lower() == "qmd":
@@ -338,6 +466,35 @@ def _check_embedding_backend(report: DoctorReport) -> None:
             report.add_issue("PINAK_EMBEDDING_BACKEND=qmd but qmd is not installed")
         else:
             report.add_note("qmd embedding backend selected")
+
+
+def _ensure_env_file(report: DoctorReport, fix: bool) -> None:
+    env_path = Path(os.path.expanduser("~/pinak-memory/pinak.env"))
+    if env_path.exists():
+        return
+    if not fix:
+        report.add_issue(f"pinak.env missing: {env_path}")
+        return
+    api_url = os.getenv("PINAK_API_URL", "http://127.0.0.1:8000/api/v1")
+    project_id = os.getenv("PINAK_PROJECT_ID", "pinak-memory")
+    secret = os.getenv("PINAK_JWT_SECRET", "secret")
+    env_path.parent.mkdir(parents=True, exist_ok=True)
+    repo_root = Path(__file__).resolve().parent.parent
+    env_path.write_text(
+        "\n".join(
+            [
+                f"PINAK_API_URL={api_url}",
+                f"PINAK_PROJECT_ID={project_id}",
+                f"PINAK_JWT_SECRET={secret}",
+                f"PINAK_HOME={repo_root}",
+                f"PINAK_MCP_PYTHON={repo_root}/.venv/bin/python",
+                "PINAK_AUTO_HEARTBEAT=1",
+                "PINAK_STARTUP_BANNER=1",
+            ]
+        )
+        + "\n"
+    )
+    report.add_action(f"created pinak.env at {env_path}")
 
 
 def _ensure_db(report: DoctorReport, fix: bool) -> None:
@@ -525,7 +682,11 @@ def run_doctor(fix: bool = False, allow_heavy: bool = False) -> DoctorReport:
     _backfill_missing_clients(report, fix)
     _ensure_vectors(report, fix, allow_heavy)
     _ensure_schema_assets(report, fix)
+    _ensure_env_file(report, fix)
     _resolve_schema_issues(report, fix)
+    write_ok = _check_quarantine_write(report, fix)
+    if write_ok:
+        _resolve_mcp_issues(report, fix)
     _ensure_lockdown_policy(report, fix)
     _check_llm_runtime(report)
 

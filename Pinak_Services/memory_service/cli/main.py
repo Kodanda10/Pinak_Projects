@@ -13,6 +13,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../")))
 import datetime
 import jwt
 import httpx
+import subprocess
 from app.core.database import DatabaseManager
 
 app = typer.Typer(name="pinak-memory", help="Pinak Memory Service CLI")
@@ -100,6 +101,32 @@ def tui():
     """Launch Real-time Dashboard."""
     from cli.tui import MemoryApp
     MemoryApp().run()
+
+@app.command("setup-mcp")
+def setup_mcp(
+    agents: str = "all",
+    api_url: str = "http://127.0.0.1:8000/api/v1",
+    token: Optional[str] = None,
+    secret: Optional[str] = None,
+    client_id: Optional[str] = None,
+    client_name: Optional[str] = None,
+):
+    """Install or update pinak-memory MCP config across common agents."""
+    script = Path(__file__).resolve().parent.parent / "scripts" / "pinak-mcp-setup.py"
+    cmd = [sys.executable, str(script), "--agents", agents, "--api-url", api_url]
+    if token:
+        cmd += ["--token", token]
+    if secret:
+        cmd += ["--secret", secret]
+    if client_id:
+        cmd += ["--client-id", client_id]
+    if client_name:
+        cmd += ["--client-name", client_name]
+    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
+    if result.stdout:
+        typer.echo(result.stdout.strip())
+    if result.stderr:
+        typer.echo(result.stderr.strip())
 
 @app.command()
 def mint(tenant: str, project: str = "default", secret: str = None):

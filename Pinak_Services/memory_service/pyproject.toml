@@ -9,6 +9,8 @@ description = "Enterprise-grade Pinak memory service for autonomous agents."
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.111",
+    "fastmcp>=2.0.0",
+    "httpx>=0.26.0",
     "uvicorn[standard]>=0.30",
     "sentence-transformers>=2.2",
     "faiss-cpu>=1.7.4",
@@ -39,5 +41,4 @@ include = ["app*"]
 [tool.pytest.ini_options]
 addopts = "-ra"
 pythonpath = ["app"]
-
 

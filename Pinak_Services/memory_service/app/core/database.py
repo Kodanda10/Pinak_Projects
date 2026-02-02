@@ -528,7 +528,19 @@ class DatabaseManager:
                     parent_client_id = excluded.parent_client_id,
                     last_seen = excluded.last_seen
             """, (mid, agent_id, client_name, client_id, parent_client_id, hostname, pid, status, meta_json, tenant, project_id, last_seen))
-        return {"agent_id": agent_id, "client_name": client_name, "status": status, "last_seen": last_seen, "client_id": client_id, "parent_client_id": parent_client_id}
+        return {
+            "agent_id": agent_id,
+            "client_name": client_name,
+            "client_id": client_id,
+            "parent_client_id": parent_client_id,
+            "hostname": hostname,
+            "pid": pid,
+            "status": status,
+            "meta": meta or {},
+            "tenant": tenant,
+            "project_id": project_id,
+            "last_seen": last_seen,
+        }
 
     def list_agents(self, tenant: str, project_id: str, limit: int = 200) -> List[Dict[str, Any]]:
         with self.get_cursor() as conn:
@@ -609,7 +621,19 @@ class DatabaseManager:
             event_type="quarantine:create",
             payload={"id": mid, "layer": layer, "tenant": tenant, "project_id": project_id},
         )
-        return {"id": mid, "status": "pending", "layer": layer}
+        return {
+            "id": mid,
+            "layer": layer,
+            "payload": payload,
+            "status": "pending",
+            "tenant": tenant,
+            "project_id": project_id,
+            "created_at": created_at,
+            "agent_id": agent_id,
+            "client_id": client_id,
+            "client_name": client_name,
+            "validation_errors": validation_errors or [],
+        }
 
     def list_quarantine(self, tenant: str, project_id: str, status: str = "pending", limit: int = 100) -> List[Dict[str, Any]]:
         with self.get_cursor() as conn:
