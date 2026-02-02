@@ -2,8 +2,8 @@ from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any, Union
 
 class MemoryCreate(BaseModel):
-    content: str
-    tags: Optional[List[str]] = None
+    content: str = Field(..., max_length=100000, description="Memory content")
+    tags: Optional[List[str]] = Field(None, max_length=50, description="List of tags")
 
 class MemoryRead(BaseModel):
     id: str
@@ -25,38 +25,38 @@ class MemorySearchResult(MemoryRead):
     metadata: Optional[Dict[str, Any]] = None
 
 class EpisodicCreate(BaseModel):
-    content: str
-    salience: int = 0
-    goal: Optional[str] = None
-    plan: Optional[List[str]] = None
-    outcome: Optional[str] = None
-    tool_logs: Optional[List[Dict[str, Any]]] = None
+    content: str = Field(..., max_length=100000)
+    salience: int = Field(0, ge=0, le=10)
+    goal: Optional[str] = Field(None, max_length=1000)
+    plan: Optional[List[str]] = Field(None, max_length=100)
+    outcome: Optional[str] = Field(None, max_length=10000)
+    tool_logs: Optional[List[Dict[str, Any]]] = Field(None, max_length=1000)
     embedding_id: Optional[int] = None
 
 class ProceduralCreate(BaseModel):
-    skill_name: str
-    steps: List[str]
-    description: Optional[str] = None
-    trigger: Optional[str] = None
-    code_snippet: Optional[str] = None
+    skill_name: str = Field(..., max_length=256)
+    steps: List[str] = Field(..., max_length=100)
+    description: Optional[str] = Field(None, max_length=5000)
+    trigger: Optional[str] = Field(None, max_length=500)
+    code_snippet: Optional[str] = Field(None, max_length=50000)
     embedding_id: Optional[int] = None
 
 class RAGCreate(BaseModel):
-    query: str
-    external_source: str
-    content: str
+    query: str = Field(..., max_length=4096)
+    external_source: str = Field(..., max_length=1024)
+    content: str = Field(..., max_length=100000)
 
 class EventCreate(BaseModel):
     event_type: str
     payload: Dict[str, Any]
 
 class SessionCreate(BaseModel):
-    session_id: str
-    content: str
-    role: str = "user"
+    session_id: str = Field(..., max_length=256)
+    content: str = Field(..., max_length=50000)
+    role: str = Field("user", max_length=50)
 
 class WorkingCreate(BaseModel):
-    content: str
+    content: str = Field(..., max_length=50000)
 
 class AgentHeartbeatCreate(BaseModel):
     status: str = "active"
