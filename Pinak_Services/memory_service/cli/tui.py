@@ -87,8 +87,8 @@ Button.nav-button.--highlight {
 }
 
 #topbar {
-    height: 5;
-    padding: 0 1;
+    height: 6;
+    padding: 1 1;
     background: #0F172A;
     border: solid #1E293B;
     margin: 0 0 1 0;
@@ -104,29 +104,33 @@ Button.nav-button.--highlight {
 }
 
 #topbar-title {
-    color: #F59E0B;
+    color: #F8B24B;
     text-style: bold;
     text-align: center;
+    padding-top: 1;
 }
 
 #topbar-subtitle {
-    color: #94A3B8;
+    color: #A5B4D0;
     text-align: center;
 }
 
 #topbar-status {
-    width: 24;
-    color: #22D3EE;
+    width: 26;
+    background: #0B1B2A;
+    border: solid #1E293B;
+    color: #67E8F9;
     text-style: bold;
-    text-align: right;
+    text-align: center;
+    padding: 0 2;
 }
 
 .stat-card {
     background: #0F172A;
     border: solid #1E293B;
-    height: 9;
+    height: 8;
     margin: 1;
-    padding: 1 2;
+    padding: 1 1;
     width: 1fr;
     border-title-color: #F59E0B;
     border-title-style: bold;
