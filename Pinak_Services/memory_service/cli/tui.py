@@ -107,7 +107,7 @@ Button.nav-button.--highlight {
 }
 
 #topbar-status {
-    width: 26;
+    width: 42;
     background: #0B1B2A;
     border: solid #1E293B;
     color: #67E8F9;
@@ -186,6 +186,8 @@ Button.-primary {
 #client-selected {
     padding-left: 1;
     color: #A5B4D0;
+    text-align: right;
+    width: 24;
 }
 
 .muted {
@@ -196,6 +198,33 @@ Button.-primary {
     color: #A3B0C2;
 }
 """
+
+IST = datetime.timezone(datetime.timedelta(hours=5, minutes=30))
+
+def _parse_ts(value: Optional[str]) -> Optional[datetime.datetime]:
+    if not value:
+        return None
+    s = value.strip()
+    try:
+        if "T" in s:
+            if s.endswith("Z"):
+                s = s.replace("Z", "+00:00")
+            dt = datetime.datetime.fromisoformat(s)
+        else:
+            dt = datetime.datetime.strptime(s, "%Y-%m-%d %H:%M:%S")
+            dt = dt.replace(tzinfo=datetime.timezone.utc)
+    except Exception:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=datetime.timezone.utc)
+    return dt
+
+def _format_ts(value: Optional[str], with_date: bool = False) -> str:
+    dt = _parse_ts(value)
+    if not dt:
+        return value or ""
+    dt_ist = dt.astimezone(IST)
+    return dt_ist.strftime("%m-%d %H:%M") if with_date else dt_ist.strftime("%H:%M:%S")
 
 class Sidebar(Container):
     def compose(self) -> ComposeResult:
@@ -336,7 +365,7 @@ class AccessView(Container):
             table = self.query_one("#access-table", DataTable)
             table.clear()
             for row in rows:
-                ts = row["ts"].split("T")[1][:8] if row["ts"] else ""
+                ts = _format_ts(row["ts"])
                 client = row["client_name"] or "unknown"
                 agent = row["agent_id"] or "unknown"
                 etype = row["event_type"]
@@ -394,13 +423,9 @@ class AgentsView(Container):
 
             table = self.query_one("#agents-table", DataTable)
             table.clear()
-            now = datetime.datetime.utcnow()
+            now = datetime.datetime.now(datetime.timezone.utc)
             for agent_id, client_name, status, last_seen in agents:
-                last_seen_ts = None
-                try:
-                    last_seen_ts = datetime.datetime.fromisoformat(last_seen)
-                except Exception:
-                    last_seen_ts = None
+                last_seen_ts = _parse_ts(last_seen)
                 delta = (now - last_seen_ts).total_seconds() if last_seen_ts else 9999
                 if delta <= 30:
                     indicator = "🟢"
@@ -414,7 +439,7 @@ class AgentsView(Container):
                     indicator,
                     client_name or "unknown",
                     agent_id or "unknown",
-                    (last_seen or "")[11:19],
+                    _format_ts(last_seen),
                     str(reads_5m),
                     str(writes_5m),
                     str(errors_5m),
@@ -445,7 +470,7 @@ class AgentsView(Container):
             if not rows:
                 text += "[yellow]No recent access events.[/yellow]"
             for r in rows:
-                ts = r['ts'].split('T')[1][:8] if r['ts'] else ""
+                ts = _format_ts(r['ts'])
                 detail = r['query'] or r['memory_id'] or "-"
                 text += f"[bold #60A5FA]◈ {ts} | {r['event_type']} {r['target_layer']}[/bold #60A5FA]\n"
                 text += f"[#9CA3AF]{detail} ({r['status']})[/#9CA3AF]\n\n"
@@ -487,7 +512,7 @@ class ClientIssuesView(Container):
             table = self.query_one("#issues-table", DataTable)
             table.clear()
             for row in rows:
-                ts = row["created_at"].split("T")[1][:8] if row["created_at"] else ""
+                ts = _format_ts(row["created_at"])
                 status = row["status"] or "open"
                 status_label = "open" if status == "open" else "resolved"
                 client = row["client_id"] or row["client_name"] or "unknown"
@@ -575,12 +600,8 @@ class ClientRegistryView(Container):
             table = self.query_one("#clients-table", DataTable)
             table.clear()
             for row in rows:
-                last_seen = row["last_seen"] or ""
-                if "T" in last_seen:
-                    last_seen = last_seen.split("T")[1][:8]
-                updated = row["updated_at"] or ""
-                if "T" in updated:
-                    updated = updated.split("T")[1][:8]
+                last_seen = _format_ts(row["last_seen"])
+                updated = _format_ts(row["updated_at"])
                 table.add_row(
                     last_seen,
                     row["status"] or "observed",
@@ -793,7 +814,8 @@ class MemoryApp(App):
                 cur.execute("SELECT count(*) FROM logs_client_issues WHERE status = 'open'")
                 open_issues = cur.fetchone()[0]
                 conn.close()
-                status = f"mem {total} • agents {active_agents} • issues {open_issues}"
+                now_ist = datetime.datetime.now(IST).strftime("%H:%M:%S IST")
+                status = f"{now_ist} • mem {total} • agents {active_agents} • issues {open_issues}"
             except Exception:
                 status = "db error"
         self.query_one("#topbar-status", Static).update(status)
