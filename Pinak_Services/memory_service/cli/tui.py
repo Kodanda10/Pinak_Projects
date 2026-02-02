@@ -1,6 +1,6 @@
 from textual.app import App, ComposeResult
 from textual.containers import Container, Horizontal, Vertical, VerticalScroll
-from textual.widgets import Header, Footer, Static, DataTable, ListView, ListItem, Label, Button
+from textual.widgets import Footer, Static, DataTable, Label, Button
 from textual.reactive import reactive
 from textual.screen import Screen
 from textual.message import Message
@@ -54,21 +54,26 @@ Footer {
     text-style: bold;
 }
 
-ListView.nav-list {
+.nav-list {
     height: 100%;
 }
 
-ListItem.nav-item {
+Button.nav-button {
+    margin: 0 1;
     padding: 1 2;
+    width: 1fr;
+    background: #0A0F1A;
     color: #A3B0C2;
+    border: none;
+    text-align: left;
 }
 
-ListItem.nav-item:hover {
+Button.nav-button:hover {
     background: #0E1628;
     color: #E5E7EB;
 }
 
-ListItem.nav-item.--highlight {
+Button.nav-button.--highlight {
     background: #F97316;
     color: #0B0F17;
     text-style: bold;
@@ -82,23 +87,35 @@ ListItem.nav-item.--highlight {
 }
 
 #topbar {
-    height: 4;
+    height: 5;
     padding: 0 1;
     background: #0F172A;
     border: solid #1E293B;
     margin: 0 0 1 0;
 }
 
+#topbar-spacer {
+    width: 20;
+}
+
+#topbar-center {
+    width: 1fr;
+    align: center middle;
+}
+
 #topbar-title {
     color: #F59E0B;
     text-style: bold;
+    text-align: center;
 }
 
 #topbar-subtitle {
     color: #94A3B8;
+    text-align: center;
 }
 
 #topbar-status {
+    width: 24;
     color: #22D3EE;
     text-style: bold;
     text-align: right;
@@ -177,17 +194,15 @@ Button.-primary {
 
 class Sidebar(Container):
     def compose(self) -> ComposeResult:
-        yield Label("🏹  PINAK OS", classes="brand")
+        yield Label("PINAK", classes="brand")
         yield Label("CORE", classes="nav-title")
-        yield ListView(
-            ListItem(Label("📊  System Mesh"), id="nav-dashboard", classes="nav-item"),
-            ListItem(Label("📡  Memory Access"), id="nav-access", classes="nav-item"),
-            ListItem(Label("👥  Agent Swarm"), id="nav-agents", classes="nav-item"),
-            ListItem(Label("🧷  Client Issues"), id="nav-issues", classes="nav-item"),
-            ListItem(Label("🧭  Client Registry"), id="nav-clients", classes="nav-item"),
-            ListItem(Label("❤️   Bio-Health"), id="nav-health", classes="nav-item"),
-            classes="nav-list",
-        )
+        with Vertical(classes="nav-list"):
+            yield Button("📊  System Mesh", id="nav-dashboard", classes="nav-button")
+            yield Button("📡  Memory Access", id="nav-access", classes="nav-button")
+            yield Button("👥  Agent Swarm", id="nav-agents", classes="nav-button")
+            yield Button("🧷  Client Issues", id="nav-issues", classes="nav-button")
+            yield Button("🧭  Client Registry", id="nav-clients", classes="nav-button")
+            yield Button("❤️   Bio-Health", id="nav-health", classes="nav-button")
 
 class DashboardView(Container):
     def compose(self) -> ComposeResult:
@@ -672,13 +687,14 @@ class MemoryApp(App):
     ]
 
     def compose(self) -> ComposeResult:
-        yield Header(show_clock=True)
         with Horizontal():
             yield Sidebar(id="sidebar")
             with Container(id="main-content"):
                 with Horizontal(id="topbar"):
-                    yield Static("System Mesh", id="topbar-title")
-                    yield Static("Global signals and memory substrate", id="topbar-subtitle")
+                    yield Static("", id="topbar-spacer")
+                    with Vertical(id="topbar-center"):
+                        yield Static("PINAK COMMAND CENTER", id="topbar-title")
+                        yield Static("System Mesh • Global signals and memory substrate", id="topbar-subtitle")
                     yield Static("booting…", id="topbar-status")
                 yield DashboardView(id="view-dashboard")
                 yield AccessView(id="view-access")
@@ -712,14 +728,17 @@ class MemoryApp(App):
     def action_show_health(self):
         self.switch_tab("health")
 
-    def on_list_view_selected(self, event: ListView.Selected):
-        nav_id = event.item.id
-        if nav_id == "nav-dashboard": self.switch_tab("dashboard")
-        elif nav_id == "nav-access": self.switch_tab("access")
-        elif nav_id == "nav-agents": self.switch_tab("agents")
-        elif nav_id == "nav-issues": self.switch_tab("issues")
-        elif nav_id == "nav-clients": self.switch_tab("clients")
-        elif nav_id == "nav-health": self.switch_tab("health")
+    def on_button_pressed(self, event: Button.Pressed):
+        button_id = event.button.id or ""
+        if button_id.startswith("nav-"):
+            tab = button_id.replace("nav-", "")
+            if tab == "dashboard": self.switch_tab("dashboard")
+            elif tab == "access": self.switch_tab("access")
+            elif tab == "agents": self.switch_tab("agents")
+            elif tab == "issues": self.switch_tab("issues")
+            elif tab == "clients": self.switch_tab("clients")
+            elif tab == "health": self.switch_tab("health")
+            event.stop()
 
     def switch_tab(self, tab: str):
         self.query_one("#view-dashboard").display = (tab == "dashboard")
@@ -729,8 +748,29 @@ class MemoryApp(App):
         self.query_one("#view-clients").display = (tab == "clients")
         self.query_one("#view-health").display = (tab == "health")
         title, subtitle = self.TAB_META.get(tab, ("Pinak Command Center", ""))
-        self.query_one("#topbar-title", Static).update(title)
-        self.query_one("#topbar-subtitle", Static).update(subtitle)
+        self.query_one("#topbar-title", Static).update("PINAK COMMAND CENTER")
+        self.query_one("#topbar-subtitle", Static).update(f"{title} • {subtitle}")
+        self._set_nav_highlight(tab)
+
+    def _set_nav_highlight(self, tab: str):
+        nav_ids = [
+            "nav-dashboard",
+            "nav-access",
+            "nav-agents",
+            "nav-issues",
+            "nav-clients",
+            "nav-health",
+        ]
+        active_id = f"nav-{tab}"
+        for nav_id in nav_ids:
+            try:
+                btn = self.query_one(f"#{nav_id}", Button)
+            except Exception:
+                continue
+            if nav_id == active_id:
+                btn.add_class("--highlight")
+            else:
+                btn.remove_class("--highlight")
 
     def refresh_topbar_status(self):
         db_path = "data/memory.db"
