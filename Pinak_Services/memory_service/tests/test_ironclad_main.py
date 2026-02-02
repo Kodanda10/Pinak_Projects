@@ -10,8 +10,8 @@ def auth_token():
     payload = {
         "tenant": "t1",
         "project_id": "p1",
-        "roles": ["user", "admin"],
-        "scopes": ["memory.read", "memory.write", "memory.admin"]
+        "roles": ["admin"],
+        "scopes": ["memory.read", "memory.write", "memory.admin"],
     }
     token = jwt.encode(payload, secret, algorithm="HS256")
     return token

@@ -27,7 +27,13 @@ router = APIRouter()
 # --- Schemas ---
 
 @router.get("/schema/{layer}")
-def get_schema(layer: str):
+def get_schema(
+    layer: str,
+    ctx: AuthContext = Depends(require_auth_context),
+):
+    require_scope(ctx, "memory.read")
+    if not layer.replace("_", "").replace("-", "").isalnum():
+        raise HTTPException(status_code=400, detail="Invalid layer name")
     registry = SchemaRegistry()
     schema = registry.load_schema(layer)
     if not schema:
@@ -35,7 +41,10 @@ def get_schema(layer: str):
     return schema
 
 @router.get("/schema")
-def list_schemas():
+def list_schemas(
+    ctx: AuthContext = Depends(require_auth_context),
+):
+    require_scope(ctx, "memory.read")
     registry = SchemaRegistry()
     out = {}
     for layer in ["semantic", "episodic", "procedural", "rag", "working"]:
@@ -44,8 +53,6 @@ def list_schemas():
             out[layer] = schema
     return {
         "schemas": out,
-        "schema_dir": str(registry.schema_dir),
-        "fallback_dir": str(registry.fallback_dir),
     }
 
 # --- Semantic Memory ---
