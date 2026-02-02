@@ -34,7 +34,7 @@ Footer {
 
 #sidebar {
     dock: left;
-    width: 28;
+    width: 30;
     background: #0A0F1A;
     border-right: solid #111827;
 }
@@ -201,12 +201,12 @@ class Sidebar(Container):
         yield Label("PINAK", classes="brand")
         yield Label("CORE", classes="nav-title")
         with Vertical(classes="nav-list"):
-            yield Button("📊  System Mesh", id="nav-dashboard", classes="nav-button")
-            yield Button("📡  Memory Access", id="nav-access", classes="nav-button")
-            yield Button("👥  Agent Swarm", id="nav-agents", classes="nav-button")
-            yield Button("🧷  Client Issues", id="nav-issues", classes="nav-button")
-            yield Button("🧭  Client Registry", id="nav-clients", classes="nav-button")
-            yield Button("❤️   Bio-Health", id="nav-health", classes="nav-button")
+            yield Button("📊 System Mesh", id="nav-dashboard", classes="nav-button")
+            yield Button("📡 Memory Access", id="nav-access", classes="nav-button")
+            yield Button("👥 Agent Swarm", id="nav-agents", classes="nav-button")
+            yield Button("🧷 Client Issues", id="nav-issues", classes="nav-button")
+            yield Button("🧭 Client Registry", id="nav-clients", classes="nav-button")
+            yield Button("❤️ Bio-Health", id="nav-health", classes="nav-button")
 
 class DashboardView(Container):
     def compose(self) -> ComposeResult:
