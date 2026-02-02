@@ -12,6 +12,13 @@ from typing import List, Dict, Any, Optional
 logger = logging.getLogger(__name__)
 
 class DatabaseManager:
+    _ALLOWED_UPDATES = {
+        "semantic": {"content", "tags"},
+        "episodic": {"content", "goal", "plan", "steps", "salience", "outcome", "tool_logs"},
+        "procedural": {"skill_name", "steps", "description", "trigger", "code_snippet"},
+        "rag": {"query", "external_source", "content"},
+    }
+
     def __init__(self, db_path: str):
         self.db_path = db_path
         db_dir = os.path.dirname(db_path)
@@ -789,10 +796,17 @@ class DatabaseManager:
         if not updates:
             return False
 
+        # Security: Whitelist validation
+        allowed = self._ALLOWED_UPDATES.get(layer, set())
+        for k in updates.keys():
+            if k not in allowed:
+                logger.warning("Security Block: Attempt to update forbidden/unknown column '%s' in layer '%s'", k, layer)
+                raise ValueError(f"Forbidden column update: {k}")
+
         # Serialize JSON fields
         serialized = {}
         for key, value in updates.items():
-            if key in ("tags", "plan", "steps") and value is not None:
+            if key in ("tags", "plan", "steps", "tool_logs") and value is not None:
                 serialized[key] = json.dumps(value)
             else:
                 serialized[key] = value
