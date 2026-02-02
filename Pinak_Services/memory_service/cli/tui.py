@@ -39,15 +39,6 @@ Footer {
     border-right: solid #111827;
 }
 
-#sidebar .brand {
-    padding: 1;
-    background: #0F172A;
-    color: #E5E7EB;
-    text-align: center;
-    text-style: bold;
-    border-bottom: solid #1F2937;
-}
-
 #sidebar .nav-title {
     padding: 1 2;
     color: #64748B;
@@ -185,6 +176,16 @@ Button.-primary {
 .toolbar {
     height: 3;
     margin: 0 0 1 0;
+    align: left middle;
+}
+
+#toolbar-spacer {
+    width: 1fr;
+}
+
+#client-selected {
+    padding-left: 1;
+    color: #A5B4D0;
 }
 
 .muted {
@@ -198,7 +199,6 @@ Button.-primary {
 
 class Sidebar(Container):
     def compose(self) -> ComposeResult:
-        yield Label("PINAK", classes="brand")
         yield Label("CORE", classes="nav-title")
         with Vertical(classes="nav-list"):
             yield Button("📊 System Mesh", id="nav-dashboard", classes="nav-button")
@@ -509,6 +509,7 @@ class ClientRegistryView(Container):
             yield Button("Mark Trusted", id="btn_client_trusted", variant="primary")
             yield Button("Mark Observed", id="btn_client_observed")
             yield Button("Mark Blocked", id="btn_client_blocked")
+            yield Static("", id="toolbar-spacer")
             yield Static("Selected: -", id="client-selected", classes="muted")
         yield DataTable(id="clients-table")
 
