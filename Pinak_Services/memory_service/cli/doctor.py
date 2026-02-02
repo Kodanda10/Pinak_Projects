@@ -9,6 +9,7 @@ from typing import List, Optional
 
 import httpx
 import numpy as np
+import faiss
 
 from app.core.database import DatabaseManager
 from app.services.memory_service import MemoryService
@@ -299,10 +300,22 @@ def _ensure_db(report: DoctorReport, fix: bool) -> None:
 def _get_vector_index_size(vec_path: str) -> Optional[int]:
     if not os.path.exists(vec_path):
         return None
-    data = np.load(vec_path, allow_pickle=True)
-    if hasattr(data, "item") and isinstance(data.item(), dict):
-        return len(data.item().get("ids", []))
-    return data.shape[0]
+
+    # Try reading as FAISS index first
+    try:
+        index = faiss.read_index(vec_path)
+        return index.ntotal
+    except Exception:
+        pass
+
+    # Fallback to NumPy
+    try:
+        data = np.load(vec_path, allow_pickle=True)
+        if hasattr(data, "item") and isinstance(data.item(), dict):
+            return len(data.item().get("ids", []))
+        return data.shape[0]
+    except Exception:
+        return None
 
 
 def _get_db_vector_count(db_path: str) -> int:

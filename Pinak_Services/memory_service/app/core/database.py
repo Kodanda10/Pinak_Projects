@@ -21,6 +21,10 @@ class DatabaseManager:
 
     def _init_db(self):
         with self.get_cursor() as conn:
+            # Enable WAL mode for better concurrency
+            conn.execute("PRAGMA journal_mode=WAL;")
+            conn.execute("PRAGMA synchronous=NORMAL;")
+
             # 1. Semantic Memory (Knowledge)
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS memories_semantic (

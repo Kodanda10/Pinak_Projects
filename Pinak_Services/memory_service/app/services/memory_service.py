@@ -67,7 +67,20 @@ class MemoryService:
             self.embedding_dim = getattr(self.model, "embedding_dimension", 384)
 
         # Vector Store
-        self.vector_store = VectorStore(self.vector_path, self.embedding_dim) if self.vector_enabled else None
+        self.vector_store = None
+        if self.vector_enabled:
+            vector_backend = os.getenv("PINAK_VECTOR_STORE_TYPE", "faiss").lower()
+            if vector_backend == "faiss":
+                try:
+                    from app.services.faiss_vector_store import FaissVectorStore
+                    self.vector_store = FaissVectorStore(self.vector_path, self.embedding_dim)
+                    logger.info(f"Initialized FAISS Vector Store at {self.vector_path}")
+                except Exception as e:
+                    logger.error(f"Failed to load FAISS: {e}. Falling back to NumPy.")
+                    self.vector_store = VectorStore(self.vector_path, self.embedding_dim)
+            else:
+                self.vector_store = VectorStore(self.vector_path, self.embedding_dim)
+                logger.info(f"Initialized NumPy Vector Store at {self.vector_path}")
 
     def _normalize_client_ids(
         self,
