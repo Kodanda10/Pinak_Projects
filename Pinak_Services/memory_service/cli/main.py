@@ -4,7 +4,6 @@ import os
 import sys
 import json
 import sqlite3
-import faiss
 from typing import Optional
 from pathlib import Path
 
@@ -37,62 +36,29 @@ def start(
     uvicorn.run("app.main:app", host=host, port=port, reload=reload)
 
 @app.command()
-def doctor(fix: bool = False):
+def doctor(fix: bool = False, heavy: bool = False):
     """Check system health and integrity."""
+    from cli.doctor import run_doctor
+
     typer.echo("Running Pinak Memory Doctor...")
-    issues = []
+    report = run_doctor(fix=fix, allow_heavy=heavy)
 
-    # 1. Check DB
-    db_path = _get_db_path()
-    if not os.path.exists(db_path):
-        issues.append(f"Database not found at {db_path}")
-    else:
-        try:
-            conn = sqlite3.connect(db_path)
-            cursor = conn.cursor()
-            cursor.execute("PRAGMA integrity_check")
-            res = cursor.fetchone()[0]
-            if res != "ok":
-                issues.append(f"DB Integrity Check Failed: {res}")
-            conn.close()
-            typer.echo("✅ Database Integrity OK")
-        except Exception as e:
-            issues.append(f"DB Error: {e}")
+    if report.actions:
+        typer.echo("\n🛠️  Fixes Applied:")
+        for action in report.actions:
+            typer.echo(f" - {action}")
 
-    # 2. Check Vector Store
-    vec_path = _get_vector_path()
-    if not os.path.exists(vec_path):
-        issues.append(f"Vector Index not found at {vec_path}")
-    else:
-        try:
-            index = faiss.read_index(vec_path)
-            typer.echo(f"✅ Vector Index OK (Size: {index.ntotal})")
-
-            # Check Consistency
-            if os.path.exists(db_path):
-                conn = sqlite3.connect(db_path)
-                cursor = conn.cursor()
-                cursor.execute("SELECT count(*) FROM memories_semantic WHERE embedding_id IS NOT NULL")
-                db_count = cursor.fetchone()[0]
-                conn.close()
-
-                if db_count != index.ntotal:
-                    msg = f"Inconsistency detected: DB has {db_count} embeddings, Vector Index has {index.ntotal}"
-                    issues.append(msg)
-                    if fix:
-                        typer.echo("Attempting fix... (Not implemented: requires re-indexing from DB)")
-                        # Logic: Iterate DB, clear Index, add all back.
-        except Exception as e:
-            issues.append(f"Vector Index Error: {e}")
-
-    if not issues:
-        typer.echo("\n🎉 All Systems Operational!")
-    else:
+    if report.issues:
         typer.echo("\n⚠️  Issues Found:")
-        for i in issues:
-            typer.echo(f" - {i}")
-        if not fix:
-            typer.echo("\nRun with --fix to attempt repairs (where supported).")
+        for issue in report.issues:
+            typer.echo(f" - {issue}")
+    else:
+        typer.echo("\n✅ All Systems Operational")
+
+    if report.notes:
+        typer.echo("\nℹ️  Notes:")
+        for note in report.notes:
+            typer.echo(f" - {note}")
 
 @app.command()
 def stats(json_output: bool = False):

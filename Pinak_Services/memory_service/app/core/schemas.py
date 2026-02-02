@@ -26,6 +26,7 @@ class MemorySearchResult(MemoryRead):
 
 class EpisodicCreate(BaseModel):
     content: str
+    tags: Optional[List[str]] = None
     salience: int = 0
     goal: Optional[str] = None
     plan: Optional[List[str]] = None

@@ -1,8 +1,10 @@
 import os
+import hashlib
 import sqlite3
 import subprocess
 import time
 import shutil
+import datetime
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import List, Optional
@@ -186,14 +188,28 @@ def _ensure_schema_assets(report: DoctorReport, fix: bool) -> None:
 
     for name in required_schemas:
         dest = home_schema_dir / name
-        if dest.exists():
-            continue
         src = repo_schema_dir / name
-        if fix and src.exists():
-            shutil.copy2(src, dest)
-            report.add_action(f"copied schema {name} to {home_schema_dir}")
-        else:
-            report.add_issue(f"schema missing: {dest}")
+        if not dest.exists():
+            if fix and src.exists():
+                shutil.copy2(src, dest)
+                report.add_action(f"copied schema {name} to {home_schema_dir}")
+            else:
+                report.add_issue(f"schema missing: {dest}")
+            continue
+        if not src.exists():
+            report.add_issue(f"repo schema missing: {src}")
+            continue
+        try:
+            src_hash = hashlib.md5(src.read_bytes()).hexdigest()
+            dest_hash = hashlib.md5(dest.read_bytes()).hexdigest()
+            if src_hash != dest_hash:
+                if fix:
+                    shutil.copy2(src, dest)
+                    report.add_action(f"synchronized schema {name} in {home_schema_dir}")
+                else:
+                    report.add_issue(f"schema drift detected: {dest}")
+        except Exception:
+            report.add_issue(f"schema drift check failed: {dest}")
 
     if not home_template_dir.exists():
         if fix:
@@ -205,9 +221,24 @@ def _ensure_schema_assets(report: DoctorReport, fix: bool) -> None:
     if repo_template_dir.exists():
         for template in repo_template_dir.glob("*.json"):
             dest = home_template_dir / template.name
-            if not dest.exists() and fix:
-                shutil.copy2(template, dest)
-                report.add_action(f"copied template {template.name} to {home_template_dir}")
+            if not dest.exists():
+                if fix:
+                    shutil.copy2(template, dest)
+                    report.add_action(f"copied template {template.name} to {home_template_dir}")
+                else:
+                    report.add_issue(f"template missing: {dest}")
+                continue
+            try:
+                src_hash = hashlib.md5(template.read_bytes()).hexdigest()
+                dest_hash = hashlib.md5(dest.read_bytes()).hexdigest()
+                if src_hash != dest_hash:
+                    if fix:
+                        shutil.copy2(template, dest)
+                        report.add_action(f"synchronized template {template.name} in {home_template_dir}")
+                    else:
+                        report.add_issue(f"template drift detected: {dest}")
+            except Exception:
+                report.add_issue(f"template drift check failed: {dest}")
 
     access_policy = home_root / "ACCESS_POLICY.md"
     if not access_policy.exists():
@@ -222,6 +253,48 @@ def _ensure_schema_assets(report: DoctorReport, fix: bool) -> None:
         else:
             report.add_issue(f"access policy missing: {access_policy}")
 
+def _resolve_schema_issues(report: DoctorReport, fix: bool) -> None:
+    db_path = _get_db_path()
+    if not os.path.exists(db_path):
+        return
+    with sqlite3.connect(db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT count(*) FROM logs_client_issues
+            WHERE status = 'open' AND error_code = 'schema_validation_failed'
+            """
+        )
+        total_open = cur.fetchone()[0]
+        if total_open and not fix:
+            report.add_issue(f"{total_open} open schema_validation_failed issues (run doctor --fix)")
+            return
+        if not fix:
+            return
+        cur.execute(
+            """
+            UPDATE logs_client_issues
+            SET status = 'resolved',
+                resolved_at = ?,
+                resolved_by = ?,
+                resolution = ?
+            WHERE status = 'open'
+              AND error_code = 'schema_validation_failed'
+              AND (
+                message LIKE '%tags%' OR
+                payload LIKE '%\"tags\"%' OR
+                payload LIKE '%tags%'
+              )
+            """,
+            (
+                datetime.datetime.now().isoformat(),
+                "doctor",
+                "schema assets synchronized",
+            ),
+        )
+        if cur.rowcount:
+            report.add_action(f"resolved {cur.rowcount} schema_validation_failed issues")
 
 def _ensure_lockdown_policy(report: DoctorReport, fix: bool) -> None:
     repo_root = Path(__file__).resolve().parent.parent
@@ -452,6 +525,7 @@ def run_doctor(fix: bool = False, allow_heavy: bool = False) -> DoctorReport:
     _backfill_missing_clients(report, fix)
     _ensure_vectors(report, fix, allow_heavy)
     _ensure_schema_assets(report, fix)
+    _resolve_schema_issues(report, fix)
     _ensure_lockdown_policy(report, fix)
     _check_llm_runtime(report)
 

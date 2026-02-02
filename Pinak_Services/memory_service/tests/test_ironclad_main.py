@@ -36,6 +36,20 @@ def test_add_episodic(client, auth_token):
     response = client.post("/api/v1/memory/episodic/add", json=payload, headers=headers)
     assert response.status_code == 201
 
+def test_add_episodic_with_tags(client, auth_token):
+    headers = {"Authorization": f"Bearer {auth_token}"}
+    payload = {
+        "content": "event",
+        "salience": 5,
+        "goal": "win",
+        "plan": ["a"],
+        "outcome": "won",
+        "tool_logs": [],
+        "tags": ["mcp", "schema"],
+    }
+    response = client.post("/api/v1/memory/episodic/add", json=payload, headers=headers)
+    assert response.status_code == 201
+
 def test_add_procedural(client, auth_token):
     headers = {"Authorization": f"Bearer {auth_token}"}
     payload = {"skill_name": "punch", "steps": ["fist", "hit"], "trigger": "fight", "code_snippet": "print(1)"}
