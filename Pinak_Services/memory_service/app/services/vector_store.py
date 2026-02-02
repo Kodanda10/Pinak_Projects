@@ -22,6 +22,7 @@ class VectorStore:
         # In-memory storage
         self.vectors = np.empty((0, dimension), dtype=np.float32)
         self.ids = np.array([], dtype=np.int64)
+        self.norms = np.array([], dtype=np.float32)
         
         self._load_index()
 
@@ -50,9 +51,13 @@ class VectorStore:
                     data = np.load(load_path, allow_pickle=True).item()
                     self.vectors = data['vectors'].astype(np.float32)
                     self.ids = data['ids'].astype(np.int64)
+                    self.norms = np.sum(np.square(self.vectors), axis=1)
                     logger.info(f"Loaded Vector Store from {load_path}. Size: {len(self.ids)}")
                 except Exception as e:
                     logger.error(f"Failed to load index: {e}. Creating new one.")
+                    self.vectors = np.empty((0, self.dimension), dtype=np.float32)
+                    self.ids = np.array([], dtype=np.int64)
+                    self.norms = np.array([], dtype=np.float32)
 
     def _schedule_save(self):
         """Schedule a debounced save."""
@@ -86,10 +91,12 @@ class VectorStore:
 
         vectors = vectors.astype(np.float32)
         id_array = np.array(ids, dtype=np.int64)
+        new_norms = np.sum(np.square(vectors), axis=1)
 
         with self.lock:
             self.vectors = np.vstack([self.vectors, vectors])
             self.ids = np.concatenate([self.ids, id_array])
+            self.norms = np.concatenate([self.norms, new_norms])
             self.needs_save = True
 
         self._schedule_save()
@@ -107,15 +114,20 @@ class VectorStore:
             if query_vector.shape[1] != self.dimension:
                 return [], []
 
-            # Compute L2 distances
-            # We use a stable approach to avoid potential overflows with large values
-            # sq_dists = sum((a-b)^2)
-            diff = self.vectors - query_vector
-            sq_dists = np.sum(np.square(diff), axis=1)
+            # Compute L2 distance using dot product: ||x-y||^2 = ||x||^2 + ||y||^2 - 2<x,y>
+            dot_product = np.dot(self.vectors, query_vector.T).flatten()
+            query_norm_sq = float(np.sum(np.square(query_vector)))
+            sq_dists = self.norms + query_norm_sq - (2.0 * dot_product)
+            sq_dists = np.maximum(sq_dists, 0.0)
 
             # Get top K indices
             actual_k = min(k, len(self.ids))
-            top_k_idx = np.argsort(sq_dists)[:actual_k]
+            if actual_k < len(self.ids):
+                top_k_partition = np.argpartition(sq_dists, actual_k - 1)[:actual_k]
+                sorted_idx_in_top_k = np.argsort(sq_dists[top_k_partition])
+                top_k_idx = top_k_partition[sorted_idx_in_top_k]
+            else:
+                top_k_idx = np.argsort(sq_dists)
 
             # Return in FAISS compatibility format (2D arrays)
             return (
@@ -129,6 +141,7 @@ class VectorStore:
             mask = ~np.isin(self.ids, ids)
             self.vectors = self.vectors[mask]
             self.ids = self.ids[mask]
+            self.norms = self.norms[mask]
             self.needs_save = True
         self._schedule_save()
 
@@ -140,6 +153,7 @@ class VectorStore:
         with self.lock:
             self.vectors = np.empty((0, self.dimension), dtype=np.float32)
             self.ids = np.array([], dtype=np.int64)
+            self.norms = np.array([], dtype=np.float32)
             self.needs_save = True
 
     def reconstruct(self, vector_id: int) -> Optional[np.ndarray]:
