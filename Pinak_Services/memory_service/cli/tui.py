@@ -186,11 +186,15 @@ Button.-primary {
     margin-right: 1;
 }
 
+#toolbar-spacer {
+    width: 1fr;
+}
+
 #client-selected {
     padding-right: 1;
     padding-left: 1;
     color: #A5B4D0;
-    text-align: left;
+    text-align: right;
     width: 28;
 }
 
@@ -613,8 +617,18 @@ class AgentsView(Container):
             self.query_one("#agent-summary-text", Static).update(f"Error: {e}")
 
 class ClientIssuesView(Container):
+    def __init__(self) -> None:
+        super().__init__()
+        self.status_filter = "all"
+
     def compose(self) -> ComposeResult:
         yield Static("Client Issues (Ingestion / Schema / Auth)", classes="stat-title")
+        with Horizontal(classes="toolbar"):
+            yield Button("Open", id="btn_issues_open", classes="-primary")
+            yield Button("All", id="btn_issues_all")
+            yield Button("Resolved", id="btn_issues_resolved")
+            yield Static("", id="toolbar-spacer")
+            yield Static("Filter: all", id="issues-filter", classes="muted")
         yield DataTable(id="issues-table")
 
     def on_mount(self):
@@ -625,6 +639,16 @@ class ClientIssuesView(Container):
         self.set_interval(3, self.refresh_issues)
         self.refresh_issues()
 
+    def on_button_pressed(self, event: Button.Pressed):
+        if event.button.id == "btn_issues_open":
+            self.status_filter = "open"
+        elif event.button.id == "btn_issues_resolved":
+            self.status_filter = "resolved"
+        elif event.button.id == "btn_issues_all":
+            self.status_filter = "all"
+        self.query_one("#issues-filter", Static).update(f"Filter: {self.status_filter}")
+        self.refresh_issues()
+
     def refresh_issues(self):
         db_path = "data/memory.db"
         if not os.path.exists(db_path):
@@ -633,12 +657,24 @@ class ClientIssuesView(Container):
             conn = sqlite3.connect(db_path)
             conn.row_factory = sqlite3.Row
             cur = conn.cursor()
-            cur.execute("""
-                SELECT id, created_at, status, client_id, client_name, agent_id, layer, error_code, message
-                FROM logs_client_issues
-                ORDER BY created_at DESC
-                LIMIT 80
-            """)
+            if self.status_filter == "all":
+                cur.execute("""
+                    SELECT id, created_at, status, client_id, client_name, agent_id, layer, error_code, message
+                    FROM logs_client_issues
+                    ORDER BY created_at DESC
+                    LIMIT 80
+                """)
+            else:
+                cur.execute(
+                    """
+                    SELECT id, created_at, status, client_id, client_name, agent_id, layer, error_code, message
+                    FROM logs_client_issues
+                    WHERE status = ?
+                    ORDER BY created_at DESC
+                    LIMIT 80
+                    """,
+                    (self.status_filter,),
+                )
             rows = cur.fetchall()
             conn.close()
 
@@ -667,6 +703,7 @@ class ClientRegistryView(Container):
             yield Button("Mark Trusted", id="btn_client_trusted", classes="-primary")
             yield Button("Mark Observed", id="btn_client_observed")
             yield Button("Mark Blocked", id="btn_client_blocked")
+            yield Static("", id="toolbar-spacer")
             yield Static("Selected: -", id="client-selected", classes="muted")
         yield DataTable(id="clients-table")
 
@@ -675,16 +712,15 @@ class ClientRegistryView(Container):
         table.clear(columns=True)
         table.add_columns("Last Seen", "Status", "Client ID", "Name", "Parent", "Updated")
         table.zebra_stripes = True
+        table.cursor_type = "row"
+        table.focus()
         self.set_interval(5, self.refresh_clients)
         self.refresh_clients()
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected):
         if event.data_table.id != "clients-table":
             return
-        row = event.data_table.get_row_at(event.row_key)
-        if not row:
-            return
-        self.selected_client_id = row[2]
+        self.selected_client_id = str(event.row_key)
         self.query_one("#client-selected", Static).update(f"Selected: {self.selected_client_id}")
 
     def on_button_pressed(self, event: Button.Pressed):
@@ -734,6 +770,7 @@ class ClientRegistryView(Container):
             for row in rows:
                 last_seen = _format_ts(row["last_seen"])
                 updated = _format_ts(row["updated_at"])
+                row_key = row["client_id"] or row["client_name"] or f"row-{table.row_count}"
                 table.add_row(
                     last_seen,
                     row["status"] or "observed",
@@ -741,6 +778,7 @@ class ClientRegistryView(Container):
                     row["client_name"] or "-",
                     row["parent_client_id"] or "-",
                     updated,
+                    key=row_key,
                 )
         except Exception:
             return
