@@ -337,8 +337,8 @@ class DashboardView(Container):
         self.query_one("#stat-ingest-rate", Static).update(str(ingest_rate))
 
 class AccessView(Container):
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
         self._access_rows: Dict[str, Dict[str, Any]] = {}
 
     def compose(self) -> ComposeResult:
