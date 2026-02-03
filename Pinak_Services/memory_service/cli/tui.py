@@ -793,6 +793,7 @@ class HealthView(Container):
             ("Watchdog", "com.pinak.memory.watchdog"),
             ("Doctor", "com.pinak.memory.doctor"),
             ("Backup", "com.pinak.memory.backup"),
+            ("TUI", "com.pinak.memory.tui"),
         ]
         for title, label in labels:
             state = "unloaded"

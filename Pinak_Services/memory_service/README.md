@@ -48,6 +48,17 @@ Optional alias:
 ./pinak_memory
 ```
 
+### 🔁 Auto‑Launch TUI on Login
+```bash
+cp scripts/com.pinak.memory.tui.plist ~/Library/LaunchAgents/
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.pinak.memory.tui.plist
+```
+
+Disable:
+```bash
+launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.pinak.memory.tui.plist
+```
+
 ### 🔍 Quick Context Search (CLI)
 Query your persistent context directly without the UI:
 ```bash

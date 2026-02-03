@@ -835,6 +835,12 @@ def run_doctor(fix: bool = False, allow_heavy: bool = False) -> DoctorReport:
         "/Users/abhi-macmini/Library/LaunchAgents/com.pinak.memory.backup.plist",
         fix,
     )
+    _ensure_launch_agent(
+        report,
+        "com.pinak.memory.tui",
+        "/Users/abhi-macmini/Library/LaunchAgents/com.pinak.memory.tui.plist",
+        fix,
+    )
     _ensure_backup(report, fix)
     schema_changed = _ensure_db(report, fix)
     missing_tables = _check_required_tables(report, fix)
