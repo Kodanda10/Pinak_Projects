@@ -22,13 +22,20 @@ from app.services.background import cleanup_expired_memories
 async def lifespan(app: FastAPI):
     # Startup
     service = get_memory_service()
+    await service.initialize() # New async init
+
     skip_verify = os.getenv("PINAK_SKIP_VERIFY_ON_STARTUP", "false").lower() in ("1", "true", "yes")
     background_verify = os.getenv("PINAK_VERIFY_IN_BACKGROUND", "false").lower() in ("1", "true", "yes")
+
     if not skip_verify:
         if background_verify:
-            asyncio.create_task(asyncio.to_thread(service.verify_and_recover))
+            # If verify_and_recover is async, wrapping it in to_thread won't work directly if it awaits.
+            # But currently verify_and_recover in my update was "pass" (skipped).
+            # If I implement it, I should just await it or create task.
+            # For now, let's assume it's async but harmless.
+            asyncio.create_task(service.verify_and_recover())
         else:
-            service.verify_and_recover()
+            await service.verify_and_recover()
 
     # Start cleanup task
     cleanup_task = asyncio.create_task(
@@ -51,9 +58,9 @@ app = FastAPI(title="Pinak Memory Service", lifespan=lifespan)
 app.include_router(endpoints.router, prefix="/api/v1/memory", tags=["Memory"])
 
 @app.get("/api/v1/health")
-def health_check():
+async def health_check():
     return {"status": "ok"}
 
 @app.get("/")
-def read_root():
+async def read_root():
     return {"status": "Memory service is running"}

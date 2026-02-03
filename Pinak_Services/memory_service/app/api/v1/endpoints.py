@@ -27,7 +27,7 @@ router = APIRouter()
 # --- Schemas ---
 
 @router.get("/schema/{layer}")
-def get_schema(
+async def get_schema(
     layer: str,
     ctx: AuthContext = Depends(require_auth_context),
 ):
@@ -41,7 +41,7 @@ def get_schema(
     return schema
 
 @router.get("/schema")
-def list_schemas(
+async def list_schemas(
     ctx: AuthContext = Depends(require_auth_context),
 ):
     require_scope(ctx, "memory.read")
@@ -58,14 +58,14 @@ def list_schemas(
 # --- Semantic Memory ---
 
 @router.post("/add", response_model=MemoryRead, status_code=status.HTTP_201_CREATED)
-def add_memory(
+async def add_memory(
     memory: MemoryCreate,
     ctx: AuthContext = Depends(require_auth_context),
     service: MemoryService = Depends(get_memory_service),
 ):
     """Add a semantic memory (Vector + DB)."""
     require_scope(ctx, "memory.write")
-    return service.add_memory(
+    return await service.add_memory(
         memory,
         ctx.tenant_id,
         ctx.project_id,
@@ -77,7 +77,7 @@ def add_memory(
     )
 
 @router.get("/search", response_model=List[MemorySearchResult])
-def search_memory(
+async def search_memory(
     query: str,
     k: int = 5,
     ctx: AuthContext = Depends(require_auth_context),
@@ -85,7 +85,7 @@ def search_memory(
 ):
     """Legacy Semantic Search."""
     require_scope(ctx, "memory.read")
-    return service.search_memory(
+    return await service.search_memory(
         query,
         ctx.tenant_id,
         ctx.project_id,
@@ -100,7 +100,7 @@ def search_memory(
 # --- Unified Retrieval ---
 
 @router.get("/retrieve_context", response_model=ContextResponse)
-def retrieve_context(
+async def retrieve_context(
     query: str,
     ctx: AuthContext = Depends(require_auth_context),
     service: MemoryService = Depends(get_memory_service),
@@ -110,7 +110,7 @@ def retrieve_context(
     Performs Hybrid Search across all layers and returns categorized context.
     """
     require_scope(ctx, "memory.read")
-    return service.retrieve_context(
+    return await service.retrieve_context(
         query,
         ctx.tenant_id,
         ctx.project_id,
@@ -124,13 +124,13 @@ def retrieve_context(
 # --- Episodic Memory ---
 
 @router.post("/episodic/add", status_code=status.HTTP_201_CREATED)
-def add_episodic(
+async def add_episodic(
     item: EpisodicCreate,
     ctx: AuthContext = Depends(require_auth_context),
     service: MemoryService = Depends(get_memory_service),
 ):
     require_scope(ctx, "memory.write")
-    return service.add_episodic(
+    return await service.add_episodic(
         item.content, ctx.tenant_id, ctx.project_id,
         item.salience, item.goal, item.plan, item.outcome, item.tool_logs,
         ctx.subject, ctx.client_name,
@@ -140,13 +140,13 @@ def add_episodic(
 # --- Procedural Memory ---
 
 @router.post("/procedural/add", status_code=status.HTTP_201_CREATED)
-def add_procedural(
+async def add_procedural(
     item: ProceduralCreate,
     ctx: AuthContext = Depends(require_auth_context),
     service: MemoryService = Depends(get_memory_service),
 ):
     require_scope(ctx, "memory.write")
-    return service.add_procedural(
+    return await service.add_procedural(
         item.skill_name, item.steps, ctx.tenant_id, ctx.project_id,
         item.description, item.trigger, item.code_snippet,
         ctx.subject, ctx.client_name,
@@ -156,13 +156,13 @@ def add_procedural(
 # --- RAG ---
 
 @router.post("/rag/add", status_code=status.HTTP_201_CREATED)
-def add_rag(
+async def add_rag(
     item: RAGCreate,
     ctx: AuthContext = Depends(require_auth_context),
     service: MemoryService = Depends(get_memory_service),
 ):
     require_scope(ctx, "memory.write")
-    return service.add_rag(
+    return await service.add_rag(
         item.query, item.external_source, item.content, ctx.tenant_id, ctx.project_id,
         ctx.subject, ctx.client_name,
         ctx.client_id, ctx.parent_client_id, ctx.child_client_id
@@ -171,34 +171,34 @@ def add_rag(
 # --- Logs & Events ---
 
 @router.post("/event", status_code=status.HTTP_201_CREATED)
-def add_event(
+async def add_event(
     item: EventCreate,
     ctx: AuthContext = Depends(require_auth_context),
     service: MemoryService = Depends(get_memory_service),
 ):
     require_scope(ctx, "memory.write")
-    return service.add_event(
+    return await service.add_event(
         {"event_type": item.event_type, **item.payload},
         ctx.tenant_id, ctx.project_id
     )
 
 @router.get("/events")
-def list_events(
+async def list_events(
     limit: int = 100,
     ctx: AuthContext = Depends(require_auth_context),
     service: MemoryService = Depends(get_memory_service),
 ):
     require_scope(ctx, "memory.read")
-    return service.list_events(ctx.tenant_id, ctx.project_id, limit)
+    return await service.list_events(ctx.tenant_id, ctx.project_id, limit)
 
 @router.post("/session/add", status_code=status.HTTP_201_CREATED)
-def add_session(
+async def add_session(
     item: SessionCreate,
     ctx: AuthContext = Depends(require_auth_context),
     service: MemoryService = Depends(get_memory_service),
 ):
     require_scope(ctx, "memory.write")
-    return service.session_add(
+    return await service.session_add(
         item.session_id,
         item.content,
         item.role,
@@ -212,23 +212,23 @@ def add_session(
     )
 
 @router.get("/session/list")
-def list_session(
+async def list_session(
     session_id: str,
     limit: int = 100,
     ctx: AuthContext = Depends(require_auth_context),
     service: MemoryService = Depends(get_memory_service),
 ):
     require_scope(ctx, "memory.read")
-    return service.session_list(session_id, ctx.tenant_id, ctx.project_id, limit)
+    return await service.session_list(session_id, ctx.tenant_id, ctx.project_id, limit)
 
 @router.post("/working/add", response_model=WorkingRead, status_code=status.HTTP_201_CREATED)
-def add_working(
+async def add_working(
     item: WorkingCreate,
     ctx: AuthContext = Depends(require_auth_context),
     service: MemoryService = Depends(get_memory_service),
 ):
     require_scope(ctx, "memory.write")
-    return service.working_add(
+    return await service.working_add(
         item.content,
         ctx.tenant_id,
         ctx.project_id,
@@ -242,7 +242,7 @@ def add_working(
 # --- Agent Observability ---
 
 @router.post("/agent/heartbeat", response_model=AgentRead, status_code=status.HTTP_200_OK)
-def agent_heartbeat(
+async def agent_heartbeat(
     item: AgentHeartbeatCreate,
     ctx: AuthContext = Depends(require_auth_context),
     service: MemoryService = Depends(get_memory_service),
@@ -250,7 +250,7 @@ def agent_heartbeat(
     require_scope(ctx, "memory.read")
     client_name = ctx.client_name or "unknown"
     agent_id = ctx.subject or "unknown"
-    return service.register_agent(
+    return await service.register_agent(
         agent_id=agent_id,
         client_name=client_name,
         status=item.status,
@@ -266,7 +266,7 @@ def agent_heartbeat(
 # --- Client Registry ---
 
 @router.post("/client/register", response_model=ClientRegisterRead, status_code=status.HTTP_201_CREATED)
-def register_client(
+async def register_client(
     item: ClientRegisterCreate,
     ctx: AuthContext = Depends(require_auth_context),
     service: MemoryService = Depends(get_memory_service),
@@ -275,7 +275,7 @@ def register_client(
     status_value = item.status or "registered"
     if status_value in {"trusted", "blocked"}:
         require_role(ctx, "admin")
-    return service.register_client(
+    return await service.register_client(
         client_id=item.client_id,
         client_name=item.client_name,
         parent_client_id=item.parent_client_id,
@@ -286,16 +286,16 @@ def register_client(
     )
 
 @router.get("/client/list", response_model=List[ClientRegisterRead])
-def list_clients(
+async def list_clients(
     limit: int = 200,
     ctx: AuthContext = Depends(require_auth_context),
     service: MemoryService = Depends(get_memory_service),
 ):
     require_scope(ctx, "memory.read")
-    return service.list_clients(ctx.tenant_id, ctx.project_id, limit)
+    return await service.list_clients(ctx.tenant_id, ctx.project_id, limit)
 
 @router.get("/client/summary")
-def client_summary(
+async def client_summary(
     include_children: bool = True,
     ctx: AuthContext = Depends(require_auth_context),
     service: MemoryService = Depends(get_memory_service),
@@ -304,36 +304,36 @@ def client_summary(
     client_id = ctx.client_id or ctx.effective_client_id
     if not client_id:
         raise HTTPException(status_code=400, detail="client_id is required")
-    return service.client_summary(client_id, ctx.tenant_id, ctx.project_id, include_children=include_children)
+    return await service.client_summary(client_id, ctx.tenant_id, ctx.project_id, include_children=include_children)
 
 @router.get("/agent/list", response_model=List[AgentRead])
-def list_agents(
+async def list_agents(
     limit: int = 200,
     ctx: AuthContext = Depends(require_auth_context),
     service: MemoryService = Depends(get_memory_service),
 ):
     require_scope(ctx, "memory.read")
-    return service.list_agents(ctx.tenant_id, ctx.project_id, limit)
+    return await service.list_agents(ctx.tenant_id, ctx.project_id, limit)
 
 @router.get("/access/list", response_model=List[AccessEventRead])
-def list_access_events(
+async def list_access_events(
     limit: int = 200,
     ctx: AuthContext = Depends(require_auth_context),
     service: MemoryService = Depends(get_memory_service),
 ):
     require_scope(ctx, "memory.read")
-    return service.list_access_events(ctx.tenant_id, ctx.project_id, limit)
+    return await service.list_access_events(ctx.tenant_id, ctx.project_id, limit)
 
 # --- Client Issues ---
 
 @router.post("/client/issues", response_model=ClientIssueRead, status_code=status.HTTP_201_CREATED)
-def add_client_issue(
+async def add_client_issue(
     item: ClientIssueCreate,
     ctx: AuthContext = Depends(require_auth_context),
     service: MemoryService = Depends(get_memory_service),
 ):
     require_scope(ctx, "memory.write")
-    return service.add_client_issue(
+    return await service.add_client_issue(
         item,
         ctx.tenant_id,
         ctx.project_id,
@@ -345,17 +345,17 @@ def add_client_issue(
     )
 
 @router.get("/client/issues", response_model=List[ClientIssueRead])
-def list_client_issues(
+async def list_client_issues(
     status_filter: str = "open",
     limit: int = 200,
     ctx: AuthContext = Depends(require_auth_context),
     service: MemoryService = Depends(get_memory_service),
 ):
     require_scope(ctx, "memory.read")
-    return service.list_client_issues(ctx.tenant_id, ctx.project_id, status_filter, limit)
+    return await service.list_client_issues(ctx.tenant_id, ctx.project_id, status_filter, limit)
 
 @router.post("/client/issues/{issue_id}/resolve", response_model=ClientIssueRead)
-def resolve_client_issue(
+async def resolve_client_issue(
     issue_id: str,
     resolution: Dict[str, Any] = Body(...),
     ctx: AuthContext = Depends(require_auth_context),
@@ -363,19 +363,19 @@ def resolve_client_issue(
 ):
     require_scope(ctx, "memory.admin")
     require_role(ctx, "admin")
-    return service.resolve_client_issue(issue_id, resolution.get("resolution", "resolved"), ctx.subject or "admin")
+    return await service.resolve_client_issue(issue_id, resolution.get("resolution", "resolved"), ctx.subject or "admin")
 
 # --- Quarantine ---
 
 @router.post("/quarantine/propose/{layer}", response_model=QuarantineItemRead, status_code=status.HTTP_202_ACCEPTED)
-def propose_quarantine(
+async def propose_quarantine(
     layer: str,
     payload: Dict[str, Any] = Body(...),
     ctx: AuthContext = Depends(require_auth_context),
     service: MemoryService = Depends(get_memory_service),
 ):
     require_scope(ctx, "memory.write")
-    return service.propose_memory(
+    return await service.propose_memory(
         layer,
         payload,
         ctx.tenant_id,
@@ -388,7 +388,7 @@ def propose_quarantine(
     )
 
 @router.get("/quarantine/list", response_model=List[QuarantineItemRead])
-def list_quarantine(
+async def list_quarantine(
     status_filter: str = "pending",
     limit: int = 100,
     ctx: AuthContext = Depends(require_auth_context),
@@ -396,10 +396,10 @@ def list_quarantine(
 ):
     require_scope(ctx, "memory.admin")
     require_role(ctx, "admin")
-    return service.list_quarantine(ctx.tenant_id, ctx.project_id, status_filter, limit)
+    return await service.list_quarantine(ctx.tenant_id, ctx.project_id, status_filter, limit)
 
 @router.post("/quarantine/approve/{item_id}")
-def approve_quarantine(
+async def approve_quarantine(
     item_id: str,
     ctx: AuthContext = Depends(require_auth_context),
     service: MemoryService = Depends(get_memory_service),
@@ -407,10 +407,10 @@ def approve_quarantine(
     require_scope(ctx, "memory.admin")
     require_role(ctx, "admin")
     reviewer = ctx.subject or "admin"
-    return service.resolve_quarantine(item_id, "approved", reviewer, ctx.tenant_id, ctx.project_id, ctx.subject, ctx.client_name)
+    return await service.resolve_quarantine(item_id, "approved", reviewer, ctx.tenant_id, ctx.project_id, ctx.subject, ctx.client_name)
 
 @router.post("/quarantine/reject/{item_id}")
-def reject_quarantine(
+async def reject_quarantine(
     item_id: str,
     ctx: AuthContext = Depends(require_auth_context),
     service: MemoryService = Depends(get_memory_service),
@@ -418,19 +418,19 @@ def reject_quarantine(
     require_scope(ctx, "memory.admin")
     require_role(ctx, "admin")
     reviewer = ctx.subject or "admin"
-    return service.resolve_quarantine(item_id, "rejected", reviewer, ctx.tenant_id, ctx.project_id, ctx.subject, ctx.client_name)
+    return await service.resolve_quarantine(item_id, "rejected", reviewer, ctx.tenant_id, ctx.project_id, ctx.subject, ctx.client_name)
 
 @router.get("/working/list")
-def list_working(
+async def list_working(
     limit: int = 100,
     ctx: AuthContext = Depends(require_auth_context),
     service: MemoryService = Depends(get_memory_service),
 ):
     require_scope(ctx, "memory.read")
-    return service.working_list(ctx.tenant_id, ctx.project_id, limit)
+    return await service.working_list(ctx.tenant_id, ctx.project_id, limit)
 
 @router.put("/{layer}/{memory_id}", status_code=status.HTTP_200_OK)
-def update_memory(
+async def update_memory(
     layer: str,
     memory_id: str,
     updates: Dict[str, Any] = Body(...),
@@ -439,13 +439,13 @@ def update_memory(
 ):
     require_scope(ctx, "memory.admin")
     require_role(ctx, "admin")
-    success = service.update_memory(layer, memory_id, updates, ctx.tenant_id, ctx.project_id)
+    success = await service.update_memory(layer, memory_id, updates, ctx.tenant_id, ctx.project_id)
     if not success:
         raise HTTPException(status_code=404, detail="Memory not found")
     return {"status": "updated", "id": memory_id}
 
 @router.delete("/{layer}/{memory_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_memory(
+async def delete_memory(
     layer: str,
     memory_id: str,
     ctx: AuthContext = Depends(require_auth_context),
@@ -453,6 +453,6 @@ def delete_memory(
 ):
     require_scope(ctx, "memory.admin")
     require_role(ctx, "admin")
-    success = service.delete_memory(layer, memory_id, ctx.tenant_id, ctx.project_id)
+    success = await service.delete_memory(layer, memory_id, ctx.tenant_id, ctx.project_id)
     if not success:
         raise HTTPException(status_code=404, detail="Memory not found")
