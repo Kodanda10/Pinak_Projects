@@ -180,7 +180,10 @@ Button.-primary {
     height: 3;
     margin: 0 0 1 0;
     align: left middle;
-    column-gap: 1;
+}
+
+.toolbar Button {
+    margin-right: 1;
 }
 
 #client-selected {
