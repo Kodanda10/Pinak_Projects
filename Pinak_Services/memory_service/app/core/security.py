@@ -83,9 +83,12 @@ def require_auth_context(
     child_client_id_alt = _normalize_header(child_client_id_alt)
 
     resolved_child_id = child_client_id or child_client_id_alt
-    client_name = client_name_header or payload.get("client_name") or payload.get("client")
-    client_id = client_id_header or payload.get("client_id") or payload.get("cid") or client_name
-    parent_client_id = parent_client_id_header or payload.get("parent_client_id") or payload.get("parent_client")
+
+    # Sentinel: Prioritize token claims over headers to prevent client ID spoofing
+    client_name = payload.get("client_name") or payload.get("client") or client_name_header
+    client_id = payload.get("client_id") or payload.get("cid") or client_id_header or client_name
+    parent_client_id = payload.get("parent_client_id") or payload.get("parent_client") or parent_client_id_header
+
     effective_client_id = resolved_child_id or client_id or payload.get("sub") or "unknown"
 
     return AuthContext(

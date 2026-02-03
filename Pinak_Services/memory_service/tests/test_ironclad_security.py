@@ -61,7 +61,7 @@ def test_require_auth_context_valid(jwt_secret):
     assert context.scopes == ["memory.read", "memory.write"]
     assert context.client_name == "codex"
 
-def test_require_auth_context_header_overrides(jwt_secret):
+def test_require_auth_context_token_prioritized(jwt_secret):
     payload = {
         "sub": "user123",
         "tenant": "t1",
@@ -81,8 +81,13 @@ def test_require_auth_context_header_overrides(jwt_secret):
         child_client_id_alt="child-client",
     )
 
-    assert context.client_id == "header-client-id"
-    assert context.client_name == "header-client"
+    # Token claims must take precedence over headers
+    assert context.client_id == "token-client-id"
+    assert context.client_name == "token-client"
+
+    # Headers are used if payload is missing them
     assert context.parent_client_id == "parent-client"
+
+    # Child ID logic remains (header driven for delegation)
     assert context.child_client_id == "child-client"
     assert context.effective_client_id == "child-client"
