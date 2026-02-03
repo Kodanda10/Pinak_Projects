@@ -746,8 +746,25 @@ class ClientRegistryView(Container):
         elif event.button.id == "btn_client_blocked":
             self._update_client_status("blocked")
 
+    def _resolve_selected_client(self) -> Optional[str]:
+        if self.selected_client_id:
+            return self.selected_client_id
+        table = self.query_one("#clients-table", DataTable)
+        cursor = table.cursor_row
+        if cursor is None:
+            return None
+        row = table.get_row_at(cursor)
+        if not row:
+            return None
+        client_id = row[2]
+        if client_id:
+            self.selected_client_id = client_id
+            self.query_one("#client-selected", Static).update(f"Selected: {client_id}")
+        return client_id
+
     def _update_client_status(self, status: str):
-        if not self.selected_client_id:
+        client_id = self._resolve_selected_client()
+        if not client_id:
             return
         db_path = "data/memory.db"
         if not os.path.exists(db_path):
@@ -756,7 +773,7 @@ class ClientRegistryView(Container):
             with sqlite3.connect(db_path) as conn:
                 conn.execute(
                     "UPDATE clients_registry SET status = ?, updated_at = datetime('now') WHERE client_id = ?",
-                    (status, self.selected_client_id),
+                    (status, client_id),
                 )
                 conn.commit()
             self.refresh_clients()
