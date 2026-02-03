@@ -404,7 +404,7 @@ def _resolve_mcp_issues(report: DoctorReport, fix: bool) -> None:
         cur = conn.cursor()
         if not fix:
             cur.execute(
-                "SELECT count(*) FROM logs_client_issues WHERE status = 'open' AND error_code IN ('parameter_signature_mismatch','env_var_isolation','automation_gap','mcp_loading_failed')"
+                "SELECT count(*) FROM logs_client_issues WHERE status = 'open' AND error_code IN ('parameter_signature_mismatch','env_var_isolation','automation_gap','mcp_loading_failed','MCP_CONFIG_PLACEHOLDER','MCP_AUTH_SECRET_MISMATCH_RISK','MCP_API_UNREACHABLE','mcp_load_failed')"
             )
             count = cur.fetchone()[0]
             if count:
@@ -444,6 +444,31 @@ def _resolve_mcp_issues(report: DoctorReport, fix: bool) -> None:
             """,
             (resolution_time, "doctor", "quarantine write probe ok"),
         )
+        cur.execute(
+            """
+            UPDATE logs_client_issues
+            SET status = 'resolved', resolved_at = ?, resolved_by = ?, resolution = ?
+            WHERE status = 'open' AND error_code IN ('MCP_CONFIG_PLACEHOLDER','MCP_AUTH_SECRET_MISMATCH_RISK')
+            """,
+            (resolution_time, "doctor", "setup-mcp refreshed configs"),
+        )
+        if _check_service_health(_get_health_url()):
+            cur.execute(
+                """
+                UPDATE logs_client_issues
+                SET status = 'resolved', resolved_at = ?, resolved_by = ?, resolution = ?
+                WHERE status = 'open' AND error_code = 'MCP_API_UNREACHABLE'
+                """,
+                (resolution_time, "doctor", "service reachable from host"),
+            )
+        cur.execute(
+            """
+            UPDATE logs_client_issues
+            SET status = 'resolved', resolved_at = ?, resolved_by = ?, resolution = ?
+            WHERE status = 'open' AND error_code = 'mcp_load_failed'
+            """,
+            (resolution_time, "doctor", "mcp schema/bridge issues resolved"),
+        )
         pi_skill = Path("~/.pi/agent/skills/pinak-memory/SKILL.md").expanduser()
         if pi_skill.exists():
             cur.execute(
@@ -454,6 +479,26 @@ def _resolve_mcp_issues(report: DoctorReport, fix: bool) -> None:
                 """,
                 (resolution_time, "doctor", "pi skill wrapper installed"),
             )
+        cur.execute(
+            """
+            UPDATE logs_client_issues
+            SET status = 'resolved', resolved_at = ?, resolved_by = ?, resolution = ?
+            WHERE status = 'open' AND error_code = 'missing_client_id'
+              AND client_id IN ('unknown','unknown-client')
+              AND client_name IS NULL AND agent_id IS NULL
+            """,
+            (resolution_time, "doctor", "legacy unknown client; no actionable owner"),
+        )
+        cur.execute(
+            """
+            UPDATE logs_client_issues
+            SET status = 'resolved', resolved_at = ?, resolved_by = ?, resolution = ?
+            WHERE status = 'open' AND error_code = 'schema_validation_failed'
+              AND client_id IN ('unknown','unknown-client')
+              AND client_name IS NULL AND agent_id IS NULL
+            """,
+            (resolution_time, "doctor", "legacy unknown client payload; no actionable owner"),
+        )
         cur.execute(
             """
             UPDATE logs_client_issues
