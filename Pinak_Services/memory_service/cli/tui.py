@@ -696,6 +696,7 @@ class ClientIssuesView(Container):
 
 class ClientRegistryView(Container):
     selected_client_id: Optional[str] = None
+    _row_client_ids: Dict[str, str] = {}
 
     def compose(self) -> ComposeResult:
         yield Static("Client Registry (Observed / Registered / Trusted)", classes="stat-title")
@@ -717,11 +718,25 @@ class ClientRegistryView(Container):
         self.set_interval(5, self.refresh_clients)
         self.refresh_clients()
 
+    def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted):
+        if event.data_table.id != "clients-table":
+            return
+        row_key = str(event.row_key)
+        client_id = self._row_client_ids.get(row_key)
+        if not client_id:
+            return
+        self.selected_client_id = client_id
+        self.query_one("#client-selected", Static).update(f"Selected: {client_id}")
+
     def on_data_table_row_selected(self, event: DataTable.RowSelected):
         if event.data_table.id != "clients-table":
             return
-        self.selected_client_id = str(event.row_key)
-        self.query_one("#client-selected", Static).update(f"Selected: {self.selected_client_id}")
+        row_key = str(event.row_key)
+        client_id = self._row_client_ids.get(row_key)
+        if not client_id:
+            return
+        self.selected_client_id = client_id
+        self.query_one("#client-selected", Static).update(f"Selected: {client_id}")
 
     def on_button_pressed(self, event: Button.Pressed):
         if event.button.id == "btn_client_trusted":
@@ -767,14 +782,17 @@ class ClientRegistryView(Container):
 
             table = self.query_one("#clients-table", DataTable)
             table.clear()
+            self._row_client_ids = {}
             for row in rows:
                 last_seen = _format_ts(row["last_seen"])
                 updated = _format_ts(row["updated_at"])
-                row_key = row["client_id"] or row["client_name"] or f"row-{table.row_count}"
+                client_id = row["client_id"] or "unknown"
+                row_key = client_id or row["client_name"] or f"row-{table.row_count}"
+                self._row_client_ids[str(row_key)] = client_id
                 table.add_row(
                     last_seen,
                     row["status"] or "observed",
-                    row["client_id"] or "unknown",
+                    client_id,
                     row["client_name"] or "-",
                     row["parent_client_id"] or "-",
                     updated,

@@ -149,6 +149,19 @@ class MemoryService:
         raw = os.getenv("PINAK_TRUSTED_CLIENTS", "")
         return [c.strip() for c in raw.split(",") if c.strip()]
 
+    def _is_blocked_client(self, client_id: Optional[str], tenant: str, project_id: str) -> bool:
+        if not client_id:
+            return False
+        try:
+            entry = self.db.get_client(client_id, tenant, project_id)
+            return bool(entry and entry.get("status") == "blocked")
+        except Exception:
+            return False
+
+    def _ensure_not_blocked(self, client_id: Optional[str], tenant: str, project_id: str) -> None:
+        if self._is_blocked_client(client_id, tenant, project_id):
+            raise PermissionError("client blocked")
+
     def _is_trusted_client(self, client_id: Optional[str], tenant: str, project_id: str) -> bool:
         if not client_id:
             return False
@@ -318,6 +331,7 @@ class MemoryService:
                 parent_client_id=parent_client_id,
                 child_client_id=child_client_id,
             )
+            self._ensure_not_blocked(client_meta["client_id"], tenant, project_id)
             content = memory_data.content
             tags = memory_data.tags or []
             schema_errors = self.schema_registry.validate_payload(
@@ -429,6 +443,7 @@ class MemoryService:
                 parent_client_id=parent_client_id,
                 child_client_id=child_client_id,
             )
+            self._ensure_not_blocked(client_meta["client_id"], tenant, project_id)
             schema_errors = self.schema_registry.validate_payload(
                 "episodic",
                 {
@@ -547,6 +562,7 @@ class MemoryService:
                 parent_client_id=parent_client_id,
                 child_client_id=child_client_id,
             )
+            self._ensure_not_blocked(client_meta["client_id"], tenant, project_id)
             schema_errors = self.schema_registry.validate_payload(
                 "procedural",
                 {
@@ -660,6 +676,7 @@ class MemoryService:
                 parent_client_id=parent_client_id,
                 child_client_id=child_client_id,
             )
+            self._ensure_not_blocked(client_meta["client_id"], tenant, project_id)
             schema_errors = self.schema_registry.validate_payload(
                 "rag",
                 {
@@ -1264,6 +1281,25 @@ class MemoryService:
             parent_client_id=parent_client_id,
             child_client_id=child_client_id,
         )
+        if self._is_blocked_client(client_meta["client_id"], tenant, project_id):
+            try:
+                self.db.add_client_issue(
+                    client_id=client_meta["client_id"],
+                    client_name=client_meta["client_name"],
+                    agent_id=agent_id,
+                    parent_client_id=client_meta["parent_client_id"],
+                    child_client_id=client_meta["child_client_id"],
+                    layer=layer,
+                    error_code="client_blocked",
+                    message="Client is blocked; write rejected",
+                    payload=payload,
+                    metadata={},
+                    tenant=tenant,
+                    project_id=project_id,
+                )
+            except Exception:
+                pass
+            raise PermissionError("client blocked")
         validation_errors = self.schema_registry.validate_payload(layer, payload)
         if validation_errors:
             try:
@@ -1379,6 +1415,7 @@ class MemoryService:
                                   agent_id: Optional[str], client_name: Optional[str],
                                   client_id: Optional[str] = None, parent_client_id: Optional[str] = None,
                                   child_client_id: Optional[str] = None) -> None:
+        self._ensure_not_blocked(client_id, tenant, project_id)
         if layer == "semantic":
             memory = MemoryCreate(content=payload.get("content", ""), tags=payload.get("tags") or [])
             self.add_memory(memory, tenant, project_id, agent_id, client_name, client_id, parent_client_id, child_client_id)
@@ -1435,6 +1472,7 @@ class MemoryService:
         """
         Updates memory in DB. If content changes in Semantic layer, re-embeds.
         """
+        self._ensure_not_blocked(updates.get("client_id"), tenant, project_id)
         # Security: Prevent updating system fields
         forbidden_keys = {"id", "tenant", "project_id", "created_at", "embedding_id"}
         safe_updates = {k: v for k, v in updates.items() if k not in forbidden_keys}

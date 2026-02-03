@@ -65,16 +65,40 @@ def add_memory(
 ):
     """Add a semantic memory (Vector + DB)."""
     require_scope(ctx, "memory.write")
-    return service.add_memory(
-        memory,
-        ctx.tenant_id,
-        ctx.project_id,
-        ctx.subject,
-        ctx.client_name,
-        ctx.client_id,
-        ctx.parent_client_id,
-        ctx.child_client_id,
-    )
+    try:
+        return service.add_memory(
+            memory,
+            ctx.tenant_id,
+            ctx.project_id,
+            ctx.subject,
+            ctx.client_name,
+            ctx.client_id,
+            ctx.parent_client_id,
+            ctx.child_client_id,
+        )
+    except PermissionError:
+        service.add_client_issue(
+            ClientIssueCreate(
+                client_id=ctx.client_id or ctx.subject or "unknown",
+                client_name=ctx.client_name,
+                agent_id=ctx.subject,
+                parent_client_id=ctx.parent_client_id,
+                child_client_id=ctx.child_client_id,
+                layer="semantic",
+                error_code="client_blocked",
+                message="Client is blocked; write rejected",
+                payload=memory.model_dump(),
+                metadata={},
+            ),
+            ctx.tenant_id,
+            ctx.project_id,
+            ctx.subject,
+            ctx.client_name,
+            ctx.client_id,
+            ctx.parent_client_id,
+            ctx.child_client_id,
+        )
+        raise HTTPException(status_code=403, detail="client blocked")
 
 @router.get("/search", response_model=List[MemorySearchResult])
 def search_memory(
@@ -130,12 +154,36 @@ def add_episodic(
     service: MemoryService = Depends(get_memory_service),
 ):
     require_scope(ctx, "memory.write")
-    return service.add_episodic(
-        item.content, ctx.tenant_id, ctx.project_id,
-        item.salience, item.goal, item.plan, item.outcome, item.tool_logs,
-        ctx.subject, ctx.client_name,
-        ctx.client_id, ctx.parent_client_id, ctx.child_client_id
-    )
+    try:
+        return service.add_episodic(
+            item.content, ctx.tenant_id, ctx.project_id,
+            item.salience, item.goal, item.plan, item.outcome, item.tool_logs,
+            ctx.subject, ctx.client_name,
+            ctx.client_id, ctx.parent_client_id, ctx.child_client_id
+        )
+    except PermissionError:
+        service.add_client_issue(
+            ClientIssueCreate(
+                client_id=ctx.client_id or ctx.subject or "unknown",
+                client_name=ctx.client_name,
+                agent_id=ctx.subject,
+                parent_client_id=ctx.parent_client_id,
+                child_client_id=ctx.child_client_id,
+                layer="episodic",
+                error_code="client_blocked",
+                message="Client is blocked; write rejected",
+                payload=item.model_dump(),
+                metadata={},
+            ),
+            ctx.tenant_id,
+            ctx.project_id,
+            ctx.subject,
+            ctx.client_name,
+            ctx.client_id,
+            ctx.parent_client_id,
+            ctx.child_client_id,
+        )
+        raise HTTPException(status_code=403, detail="client blocked")
 
 # --- Procedural Memory ---
 
@@ -146,12 +194,36 @@ def add_procedural(
     service: MemoryService = Depends(get_memory_service),
 ):
     require_scope(ctx, "memory.write")
-    return service.add_procedural(
-        item.skill_name, item.steps, ctx.tenant_id, ctx.project_id,
-        item.description, item.trigger, item.code_snippet,
-        ctx.subject, ctx.client_name,
-        ctx.client_id, ctx.parent_client_id, ctx.child_client_id
-    )
+    try:
+        return service.add_procedural(
+            item.skill_name, item.steps, ctx.tenant_id, ctx.project_id,
+            item.description, item.trigger, item.code_snippet,
+            ctx.subject, ctx.client_name,
+            ctx.client_id, ctx.parent_client_id, ctx.child_client_id
+        )
+    except PermissionError:
+        service.add_client_issue(
+            ClientIssueCreate(
+                client_id=ctx.client_id or ctx.subject or "unknown",
+                client_name=ctx.client_name,
+                agent_id=ctx.subject,
+                parent_client_id=ctx.parent_client_id,
+                child_client_id=ctx.child_client_id,
+                layer="procedural",
+                error_code="client_blocked",
+                message="Client is blocked; write rejected",
+                payload=item.model_dump(),
+                metadata={},
+            ),
+            ctx.tenant_id,
+            ctx.project_id,
+            ctx.subject,
+            ctx.client_name,
+            ctx.client_id,
+            ctx.parent_client_id,
+            ctx.child_client_id,
+        )
+        raise HTTPException(status_code=403, detail="client blocked")
 
 # --- RAG ---
 
@@ -162,11 +234,35 @@ def add_rag(
     service: MemoryService = Depends(get_memory_service),
 ):
     require_scope(ctx, "memory.write")
-    return service.add_rag(
-        item.query, item.external_source, item.content, ctx.tenant_id, ctx.project_id,
-        ctx.subject, ctx.client_name,
-        ctx.client_id, ctx.parent_client_id, ctx.child_client_id
-    )
+    try:
+        return service.add_rag(
+            item.query, item.external_source, item.content, ctx.tenant_id, ctx.project_id,
+            ctx.subject, ctx.client_name,
+            ctx.client_id, ctx.parent_client_id, ctx.child_client_id
+        )
+    except PermissionError:
+        service.add_client_issue(
+            ClientIssueCreate(
+                client_id=ctx.client_id or ctx.subject or "unknown",
+                client_name=ctx.client_name,
+                agent_id=ctx.subject,
+                parent_client_id=ctx.parent_client_id,
+                child_client_id=ctx.child_client_id,
+                layer="rag",
+                error_code="client_blocked",
+                message="Client is blocked; write rejected",
+                payload=item.model_dump(),
+                metadata={},
+            ),
+            ctx.tenant_id,
+            ctx.project_id,
+            ctx.subject,
+            ctx.client_name,
+            ctx.client_id,
+            ctx.parent_client_id,
+            ctx.child_client_id,
+        )
+        raise HTTPException(status_code=403, detail="client blocked")
 
 # --- Logs & Events ---
 
@@ -375,17 +471,41 @@ def propose_quarantine(
     service: MemoryService = Depends(get_memory_service),
 ):
     require_scope(ctx, "memory.write")
-    return service.propose_memory(
-        layer,
-        payload,
-        ctx.tenant_id,
-        ctx.project_id,
-        ctx.subject,
-        ctx.client_name,
-        ctx.client_id,
-        ctx.parent_client_id,
-        ctx.child_client_id,
-    )
+    try:
+        return service.propose_memory(
+            layer,
+            payload,
+            ctx.tenant_id,
+            ctx.project_id,
+            ctx.subject,
+            ctx.client_name,
+            ctx.client_id,
+            ctx.parent_client_id,
+            ctx.child_client_id,
+        )
+    except PermissionError:
+        service.add_client_issue(
+            ClientIssueCreate(
+                client_id=ctx.client_id or ctx.subject or "unknown",
+                client_name=ctx.client_name,
+                agent_id=ctx.subject,
+                parent_client_id=ctx.parent_client_id,
+                child_client_id=ctx.child_client_id,
+                layer=layer,
+                error_code="client_blocked",
+                message="Client is blocked; write rejected",
+                payload=payload,
+                metadata={},
+            ),
+            ctx.tenant_id,
+            ctx.project_id,
+            ctx.subject,
+            ctx.client_name,
+            ctx.client_id,
+            ctx.parent_client_id,
+            ctx.child_client_id,
+        )
+        raise HTTPException(status_code=403, detail="client blocked")
 
 @router.get("/quarantine/list", response_model=List[QuarantineItemRead])
 def list_quarantine(
