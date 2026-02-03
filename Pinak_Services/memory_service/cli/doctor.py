@@ -581,6 +581,44 @@ def _ensure_db(report: DoctorReport, fix: bool) -> None:
         report.add_action("ensured core schema tables/columns")
 
 
+def _check_memory_client_columns(report: DoctorReport, fix: bool) -> None:
+    db_path = _get_db_path()
+    if not os.path.exists(db_path):
+        return
+    required_tables = [
+        "memories_semantic",
+        "memories_episodic",
+        "memories_procedural",
+        "memories_rag",
+        "working_memory",
+    ]
+    missing = []
+    for table in required_tables:
+        try:
+            with sqlite3.connect(db_path) as conn:
+                cur = conn.execute(f"PRAGMA table_info({table})")
+                cols = {row[1] for row in cur.fetchall()}
+            if "client_id" not in cols:
+                missing.append(table)
+        except Exception:
+            missing.append(table)
+    if missing and fix:
+        DatabaseManager(db_path)
+        report.add_action("ensured client_id columns for memory tables")
+        missing = []
+        for table in required_tables:
+            try:
+                with sqlite3.connect(db_path) as conn:
+                    cur = conn.execute(f"PRAGMA table_info({table})")
+                    cols = {row[1] for row in cur.fetchall()}
+                if "client_id" not in cols:
+                    missing.append(table)
+            except Exception:
+                missing.append(table)
+    if missing:
+        report.add_issue(f"missing client_id columns: {', '.join(missing)}")
+
+
 def _get_vector_index_size(vec_path: str) -> Optional[int]:
     if not os.path.exists(vec_path):
         return None
@@ -734,6 +772,7 @@ def run_doctor(fix: bool = False, allow_heavy: bool = False) -> DoctorReport:
     )
     _ensure_backup(report, fix)
     _ensure_db(report, fix)
+    _check_memory_client_columns(report, fix)
     _backfill_missing_clients(report, fix)
     _ensure_vectors(report, fix, allow_heavy)
     _ensure_schema_assets(report, fix)
