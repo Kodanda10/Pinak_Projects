@@ -1,14 +1,19 @@
 import pytest
+import pytest_asyncio
 from app.core.database import DatabaseManager
 
-@pytest.fixture
-def db(tmp_path):
-    return DatabaseManager(str(tmp_path / "target.db"))
+pytestmark = pytest.mark.asyncio
 
-def test_database_procedural_gap(db):
-    # Coverage for 346-349, 360-362
-    db.add_procedural("fix logic", ["step1", "step2"], "t1", "p1", trigger="error")
-    results = db.search_keyword("fix", "t1", "p1")
+@pytest_asyncio.fixture
+async def db():
+    # Use in-memory or global test DB
+    dm = DatabaseManager(":memory:")
+    await dm.init_db()
+    return dm
+
+async def test_database_procedural_gap(db):
+    await db.add_procedural("fix logic", ["step1", "step2"], "t1", "p1", trigger="error")
+    results = await db.search_keyword("fix", "t1", "p1")
     
     found = False
     for r in results:
@@ -18,17 +23,16 @@ def test_database_procedural_gap(db):
             found = True
     assert found
 
-def test_database_update_delete_layer_errors(db):
-    # Coverage for 275, 283, 303 (if they weren't covered by previous test)
+async def test_database_update_delete_layer_errors(db):
     with pytest.raises(ValueError, match="Invalid layer"):
-        db.update_memory("ghost", "id", {}, "t", "p")
+        await db.update_memory("ghost", "id", {}, "t", "p")
     
     with pytest.raises(ValueError, match="Invalid layer"):
-        db.delete_memory("ghost", "id", "t", "p")
+        await db.delete_memory("ghost", "id", "t", "p")
 
-def test_database_episodic_search_parsing(db):
-    db.add_episodic("trip report", "t1", "p1", plan=["go"], tool_logs=[{"t": 1}])
-    results = db.search_keyword("trip", "t1", "p1")
+async def test_database_episodic_search_parsing(db):
+    await db.add_episodic("trip report", "t1", "p1", plan=["go"], tool_logs=[{"t": 1}])
+    results = await db.search_keyword("trip", "t1", "p1")
     
     found = False
     for r in results:

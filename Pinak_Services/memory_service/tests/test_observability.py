@@ -1,14 +1,17 @@
-import sqlite3
-from pathlib import Path
-
+import pytest
+import pytest_asyncio
 from app.core.database import DatabaseManager
 
+pytestmark = pytest.mark.asyncio
 
-def test_upsert_agent_and_list(tmp_path):
-    db_path = tmp_path / "memory.db"
-    db = DatabaseManager(str(db_path))
+@pytest_asyncio.fixture
+async def db():
+    dm = DatabaseManager(":memory:")
+    await dm.init_db()
+    return dm
 
-    res = db.upsert_agent(
+async def test_upsert_agent_and_list(db):
+    res = await db.upsert_agent(
         agent_id="agent-1",
         client_name="codex",
         status="active",
@@ -21,7 +24,7 @@ def test_upsert_agent_and_list(tmp_path):
     assert res["agent_id"] == "agent-1"
 
     # Upsert same agent should update last_seen and status
-    res2 = db.upsert_agent(
+    res2 = await db.upsert_agent(
         agent_id="agent-1",
         client_name="codex",
         status="idle",
@@ -33,18 +36,15 @@ def test_upsert_agent_and_list(tmp_path):
     )
     assert res2["status"] == "idle"
 
-    agents = db.list_agents("default", "pinak-memory", limit=10)
+    agents = await db.list_agents("default", "pinak-memory", limit=10)
     assert len(agents) == 1
     assert agents[0]["client_name"] == "codex"
     assert agents[0]["status"] == "idle"
     assert agents[0]["meta"]["version"] == "1.1"
 
 
-def test_access_event_log(tmp_path):
-    db_path = tmp_path / "memory.db"
-    db = DatabaseManager(str(db_path))
-
-    event = db.add_access_event(
+async def test_access_event_log(db):
+    event = await db.add_access_event(
         event_type="read",
         status="ok",
         tenant="default",
@@ -57,7 +57,7 @@ def test_access_event_log(tmp_path):
     )
     assert event["event_type"] == "read"
 
-    rows = db.list_access_events("default", "pinak-memory", limit=10)
+    rows = await db.list_access_events("default", "pinak-memory", limit=10)
     assert len(rows) == 1
     assert rows[0]["client_name"] == "gemini"
     assert rows[0]["result_count"] == 2
