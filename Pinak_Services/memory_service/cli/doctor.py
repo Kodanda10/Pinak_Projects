@@ -256,7 +256,8 @@ def _ensure_schema_assets(report: DoctorReport, fix: bool) -> None:
 
 def _resolve_schema_issues(report: DoctorReport, fix: bool) -> None:
     db_path = _get_db_path()
-    if not os.path.exists(db_path):
+    if not _table_exists(db_path, "logs_client_issues"):
+        report.add_issue("logs_client_issues table missing; run doctor --fix")
         return
     with sqlite3.connect(db_path) as conn:
         conn.row_factory = sqlite3.Row
@@ -396,7 +397,8 @@ def _check_quarantine_write(report: DoctorReport, fix: bool) -> bool:
 
 def _resolve_mcp_issues(report: DoctorReport, fix: bool) -> None:
     db_path = _get_db_path()
-    if not os.path.exists(db_path):
+    if not _table_exists(db_path, "logs_client_issues"):
+        report.add_issue("logs_client_issues table missing; run doctor --fix")
         return
     env_path = Path(os.path.expanduser("~/pinak-memory/pinak.env"))
     with sqlite3.connect(db_path) as conn:
@@ -627,6 +629,20 @@ def _check_required_tables(report: DoctorReport, fix: bool) -> bool:
     return bool(missing) if not fix else False
 
 
+def _table_exists(db_path: str, table: str) -> bool:
+    if not os.path.exists(db_path):
+        return False
+    try:
+        with sqlite3.connect(db_path) as conn:
+            cur = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name = ?",
+                (table,),
+            )
+            return cur.fetchone() is not None
+    except Exception:
+        return False
+
+
 def _check_memory_client_columns(report: DoctorReport, fix: bool) -> bool:
     db_path = _get_db_path()
     if not os.path.exists(db_path):
@@ -656,11 +672,11 @@ def _check_memory_client_columns(report: DoctorReport, fix: bool) -> bool:
             try:
                 with sqlite3.connect(db_path) as conn:
                     cur = conn.execute(f"PRAGMA table_info({table})")
-                cols = {row[1] for row in cur.fetchall()}
-            if "client_id" not in cols:
+                    cols = {row[1] for row in cur.fetchall()}
+                if "client_id" not in cols:
+                    missing.append(table)
+            except Exception:
                 missing.append(table)
-        except Exception:
-            missing.append(table)
     if missing:
         report.add_issue(f"missing client_id columns: {', '.join(missing)}")
     return bool(missing) if not fix else False
@@ -784,17 +800,19 @@ def run_doctor(fix: bool = False, allow_heavy: bool = False) -> DoctorReport:
     report = DoctorReport()
     health_url = _get_health_url()
 
-    if not _check_service_health(health_url):
+    health_ok = _check_service_health(health_url)
+    if not health_ok and fix:
+        _kickstart_service(report)
+        for _ in range(15):
+            time.sleep(2)
+            if _check_service_health(health_url):
+                report.add_action("service health restored")
+                health_ok = True
+                break
+    if not health_ok:
         report.add_issue(f"service health check failed ({health_url})")
         if fix:
-            _kickstart_service(report)
-            for _ in range(15):
-                time.sleep(2)
-                if _check_service_health(health_url):
-                    report.add_action("service health restored")
-                    break
-            else:
-                report.add_issue("service still unhealthy after restart attempt")
+            report.add_issue("service still unhealthy after restart attempt")
     else:
         report.add_note("service health ok")
 
@@ -819,8 +837,8 @@ def run_doctor(fix: bool = False, allow_heavy: bool = False) -> DoctorReport:
     )
     _ensure_backup(report, fix)
     schema_changed = _ensure_db(report, fix)
-    _check_required_tables(report, fix)
-    _check_memory_client_columns(report, fix)
+    missing_tables = _check_required_tables(report, fix)
+    missing_client_cols = _check_memory_client_columns(report, fix)
     _backfill_missing_clients(report, fix)
     _ensure_vectors(report, fix, allow_heavy)
     _ensure_schema_assets(report, fix)
@@ -829,7 +847,7 @@ def run_doctor(fix: bool = False, allow_heavy: bool = False) -> DoctorReport:
     write_ok = _check_quarantine_write(report, fix)
     if write_ok:
         _resolve_mcp_issues(report, fix)
-    if fix and schema_changed:
+    if fix and (schema_changed or missing_tables or missing_client_cols):
         report.add_note("schema updated; restarting memory server for consistency")
         _kickstart_service(report)
     _ensure_lockdown_policy(report, fix)

@@ -34,7 +34,7 @@ Footer {
 
 #sidebar {
     dock: left;
-    width: 34;
+    width: 36;
     background: #0A0F1A;
     border-right: solid #111827;
 }
@@ -51,13 +51,14 @@ Footer {
 
 Button.nav-button {
     margin: 0 1;
-    padding: 1 1;
+    padding: 1 2;
     width: 1fr;
     background: #0A0F1A;
     color: #A3B0C2;
     border: none;
     text-align: left;
     text-wrap: nowrap;
+    overflow: hidden;
 }
 
 Button.nav-button:hover {
@@ -79,8 +80,8 @@ Button.nav-button.--highlight {
 }
 
 #topbar {
-    height: 7;
-    padding: 1 2;
+    height: 8;
+    padding: 1 3;
     background: #0F172A;
     border: solid #1E293B;
     margin: 0 0 1 0;
@@ -109,9 +110,9 @@ Button.nav-button.--highlight {
 }
 
 #topbar-status {
-    width: 28;
-    background: #0B1C2A;
-    border: round #1E293B;
+    width: 22;
+    background: #0C2233;
+    border: round #334155;
     color: #93C5FD;
     text-style: dim;
     text-align: center;
@@ -179,13 +180,15 @@ Button.-primary {
     height: 3;
     margin: 0 0 1 0;
     align: left middle;
+    column-gap: 1;
 }
 
 #client-selected {
     padding-right: 1;
+    padding-left: 1;
     color: #A5B4D0;
-    text-align: right;
-    width: 1fr;
+    text-align: left;
+    width: 28;
 }
 
 .muted {
