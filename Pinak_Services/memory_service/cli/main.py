@@ -102,6 +102,16 @@ def tui():
     from cli.tui import MemoryApp
     MemoryApp().run()
 
+@app.command("verify-mcp")
+def verify_mcp():
+    """Verify pinak-memory MCP config points to pinak_memory_mcp.py."""
+    script = Path(__file__).resolve().parent.parent / "scripts" / "verify-mcp-config.py"
+    result = subprocess.run([sys.executable, str(script)], capture_output=True, text=True, check=False)
+    if result.stdout:
+        typer.echo(result.stdout.strip())
+    if result.stderr:
+        typer.echo(result.stderr.strip())
+
 @app.command()
 def mint(tenant: str, project: str = "default", secret: str = None):
     """Mint a development JWT token."""
