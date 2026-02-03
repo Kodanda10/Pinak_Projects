@@ -552,16 +552,17 @@ def _ensure_env_file(report: DoctorReport, fix: bool) -> None:
     report.add_action(f"created pinak.env at {env_path}")
 
 
-def _ensure_db(report: DoctorReport, fix: bool) -> None:
+def _ensure_db(report: DoctorReport, fix: bool) -> bool:
     db_path = _get_db_path()
     if not os.path.exists(db_path):
         if fix:
             os.makedirs(os.path.dirname(db_path), exist_ok=True)
             DatabaseManager(db_path)
             report.add_action(f"created database at {db_path}")
+            return True
         else:
             report.add_issue(f"database not found at {db_path}")
-        return
+        return False
 
     try:
         conn = sqlite3.connect(db_path)
@@ -579,12 +580,57 @@ def _ensure_db(report: DoctorReport, fix: bool) -> None:
     if fix:
         DatabaseManager(db_path)
         report.add_action("ensured core schema tables/columns")
+        return True
+    return False
 
 
-def _check_memory_client_columns(report: DoctorReport, fix: bool) -> None:
+def _check_required_tables(report: DoctorReport, fix: bool) -> bool:
     db_path = _get_db_path()
     if not os.path.exists(db_path):
-        return
+        return False
+    required = [
+        "clients_registry",
+        "logs_access",
+        "logs_agents",
+        "logs_client_issues",
+        "memory_quarantine",
+    ]
+    missing = []
+    for table in required:
+        try:
+            with sqlite3.connect(db_path) as conn:
+                cur = conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name = ?",
+                    (table,),
+                )
+                if not cur.fetchone():
+                    missing.append(table)
+        except Exception:
+            missing.append(table)
+    if missing and fix:
+        DatabaseManager(db_path)
+        report.add_action("ensured required core tables")
+        missing = []
+        for table in required:
+            try:
+                with sqlite3.connect(db_path) as conn:
+                    cur = conn.execute(
+                        "SELECT name FROM sqlite_master WHERE type='table' AND name = ?",
+                        (table,),
+                    )
+                    if not cur.fetchone():
+                        missing.append(table)
+            except Exception:
+                missing.append(table)
+    if missing:
+        report.add_issue(f"missing tables: {', '.join(missing)}")
+    return bool(missing) if not fix else False
+
+
+def _check_memory_client_columns(report: DoctorReport, fix: bool) -> bool:
+    db_path = _get_db_path()
+    if not os.path.exists(db_path):
+        return False
     required_tables = [
         "memories_semantic",
         "memories_episodic",
@@ -610,13 +656,14 @@ def _check_memory_client_columns(report: DoctorReport, fix: bool) -> None:
             try:
                 with sqlite3.connect(db_path) as conn:
                     cur = conn.execute(f"PRAGMA table_info({table})")
-                    cols = {row[1] for row in cur.fetchall()}
-                if "client_id" not in cols:
-                    missing.append(table)
-            except Exception:
+                cols = {row[1] for row in cur.fetchall()}
+            if "client_id" not in cols:
                 missing.append(table)
+        except Exception:
+            missing.append(table)
     if missing:
         report.add_issue(f"missing client_id columns: {', '.join(missing)}")
+    return bool(missing) if not fix else False
 
 
 def _get_vector_index_size(vec_path: str) -> Optional[int]:
@@ -771,7 +818,8 @@ def run_doctor(fix: bool = False, allow_heavy: bool = False) -> DoctorReport:
         fix,
     )
     _ensure_backup(report, fix)
-    _ensure_db(report, fix)
+    schema_changed = _ensure_db(report, fix)
+    _check_required_tables(report, fix)
     _check_memory_client_columns(report, fix)
     _backfill_missing_clients(report, fix)
     _ensure_vectors(report, fix, allow_heavy)
@@ -781,6 +829,9 @@ def run_doctor(fix: bool = False, allow_heavy: bool = False) -> DoctorReport:
     write_ok = _check_quarantine_write(report, fix)
     if write_ok:
         _resolve_mcp_issues(report, fix)
+    if fix and schema_changed:
+        report.add_note("schema updated; restarting memory server for consistency")
+        _kickstart_service(report)
     _ensure_lockdown_policy(report, fix)
     _check_llm_runtime(report)
 
