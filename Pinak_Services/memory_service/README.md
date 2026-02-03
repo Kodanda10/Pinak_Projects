@@ -110,60 +110,25 @@ scripts/pinak-unlock.sh
 
 ## 🤖 Agent Operations (MCP Integration)
 
-Agents interface with memory via the **Model Context Protocol (MCP)**. This abstracts authentication and vector complexity into simple tools.
-
-### 0) One‑Command MCP Setup (All Agents)
-This is the fastest path for Codex, Gemini, Cursor, OpenCode, Kiro, Antigravity, and Pi:
-```bash
-./pinak-memory setup-mcp --agents all \
-  --api-url "http://127.0.0.1:8000/api/v1" \
-  --token "<jwt-token>" \
-  --client-id "codex" \
-  --client-name "codex"
+Agents interface with memory via the **Model Context Protocol (MCP)**. Pinak Memory exposes an MCP server at:
 ```
-This updates MCP configs and writes `~/pinak-memory/pinak.env` (used by `pinak-mcp`).
-
-### 1. Live Loading (Configuration)
-The MCP server is now registered in your local Claude Desktop configuration. To activate it:
-
-1.  **Restart Claude Desktop completely**.
-2.  The tool `pinak-memory` will be available immediately.
-
-Before configuring agents, install the MCP client (no repo access required):
-```bash
-scripts/pinak-install-mcp.sh
+client/pinak_memory_mcp.py --mcp
 ```
 
-Custom location:
-```bash
-PINAK_MCP_HOME=/Users/Shared/pinak-memory scripts/pinak-install-mcp.sh
-```
-
-### 2. Manual Loading (Dev/Debug)
-You can also run the MCP server directly for testing or inspection:
-```bash
-~/pinak-memory/bin/pinak-mcp
-```
+### Manual MCP Configuration (Recommended)
+Point each agent to the MCP server script directly (no orchestrations or wrappers):
+- **Command**: `.../memory_service/.venv/bin/python`
+- **Args**: `.../memory_service/client/pinak_memory_mcp.py --mcp`
+- **Env**:
+  - `PINAK_API_URL=http://127.0.0.1:8000/api/v1`
+  - `PINAK_JWT_SECRET=<secret>`
+  - `PINAK_CLIENT_ID=<agent-id>`
+  - `PINAK_CLIENT_NAME=<agent-name>`
+  - `PINAK_PROJECT_ID=pinak-memory`
 
 **Available Tools:**
 - **`recall(query)`**: Semantic search across all memory layers. Used before starting tasks.
-- **`remember_episode(...)`**: Stores execution results. Used after completing tasks.
-
-### 3. Agent-Specific Configuration Reference
-The following files have been automatically updated to include `pinak-memory`:
-
-| Agent | Configuration File |
-| :--- | :--- |
-| **Claude Desktop** | `~/Library/Application Support/Claude/claude_desktop_config.json` |
-| **Google Gemini** | `~/.gemini/mcp.json` |
-| **Google Antigravity** | `~/.gemini/antigravity/mcp_config.json` |
-| **Codex CLI** | `~/.codex/mcp.json` (also uses `config.toml`, `auth.json`) |
-| **Pi Coding Agent** | `~/.pi/agent/settings.json` |
-| **AMP** | `~/.amp/mcp.json` |
-| **OpenCode** | `~/.opencode/mcp_config.json` |
-| **Cursor** | `~/.cursor/mcp.json` |
-
-Pi note: Pi does not natively support MCP tools; `setup-mcp --agents pi` installs a Pi Skill wrapper that uses the `pinak-mcp` CLI.
+- **`remember_episode(goal, outcome, content, tags)`**: Stores execution results. Used after completing tasks.
 
 ---
 
