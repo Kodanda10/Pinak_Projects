@@ -617,8 +617,8 @@ class AgentsView(Container):
             self.query_one("#agent-summary-text", Static).update(f"Error: {e}")
 
 class ClientIssuesView(Container):
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
         self.status_filter = "all"
 
     def compose(self) -> ComposeResult:
