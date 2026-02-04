@@ -375,7 +375,7 @@ class AgentsView(Container):
 
             table = self.query_one("#agents-table", DataTable)
             table.clear()
-            now = datetime.datetime.utcnow()
+            now = datetime.datetime.now(datetime.timezone.utc)
             for agent_id, client_name, status, last_seen in agents:
                 last_seen_ts = None
                 try:
