@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from app.core.database import DatabaseManager
 
 logger = logging.getLogger(__name__)
@@ -19,7 +19,7 @@ async def cleanup_expired_memories(db: DatabaseManager, interval_seconds: int = 
         try:
             await asyncio.sleep(interval_seconds)
 
-            now = datetime.utcnow().isoformat()
+            now = datetime.now(timezone.utc).isoformat()
 
             # Delete expired session memories
             with db.get_cursor() as cur:
