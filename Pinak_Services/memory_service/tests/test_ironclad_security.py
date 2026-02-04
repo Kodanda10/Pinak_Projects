@@ -61,7 +61,7 @@ def test_require_auth_context_valid(jwt_secret):
     assert context.scopes == ["memory.read", "memory.write"]
     assert context.client_name == "codex"
 
-def test_require_auth_context_header_overrides(jwt_secret):
+def test_require_auth_context_token_prioritized(jwt_secret):
     payload = {
         "sub": "user123",
         "tenant": "t1",
@@ -70,6 +70,7 @@ def test_require_auth_context_header_overrides(jwt_secret):
         "scopes": ["memory.read"],
         "client_name": "token-client",
         "client_id": "token-client-id",
+        "parent_client_id": "token-parent",
     }
     token = jwt.encode(payload, jwt_secret, algorithm="HS256")
     creds = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
@@ -77,12 +78,15 @@ def test_require_auth_context_header_overrides(jwt_secret):
         creds,
         client_id_header="header-client-id",
         client_name_header="header-client",
-        parent_client_id_header="parent-client",
+        parent_client_id_header="header-parent",
         child_client_id_alt="child-client",
     )
 
-    assert context.client_id == "header-client-id"
-    assert context.client_name == "header-client"
-    assert context.parent_client_id == "parent-client"
+    # Token claims must take precedence over headers
+    assert context.client_id == "token-client-id"
+    assert context.client_name == "token-client"
+    assert context.parent_client_id == "token-parent"
+
+    # child_client_id is not in token, so header should be used
     assert context.child_client_id == "child-client"
     assert context.effective_client_id == "child-client"
