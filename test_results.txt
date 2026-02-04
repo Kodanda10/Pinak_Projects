@@ -1,0 +1,207 @@
+Using CPython 3.12.12 interpreter at: /home/jules/.pyenv/versions/3.12.12/bin/python3
+Creating virtual environment at: .venv
+   Building pinak-memory-service @ file:///app/Pinak_Services/memory_service
+Downloading setuptools (1.1MiB)
+Downloading nvidia-cuda-cupti-cu12 (9.8MiB)
+Downloading nvidia-cudnn-cu12 (674.0MiB)
+Downloading transformers (11.4MiB)
+Downloading pygments (1.2MiB)
+Downloading torch (846.8MiB)
+Downloading nvidia-cufft-cu12 (184.2MiB)
+Downloading nvidia-cuda-nvrtc-cu12 (84.0MiB)
+Downloading sympy (6.0MiB)
+Downloading uvloop (4.5MiB)
+Downloading networkx (1.9MiB)
+Downloading nvidia-cublas-cu12 (566.8MiB)
+Downloading faiss-cpu (30.0MiB)
+Downloading pydantic-core (2.0MiB)
+Downloading nvidia-curand-cu12 (60.7MiB)
+Downloading triton (148.4MiB)
+Downloading nvidia-cusolver-cu12 (255.1MiB)
+Downloading nvidia-nccl-cu12 (307.4MiB)
+Downloading hf-xet (3.0MiB)
+Downloading numpy (15.9MiB)
+Downloading nvidia-cusparse-cu12 (274.9MiB)
+Downloading scikit-learn (9.0MiB)
+Downloading pillow (6.3MiB)
+Downloading libcst (2.2MiB)
+Downloading nvidia-cusparselt-cu12 (273.9MiB)
+Downloading scipy (34.0MiB)
+Downloading nvidia-cufile-cu12 (1.1MiB)
+Downloading tokenizers (3.1MiB)
+Downloading nvidia-nvjitlink-cu12 (37.4MiB)
+ Downloaded nvidia-cufile-cu12
+ Downloaded pydantic-core
+ Downloaded pygments
+ Downloaded tokenizers
+ Downloaded hf-xet
+ Downloaded setuptools
+ Downloaded libcst
+ Downloaded networkx
+ Downloaded uvloop
+ Downloaded pillow
+      Built pinak-memory-service @ file:///app/Pinak_Services/memory_service
+ Downloaded nvidia-cuda-cupti-cu12
+ Downloaded scikit-learn
+ Downloaded sympy
+ Downloaded numpy
+ Downloaded transformers
+ Downloaded faiss-cpu
+ Downloaded nvidia-nvjitlink-cu12
+ Downloaded scipy
+ Downloaded nvidia-curand-cu12
+ Downloaded nvidia-cuda-nvrtc-cu12
+ Downloaded triton
+ Downloaded nvidia-cufft-cu12
+ Downloaded nvidia-cusolver-cu12
+ Downloaded nvidia-cusparselt-cu12
+ Downloaded nvidia-cusparse-cu12
+ Downloaded nvidia-nccl-cu12
+ Downloaded nvidia-cublas-cu12
+ Downloaded nvidia-cudnn-cu12
+ Downloaded torch
+Installed 101 packages in 424ms
+============================= test session starts ==============================
+platform linux -- Python 3.12.12, pytest-8.4.2, pluggy-1.6.0 -- /app/.venv/bin/python
+cachedir: .pytest_cache
+hypothesis profile 'default'
+rootdir: /app/Pinak_Services/memory_service
+configfile: pytest.ini
+plugins: hypothesis-6.151.4, cov-7.0.0, anyio-4.11.0, asyncio-1.2.0
+asyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 72 items
+
+Pinak_Services/memory_service/tests/test_client_issues.py::test_add_client_issue_returns_required_fields PASSED [  1%]
+Pinak_Services/memory_service/tests/test_client_registry.py::test_client_register_and_list PASSED [  2%]
+Pinak_Services/memory_service/tests/test_client_registry.py::test_client_register_trusted_requires_admin PASSED [  4%]
+Pinak_Services/memory_service/tests/test_client_summary.py::test_client_summary_includes_children PASSED [  5%]
+Pinak_Services/memory_service/tests/test_consistency.py::test_concurrent_vector_adds_no_race PASSED [  6%]
+Pinak_Services/memory_service/tests/test_consistency.py::test_faiss_db_sync_recovery PASSED [  8%]
+Pinak_Services/memory_service/tests/test_consistency.py::test_hybrid_search_semantic_weight PASSED [  9%]
+Pinak_Services/memory_service/tests/test_doctor_backfill.py::test_doctor_backfills_missing_client_ids PASSED [ 11%]
+Pinak_Services/memory_service/tests/test_embedding_backend.py::test_backend_none_skips_model_load PASSED [ 12%]
+Pinak_Services/memory_service/tests/test_embedding_backend.py::test_update_delete_skip_vectors_when_disabled PASSED [ 13%]
+Pinak_Services/memory_service/tests/test_ironclad_background.py::test_cleanup_expired_memories_execution PASSED [ 15%]
+Pinak_Services/memory_service/tests/test_ironclad_background.py::test_cleanup_expired_memories_exception_handling PASSED [ 16%]
+Pinak_Services/memory_service/tests/test_ironclad_database.py::test_database_init_failure PASSED [ 18%]
+Pinak_Services/memory_service/tests/test_ironclad_database.py::test_get_cursor_rollback PASSED [ 19%]
+Pinak_Services/memory_service/tests/test_ironclad_database.py::test_add_all_memory_layers PASSED [ 20%]
+Pinak_Services/memory_service/tests/test_ironclad_database.py::test_get_memory_invalid_layer PASSED [ 22%]
+Pinak_Services/memory_service/tests/test_ironclad_database.py::test_get_episodic_json_loading PASSED [ 23%]
+Pinak_Services/memory_service/tests/test_ironclad_database.py::test_search_keyword_all_layers PASSED [ 25%]
+Pinak_Services/memory_service/tests/test_ironclad_database.py::test_chaos_database_corruption PASSED [ 26%]
+Pinak_Services/memory_service/tests/test_ironclad_database.py::test_update_delete_invalid_layer PASSED [ 27%]
+Pinak_Services/memory_service/tests/test_ironclad_database_gaps.py::test_database_procedural_gap PASSED [ 29%]
+Pinak_Services/memory_service/tests/test_ironclad_database_gaps.py::test_database_update_delete_layer_errors PASSED [ 30%]
+Pinak_Services/memory_service/tests/test_ironclad_database_gaps.py::test_database_episodic_search_parsing PASSED [ 31%]
+Pinak_Services/memory_service/tests/test_ironclad_main.py::test_app_lifespan PASSED [ 33%]
+Pinak_Services/memory_service/tests/test_ironclad_main.py::test_retrieve_context PASSED [ 34%]
+Pinak_Services/memory_service/tests/test_ironclad_main.py::test_add_episodic PASSED [ 36%]
+Pinak_Services/memory_service/tests/test_ironclad_main.py::test_add_procedural PASSED [ 37%]
+Pinak_Services/memory_service/tests/test_ironclad_main.py::test_add_rag PASSED [ 38%]
+Pinak_Services/memory_service/tests/test_ironclad_main.py::test_update_memory_404 PASSED [ 40%]
+Pinak_Services/memory_service/tests/test_ironclad_main.py::test_delete_memory_404 PASSED [ 41%]
+Pinak_Services/memory_service/tests/test_ironclad_main.py::test_list_events PASSED [ 43%]
+Pinak_Services/memory_service/tests/test_ironclad_main.py::test_list_session PASSED [ 44%]
+Pinak_Services/memory_service/tests/test_ironclad_main.py::test_list_working PASSED [ 45%]
+Pinak_Services/memory_service/tests/test_ironclad_memory_service.py::test_deterministic_encoder_cycle PASSED [ 47%]
+Pinak_Services/memory_service/tests/test_ironclad_memory_service.py::test_memory_service_init_model_variants PASSED [ 48%]
+Pinak_Services/memory_service/tests/test_ironclad_memory_service.py::test_load_embedding_model_exception PASSED [ 50%]
+Pinak_Services/memory_service/tests/test_ironclad_memory_service.py::test_verify_and_recover_triggers_rebuild PASSED [ 51%]
+Pinak_Services/memory_service/tests/test_ironclad_memory_service.py::test_update_memory_edge_cases PASSED [ 52%]
+Pinak_Services/memory_service/tests/test_ironclad_memory_service.py::test_delete_memory_semantic PASSED [ 54%]
+Pinak_Services/memory_service/tests/test_ironclad_properties.py::test_vector_store_retrieval_consistency PASSED [ 55%]
+Pinak_Services/memory_service/tests/test_ironclad_properties.py::test_search_robustness PASSED [ 56%]
+Pinak_Services/memory_service/tests/test_ironclad_security.py::test_require_auth_context_missing_credentials PASSED [ 58%]
+Pinak_Services/memory_service/tests/test_ironclad_security.py::test_require_auth_context_invalid_token PASSED [ 59%]
+Pinak_Services/memory_service/tests/test_ironclad_security.py::test_require_auth_context_expired_token PASSED [ 61%]
+Pinak_Services/memory_service/tests/test_ironclad_security.py::test_require_auth_context_missing_tenant PASSED [ 62%]
+Pinak_Services/memory_service/tests/test_ironclad_security.py::test_require_auth_context_valid PASSED [ 63%]
+Pinak_Services/memory_service/tests/test_ironclad_security.py::test_require_auth_context_header_overrides PASSED [ 65%]
+Pinak_Services/memory_service/tests/test_ironclad_vector_store.py::test_vector_store_initialization_fail_recovery PASSED [ 66%]
+Pinak_Services/memory_service/tests/test_ironclad_vector_store.py::test_vector_store_add_vectors_validation PASSED [ 68%]
+Pinak_Services/memory_service/tests/test_ironclad_vector_store.py::test_vector_store_reconstruct_failure PASSED [ 69%]
+Pinak_Services/memory_service/tests/test_ironclad_vector_store.py::test_vector_store_search_empty PASSED [ 70%]
+Pinak_Services/memory_service/tests/test_ironclad_vector_store.py::test_vector_store_batch_add PASSED [ 72%]
+Pinak_Services/memory_service/tests/test_memory_api.py::test_missing_token_is_rejected PASSED [ 73%]
+Pinak_Services/memory_service/tests/test_memory_api.py::test_memory_isolation_between_tenants PASSED [ 75%]
+Pinak_Services/memory_service/tests/test_memory_api.py::test_audit_log_persistence PASSED [ 76%]
+Pinak_Services/memory_service/tests/test_memory_api.py::test_session_and_working_memory_are_scoped PASSED [ 77%]
+Pinak_Services/memory_service/tests/test_memory_api.py::test_invalid_token_is_rejected PASSED [ 79%]
+Pinak_Services/memory_service/tests/test_observability.py::test_upsert_agent_and_list PASSED [ 80%]
+Pinak_Services/memory_service/tests/test_observability.py::test_access_event_log PASSED [ 81%]
+Pinak_Services/memory_service/tests/test_qmd_backend.py::test_qmd_backend_disables_vectors PASSED [ 83%]
+Pinak_Services/memory_service/tests/test_quarantine.py::test_quarantine_approve_semantic PASSED [ 84%]
+Pinak_Services/memory_service/tests/test_quarantine.py::test_quarantine_reject PASSED [ 86%]
+Pinak_Services/memory_service/tests/test_quarantine_policy.py::test_quarantine_auto_approve_trusted PASSED [ 87%]
+Pinak_Services/memory_service/tests/test_quarantine_policy.py::test_auto_resolve_issue_for_trusted PASSED [ 88%]
+Pinak_Services/memory_service/tests/test_retrieve_timeout.py::test_search_hybrid_timeout_skips_vector PASSED [ 90%]
+Pinak_Services/memory_service/tests/test_schema_security.py::test_schema_requires_auth PASSED [ 91%]
+Pinak_Services/memory_service/tests/test_schema_security.py::test_schema_list_hides_paths PASSED [ 93%]
+Pinak_Services/memory_service/tests/test_schema_security.py::test_schema_layer_sanitization PASSED [ 94%]
+Pinak_Services/memory_service/tests/test_schema_security.py::test_schema_layer_ok PASSED [ 95%]
+Pinak_Services/memory_service/tests/test_startup_verify.py::test_skip_verify_on_startup PASSED [ 97%]
+Pinak_Services/memory_service/tests/test_updates.py::test_update_and_delete PASSED [ 98%]
+Pinak_Services/memory_service/tests/test_updates.py::test_json_deserialization PASSED [100%]
+
+=============================== warnings summary ===============================
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyPacked has no __module__ attribute
+
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type SwigPyObject has no __module__ attribute
+
+<frozen importlib._bootstrap>:488
+  <frozen importlib._bootstrap>:488: DeprecationWarning: builtin type swigvarlink has no __module__ attribute
+
+tests/test_client_issues.py::test_add_client_issue_returns_required_fields
+  /app/Pinak_Services/memory_service/tests/test_client_issues.py:49: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    "iat": datetime.datetime.utcnow(),
+
+tests/test_client_issues.py::test_add_client_issue_returns_required_fields
+  /app/Pinak_Services/memory_service/tests/test_client_issues.py:50: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    "exp": datetime.datetime.utcnow() + datetime.timedelta(minutes=5),
+
+tests/test_client_summary.py::test_client_summary_includes_children
+  /app/Pinak_Services/memory_service/tests/test_client_summary.py:49: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    "iat": datetime.datetime.utcnow(),
+
+tests/test_client_summary.py::test_client_summary_includes_children
+  /app/Pinak_Services/memory_service/tests/test_client_summary.py:50: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    "exp": datetime.datetime.utcnow() + datetime.timedelta(minutes=5),
+
+tests/test_ironclad_background.py::test_cleanup_expired_memories_execution
+tests/test_ironclad_background.py::test_cleanup_expired_memories_exception_handling
+  /app/Pinak_Services/memory_service/app/services/background.py:22: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    now = datetime.utcnow().isoformat()
+
+tests/test_memory_api.py::test_memory_isolation_between_tenants
+tests/test_memory_api.py::test_memory_isolation_between_tenants
+tests/test_memory_api.py::test_audit_log_persistence
+tests/test_memory_api.py::test_session_and_working_memory_are_scoped
+tests/test_memory_api.py::test_session_and_working_memory_are_scoped
+  /app/Pinak_Services/memory_service/tests/test_memory_api.py:51: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    "iat": datetime.datetime.utcnow(),
+
+tests/test_memory_api.py::test_memory_isolation_between_tenants
+tests/test_memory_api.py::test_memory_isolation_between_tenants
+tests/test_memory_api.py::test_audit_log_persistence
+tests/test_memory_api.py::test_session_and_working_memory_are_scoped
+tests/test_memory_api.py::test_session_and_working_memory_are_scoped
+  /app/Pinak_Services/memory_service/tests/test_memory_api.py:52: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    "exp": datetime.datetime.utcnow() + datetime.timedelta(minutes=5),
+
+tests/test_schema_security.py::test_schema_list_hides_paths
+tests/test_schema_security.py::test_schema_layer_sanitization
+tests/test_schema_security.py::test_schema_layer_ok
+  /app/Pinak_Services/memory_service/tests/test_schema_security.py:21: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    "iat": datetime.datetime.utcnow(),
+
+tests/test_schema_security.py::test_schema_list_hides_paths
+tests/test_schema_security.py::test_schema_layer_sanitization
+tests/test_schema_security.py::test_schema_layer_ok
+  /app/Pinak_Services/memory_service/tests/test_schema_security.py:22: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+    "exp": datetime.datetime.utcnow() + datetime.timedelta(minutes=5),
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================= 72 passed, 25 warnings in 58.26s =======================

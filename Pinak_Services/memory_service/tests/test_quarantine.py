@@ -1,23 +1,29 @@
 import json
 import os
+import pytest
+import pytest_asyncio
 from pathlib import Path
+from unittest.mock import patch
 
 from app.services.memory_service import MemoryService
 
+pytestmark = pytest.mark.asyncio
 
-def _make_config(tmp_path: Path) -> Path:
-    config = {"data_root": str(tmp_path / "data"), "embedding_model": "dummy"}
-    path = tmp_path / "config.json"
-    path.write_text(json.dumps(config))
-    return path
+@pytest_asyncio.fixture
+async def svc(tmp_path):
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    config = {"data_root": str(data_dir), "embedding_model": "dummy"}
+    config_path = tmp_path / "config.json"
+    config_path.write_text(json.dumps(config))
 
+    with patch.dict(os.environ, {"PINAK_EMBEDDING_BACKEND": "dummy"}):
+        service = MemoryService(config_path=str(config_path))
+        await service.initialize()
+        return service
 
-def test_quarantine_approve_semantic(tmp_path):
-    config_path = _make_config(tmp_path)
-    os.environ["PINAK_EMBEDDING_BACKEND"] = "dummy"
-    service = MemoryService(config_path=str(config_path))
-
-    res = service.propose_memory(
+async def test_quarantine_approve_semantic(svc):
+    res = await svc.propose_memory(
         "semantic",
         {"content": "hello world", "tags": ["t1"]},
         tenant="default",
@@ -27,7 +33,7 @@ def test_quarantine_approve_semantic(tmp_path):
     )
     assert res["status"] == "pending"
 
-    resolved = service.resolve_quarantine(
+    resolved = await svc.resolve_quarantine(
         res["id"],
         "approved",
         reviewer="admin",
@@ -39,12 +45,8 @@ def test_quarantine_approve_semantic(tmp_path):
     assert resolved["status"] == "approved"
 
 
-def test_quarantine_reject(tmp_path):
-    config_path = _make_config(tmp_path)
-    os.environ["PINAK_EMBEDDING_BACKEND"] = "dummy"
-    service = MemoryService(config_path=str(config_path))
-
-    res = service.propose_memory(
+async def test_quarantine_reject(svc):
+    res = await svc.propose_memory(
         "episodic",
         {"content": "event", "goal": "g", "outcome": "o"},
         tenant="default",
@@ -52,7 +54,7 @@ def test_quarantine_reject(tmp_path):
         agent_id="agent-2",
         client_name="gemini",
     )
-    resolved = service.resolve_quarantine(
+    resolved = await svc.resolve_quarantine(
         res["id"],
         "rejected",
         reviewer="admin",
