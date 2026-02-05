@@ -227,11 +227,6 @@ class MemoryService:
                 self.vector_store.vectors = np.empty((0, self.embedding_dim), dtype=np.float32)
                 self.vector_store.ids = np.array([], dtype=np.int64)
 
-            def _page_rows(query: str, params: tuple):
-                with self.db.get_cursor() as conn:
-                    conn.execute(query, params)
-                    return conn.fetchall()
-
             def _ingest_rows(rows, build_text):
                 texts = []
                 ids = []
@@ -245,45 +240,58 @@ class MemoryService:
                     embeddings = self.model.encode(texts)
                     self.vector_store.add_vectors(embeddings, ids)
 
-            # Semantic
-            offset = 0
+            # Performance Optimization: Use Keyset Pagination (WHERE rowid > ?) + Single Connection
+            # O(N) instead of O(N^2) for large datasets.
             limit = 100
-            while True:
-                rows = _page_rows(
-                    "SELECT content, embedding_id FROM memories_semantic LIMIT ? OFFSET ?",
-                    (limit, offset),
-                )
-                if not rows:
-                    break
-                _ingest_rows(rows, lambda r: r["content"])
-                offset += len(rows)
-                logger.info("Rebuilt %s semantic vectors...", offset)
+            with self.db.get_cursor() as cur:
+                def _fetch_page(query: str, params: tuple):
+                    cur.execute(query, params)
+                    return cur.fetchall()
 
-            # Episodic
-            offset = 0
-            while True:
-                rows = _page_rows(
-                    "SELECT content, goal, outcome, embedding_id FROM memories_episodic LIMIT ? OFFSET ?",
-                    (limit, offset),
-                )
-                if not rows:
-                    break
-                _ingest_rows(rows, lambda r: f"{r['content']} {r['goal'] or ''} {r['outcome'] or ''}")
-                offset += len(rows)
-                logger.info("Rebuilt %s episodic vectors...", offset)
+                # Semantic
+                last_rowid = 0
+                count = 0
+                while True:
+                    rows = _fetch_page(
+                        "SELECT rowid, content, embedding_id FROM memories_semantic WHERE rowid > ? ORDER BY rowid ASC LIMIT ?",
+                        (last_rowid, limit),
+                    )
+                    if not rows:
+                        break
+                    _ingest_rows(rows, lambda r: r["content"])
+                    last_rowid = rows[-1]["rowid"]
+                    count += len(rows)
+                    logger.info("Rebuilt %s semantic vectors...", count)
 
-            # Procedural
-            offset = 0
-            while True:
-                rows = _page_rows(
-                    "SELECT skill_name, trigger, description, embedding_id FROM memories_procedural LIMIT ? OFFSET ?",
-                    (limit, offset),
-                )
-                if not rows:
-                    break
-                _ingest_rows(rows, lambda r: f"{r['skill_name']} {r['trigger'] or ''} {r['description'] or ''}")
-                offset += len(rows)
-                logger.info("Rebuilt %s procedural vectors...", offset)
+                # Episodic
+                last_rowid = 0
+                count = 0
+                while True:
+                    rows = _fetch_page(
+                        "SELECT rowid, content, goal, outcome, embedding_id FROM memories_episodic WHERE rowid > ? ORDER BY rowid ASC LIMIT ?",
+                        (last_rowid, limit),
+                    )
+                    if not rows:
+                        break
+                    _ingest_rows(rows, lambda r: f"{r['content']} {r['goal'] or ''} {r['outcome'] or ''}")
+                    last_rowid = rows[-1]["rowid"]
+                    count += len(rows)
+                    logger.info("Rebuilt %s episodic vectors...", count)
+
+                # Procedural
+                last_rowid = 0
+                count = 0
+                while True:
+                    rows = _fetch_page(
+                        "SELECT rowid, skill_name, trigger, description, embedding_id FROM memories_procedural WHERE rowid > ? ORDER BY rowid ASC LIMIT ?",
+                        (last_rowid, limit),
+                    )
+                    if not rows:
+                        break
+                    _ingest_rows(rows, lambda r: f"{r['skill_name']} {r['trigger'] or ''} {r['description'] or ''}")
+                    last_rowid = rows[-1]["rowid"]
+                    count += len(rows)
+                    logger.info("Rebuilt %s procedural vectors...", count)
 
     def _load_config(self, path):
         if not os.path.exists(path):
