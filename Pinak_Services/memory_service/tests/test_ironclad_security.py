@@ -61,7 +61,11 @@ def test_require_auth_context_valid(jwt_secret):
     assert context.scopes == ["memory.read", "memory.write"]
     assert context.client_name == "codex"
 
-def test_require_auth_context_header_overrides(jwt_secret):
+def test_require_auth_context_jwt_priority(jwt_secret):
+    """
+    Ensures that if JWT contains client info, it takes precedence over headers
+    to prevent identity spoofing.
+    """
     payload = {
         "sub": "user123",
         "tenant": "t1",
@@ -81,8 +85,35 @@ def test_require_auth_context_header_overrides(jwt_secret):
         child_client_id_alt="child-client",
     )
 
-    assert context.client_id == "header-client-id"
-    assert context.client_name == "header-client"
+    # JWT wins for these:
+    assert context.client_id == "token-client-id"
+    assert context.client_name == "token-client"
+
+    # Header wins for these (not in JWT):
     assert context.parent_client_id == "parent-client"
     assert context.child_client_id == "child-client"
+    # effective_client_id logic prioritizes child_id if present
     assert context.effective_client_id == "child-client"
+
+def test_require_auth_context_header_fallback(jwt_secret):
+    """
+    Ensures that headers are used if JWT does NOT contain client info.
+    """
+    payload = {
+        "sub": "user123",
+        "tenant": "t1",
+        "project_id": "p1",
+        "roles": ["agent"],
+        "scopes": ["memory.read"],
+        # No client info in token
+    }
+    token = jwt.encode(payload, jwt_secret, algorithm="HS256")
+    creds = HTTPAuthorizationCredentials(scheme="Bearer", credentials=token)
+    context = require_auth_context(
+        creds,
+        client_id_header="header-client-id",
+        client_name_header="header-client",
+    )
+
+    assert context.client_id == "header-client-id"
+    assert context.client_name == "header-client"
