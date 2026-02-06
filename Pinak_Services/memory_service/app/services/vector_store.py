@@ -24,6 +24,11 @@ class VectorStore:
         self.ids = np.array([], dtype=np.int64)
         self.norms = np.array([], dtype=np.float32)
         
+        # Buffer for pending additions (List of arrays)
+        self._buffer_vectors = []
+        self._buffer_ids = []
+        self._buffer_norms = []
+
         self._load_index()
 
         self._save_timer = None
@@ -36,11 +41,17 @@ class VectorStore:
 
     @property
     def ntotal(self):
-        return len(self.ids)
+        with self.lock:
+            buffer_count = sum(len(ids) for ids in self._buffer_ids)
+            return len(self.ids) + buffer_count
 
     def _load_index(self):
         """Loads vectors and IDs from a numpy file."""
         with self.lock:
+            self._buffer_vectors = []
+            self._buffer_ids = []
+            self._buffer_norms = []
+
             load_path = None
             if os.path.exists(self.index_path):
                 load_path = self.index_path
@@ -68,10 +79,33 @@ class VectorStore:
         self._save_timer.daemon = True
         self._save_timer.start()
 
+    def _merge_buffer(self):
+        """Merges pending buffer into main arrays."""
+        if not self._buffer_vectors:
+            return
+
+        new_vectors = np.vstack(self._buffer_vectors)
+        new_ids = np.concatenate(self._buffer_ids)
+        new_norms = np.concatenate(self._buffer_norms)
+
+        if self.vectors.size == 0:
+            self.vectors = new_vectors
+            self.ids = new_ids
+            self.norms = new_norms
+        else:
+            self.vectors = np.vstack([self.vectors, new_vectors])
+            self.ids = np.concatenate([self.ids, new_ids])
+            self.norms = np.concatenate([self.norms, new_norms])
+
+        self._buffer_vectors = []
+        self._buffer_ids = []
+        self._buffer_norms = []
+
     def save(self):
         """Synchronously save to disk."""
         with self.lock:
             if self.needs_save:
+                self._merge_buffer()
                 dirpath = os.path.dirname(self.index_path)
                 if dirpath:
                     os.makedirs(dirpath, exist_ok=True)
@@ -94,9 +128,9 @@ class VectorStore:
         new_norms = np.sum(np.square(vectors), axis=1)
 
         with self.lock:
-            self.vectors = np.vstack([self.vectors, vectors])
-            self.ids = np.concatenate([self.ids, id_array])
-            self.norms = np.concatenate([self.norms, new_norms])
+            self._buffer_vectors.append(vectors)
+            self._buffer_ids.append(id_array)
+            self._buffer_norms.append(new_norms)
             self.needs_save = True
 
         self._schedule_save()
@@ -104,8 +138,9 @@ class VectorStore:
     def search(self, query_vector: np.ndarray, k: int = 10) -> Tuple[List[float], List[int]]:
         """Find top K nearest neighbors using L2 distance."""
         with self.lock:
-            if len(self.ids) == 0:
-                return [], []
+            # Prepare search space (Main + Buffer)
+            # We don't merge here to keep read latency low during frequent updates,
+            # but we search both and combine.
 
             # Ensure vectors and query are float32 for consistency
             query_vector = query_vector.astype(np.float32)
@@ -114,30 +149,59 @@ class VectorStore:
             if query_vector.shape[1] != self.dimension:
                 return [], []
 
-            # Compute L2 distance using dot product: ||x-y||^2 = ||x||^2 + ||y||^2 - 2<x,y>
-            dot_product = np.dot(self.vectors, query_vector.T).flatten()
             query_norm_sq = float(np.sum(np.square(query_vector)))
-            sq_dists = self.norms + query_norm_sq - (2.0 * dot_product)
-            sq_dists = np.maximum(sq_dists, 0.0)
 
-            # Get top K indices
-            actual_k = min(k, len(self.ids))
-            if actual_k < len(self.ids):
-                top_k_partition = np.argpartition(sq_dists, actual_k - 1)[:actual_k]
-                sorted_idx_in_top_k = np.argsort(sq_dists[top_k_partition])
+            candidates_dists = []
+            candidates_ids = []
+
+            # 1. Search Main Index
+            if len(self.ids) > 0:
+                dot_product = np.dot(self.vectors, query_vector.T).flatten()
+                sq_dists = self.norms + query_norm_sq - (2.0 * dot_product)
+                sq_dists = np.maximum(sq_dists, 0.0)
+                candidates_dists.append(sq_dists)
+                candidates_ids.append(self.ids)
+
+            # 2. Search Buffer (if any)
+            if self._buffer_vectors:
+                # Combine buffer chunks temporarily for efficient dot product
+                # (This is cheaper than merging into the huge main array)
+                buf_vecs = np.vstack(self._buffer_vectors)
+                buf_ids = np.concatenate(self._buffer_ids)
+                buf_norms = np.concatenate(self._buffer_norms)
+
+                dot_product_buf = np.dot(buf_vecs, query_vector.T).flatten()
+                sq_dists_buf = buf_norms + query_norm_sq - (2.0 * dot_product_buf)
+                sq_dists_buf = np.maximum(sq_dists_buf, 0.0)
+
+                candidates_dists.append(sq_dists_buf)
+                candidates_ids.append(buf_ids)
+
+            if not candidates_dists:
+                return [], []
+
+            # Combine results
+            all_dists = np.concatenate(candidates_dists)
+            all_ids = np.concatenate(candidates_ids)
+
+            # Get top K
+            actual_k = min(k, len(all_ids))
+            if actual_k < len(all_ids):
+                top_k_partition = np.argpartition(all_dists, actual_k - 1)[:actual_k]
+                sorted_idx_in_top_k = np.argsort(all_dists[top_k_partition])
                 top_k_idx = top_k_partition[sorted_idx_in_top_k]
             else:
-                top_k_idx = np.argsort(sq_dists)
+                top_k_idx = np.argsort(all_dists)
 
-            # Return in FAISS compatibility format (2D arrays)
             return (
-                [float(d) for d in sq_dists[top_k_idx].tolist()],
-                [int(i) for i in self.ids[top_k_idx].tolist()],
+                [float(d) for d in all_dists[top_k_idx].tolist()],
+                [int(i) for i in all_ids[top_k_idx].tolist()],
             )
 
     def remove_ids(self, ids: List[int]):
         """Remove specific vectors by ID."""
         with self.lock:
+            self._merge_buffer()
             mask = ~np.isin(self.ids, ids)
             self.vectors = self.vectors[mask]
             self.ids = self.ids[mask]
@@ -147,17 +211,21 @@ class VectorStore:
 
     @property
     def total(self):
-        return len(self.ids)
+        return self.ntotal
 
     def reset(self):
         with self.lock:
             self.vectors = np.empty((0, self.dimension), dtype=np.float32)
             self.ids = np.array([], dtype=np.int64)
             self.norms = np.array([], dtype=np.float32)
+            self._buffer_vectors = []
+            self._buffer_ids = []
+            self._buffer_norms = []
             self.needs_save = True
 
     def reconstruct(self, vector_id: int) -> Optional[np.ndarray]:
         with self.lock:
+            self._merge_buffer()
             matches = np.where(self.ids == vector_id)[0]
             if len(matches) == 0:
                 return None
