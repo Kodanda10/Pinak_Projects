@@ -1434,10 +1434,18 @@ class MemoryService:
     def update_memory(self, layer: str, memory_id: str, updates: Dict[str, Any], tenant: str, project_id: str) -> bool:
         """
         Updates memory in DB. If content changes in Semantic layer, re-embeds.
+        Enforces strict whitelisting of updatable fields per layer.
         """
-        # Security: Prevent updating system fields
-        forbidden_keys = {"id", "tenant", "project_id", "created_at", "embedding_id"}
-        safe_updates = {k: v for k, v in updates.items() if k not in forbidden_keys}
+        # Security: Allow only specific fields per layer to prevent mass assignment
+        allowed_fields = {
+            "semantic": {"content", "tags"},
+            "episodic": {"content", "salience", "goal", "plan", "outcome", "steps"},
+            "procedural": {"skill_name", "steps", "description", "trigger", "code_snippet"},
+            "rag": {"query", "external_source", "content"},
+        }
+
+        whitelist = allowed_fields.get(layer, set())
+        safe_updates = {k: v for k, v in updates.items() if k in whitelist}
 
         if not safe_updates:
             return False
