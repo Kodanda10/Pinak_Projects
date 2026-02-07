@@ -1431,15 +1431,26 @@ class MemoryService:
             )
             return
 
+    ALLOWED_UPDATES = {
+        "semantic": {"content", "tags"},
+        "episodic": {"content", "goal", "outcome", "plan", "steps", "salience"},
+        "procedural": {"skill_name", "trigger", "steps", "description", "code_snippet"},
+        "rag": {"query", "external_source", "content"},
+    }
+
     def update_memory(self, layer: str, memory_id: str, updates: Dict[str, Any], tenant: str, project_id: str) -> bool:
         """
         Updates memory in DB. If content changes in Semantic layer, re-embeds.
         """
-        # Security: Prevent updating system fields
-        forbidden_keys = {"id", "tenant", "project_id", "created_at", "embedding_id"}
-        safe_updates = {k: v for k, v in updates.items() if k not in forbidden_keys}
+        # Security: Strict Whitelist for Updates (Mass Assignment Protection)
+        allowed_fields = self.ALLOWED_UPDATES.get(layer, set())
+        safe_updates = {k: v for k, v in updates.items() if k in allowed_fields}
 
         if not safe_updates:
+            logger.warning(
+                "Update attempt with no allowed fields for layer '%s'. Dropped keys: %s",
+                layer, list(updates.keys())
+            )
             return False
 
         if layer == "semantic" and "content" in safe_updates and self.vector_enabled and self.vector_store:
