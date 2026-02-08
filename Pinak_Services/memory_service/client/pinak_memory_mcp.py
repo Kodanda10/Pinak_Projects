@@ -9,7 +9,9 @@ mcp = FastMCP("Pinak Memory")
 
 # Configuration
 API_BASE_URL = os.getenv("PINAK_API_URL", "http://localhost:8000/api/v1")
-PINAK_SECRET = os.getenv("PINAK_JWT_SECRET", "secret")  # Default for dev
+PINAK_SECRET = os.getenv("PINAK_JWT_SECRET")
+if not PINAK_SECRET:
+    raise RuntimeError("PINAK_JWT_SECRET environment variable must be set")
 PINAK_PROJECT_ID = os.getenv("PINAK_PROJECT_ID", "pinak-memory")
 PINAK_CLIENT_NAME = os.getenv("PINAK_CLIENT_NAME", "unknown-client")
 PINAK_CLIENT_ID = os.getenv("PINAK_CLIENT_ID", PINAK_CLIENT_NAME)
