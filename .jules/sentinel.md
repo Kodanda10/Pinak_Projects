@@ -1,0 +1,4 @@
+## 2024-05-23 - SQL Injection via Mass Assignment in Memory Service
+**Vulnerability:** Found a SQL injection vulnerability in `MemoryService.update_memory` where arbitrary dictionary keys from user input were passed to `DatabaseManager`, which used them to construct a SQL `UPDATE` statement dynamically (`f"{k} = ?"`). This allowed injecting SQL via keys like `"content = 'hacked' --"`.
+**Learning:** Parameterizing values is not enough if column names (keys) are derived from untrusted input. The existing blacklist (`forbidden_keys`) failed to prevent injection or updates to non-blacklisted but sensitive/invalid columns.
+**Prevention:** Always enforce a strict whitelist (`ALLOWED_UPDATES`) of allowed column names before constructing dynamic SQL queries. Never trust keys in a dictionary passed to a database update function.
