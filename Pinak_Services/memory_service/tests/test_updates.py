@@ -51,3 +51,47 @@ def test_json_deserialization(memory_service):
     results = memory_service.search_hybrid("json", tenant, pid)
     assert len(results) > 0
     assert isinstance(results[0]['tags'], list)
+
+def test_update_security_mass_assignment(memory_service):
+    """Verify that unauthorized fields are ignored during update."""
+    tenant = "t3"
+    pid = "p3"
+
+    # Add
+    res = memory_service.add_memory(
+        type('obj', (object,), {'content': 'safe', 'tags': []}),
+        tenant, pid, client_id="safe_client"
+    )
+    mid = res.id
+
+    # Attempt to update client_id (should be ignored)
+    updates = {
+        "content": "still safe",
+        "client_id": "hacked_client"
+    }
+    memory_service.update_memory("semantic", mid, updates, tenant, pid)
+
+    item = memory_service.db.get_memory("semantic", mid, tenant, pid)
+    assert item['content'] == "still safe"
+    assert item['client_id'] == "safe_client"  # Must NOT be "hacked_client"
+
+def test_update_security_sql_injection_attempt(memory_service):
+    """Verify that keys with potential SQL injection are ignored."""
+    tenant = "t4"
+    pid = "p4"
+
+    res = memory_service.add_memory(
+        type('obj', (object,), {'content': 'original', 'tags': []}),
+        tenant, pid
+    )
+    mid = res.id
+
+    # Attempt injection via key
+    updates = {
+        "content = 'pwned', client_id": "malicious"
+    }
+    # This key is not in ALLOWED_UPDATES, so it should be filtered out
+    memory_service.update_memory("semantic", mid, updates, tenant, pid)
+
+    item = memory_service.db.get_memory("semantic", mid, tenant, pid)
+    assert item['content'] == "original"
