@@ -222,11 +222,11 @@ class MemoryService:
         if not self.vector_enabled:
             logger.info("Vector store disabled (backend=%s); rebuild skipped", self.embedding_backend)
             return
-        with self.vector_store.batch_add():
-            with self.vector_store.lock:
-                self.vector_store.vectors = np.empty((0, self.embedding_dim), dtype=np.float32)
-                self.vector_store.ids = np.array([], dtype=np.int64)
 
+        # Ensure the vector store is clean before rebuilding
+        self.vector_store.reset()
+
+        with self.vector_store.batch_add():
             def _page_rows(query: str, params: tuple):
                 with self.db.get_cursor() as conn:
                     conn.execute(query, params)
