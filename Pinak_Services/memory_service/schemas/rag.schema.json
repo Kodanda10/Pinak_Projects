@@ -5,9 +5,9 @@
   "additionalProperties": false,
   "properties": {
     "schema_version": {"type": "string"},
-    "query": {"type": "string", "minLength": 1},
-    "external_source": {"type": "string", "minLength": 1},
-    "content": {"type": "string", "minLength": 1}
+    "query": {"type": "string", "minLength": 1, "maxLength": 1024},
+    "external_source": {"type": "string", "minLength": 1, "maxLength": 2048},
+    "content": {"type": "string", "minLength": 1, "maxLength": 1048576}
   },
   "required": ["query", "external_source", "content"]
 }
