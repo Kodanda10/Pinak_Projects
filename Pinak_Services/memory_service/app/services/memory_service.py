@@ -8,6 +8,7 @@ import time
 import concurrent.futures
 from typing import Dict, List, Optional, Any, Union
 
+from fastapi import HTTPException, status
 import numpy as np
 from sentence_transformers import SentenceTransformer
 
@@ -301,6 +302,10 @@ class MemoryService:
             logger.warning(f"Failed to load model {name}: {e}. Falling back to Dummy.")
             return _DeterministicEncoder()
 
+    def _clean_payload(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        """Remove None values to satisfy schema optional fields."""
+        return {k: v for k, v in payload.items() if v is not None}
+
     # --- Core Memory Operations ---
 
     def add_memory(self, memory_data: MemoryCreate, tenant: str, project_id: str,
@@ -336,6 +341,12 @@ class MemoryService:
                 client_meta["parent_client_id"],
                 client_meta["child_client_id"],
             )
+
+            if schema_errors:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail={"message": "Schema validation failed", "errors": schema_errors}
+                )
 
             embedding_id = None
             if self.vector_enabled:
@@ -429,28 +440,22 @@ class MemoryService:
                 parent_client_id=parent_client_id,
                 child_client_id=child_client_id,
             )
+            payload_to_validate = self._clean_payload({
+                "content": content,
+                "salience": salience,
+                "goal": goal,
+                "plan": plan,
+                "outcome": outcome,
+                "tool_logs": tool_logs,
+            })
             schema_errors = self.schema_registry.validate_payload(
                 "episodic",
-                {
-                    "content": content,
-                    "salience": salience,
-                    "goal": goal,
-                    "plan": plan,
-                    "outcome": outcome,
-                    "tool_logs": tool_logs,
-                },
+                payload_to_validate,
             )
             self._log_schema_errors(
                 "episodic",
                 schema_errors,
-                {
-                    "content": content,
-                    "salience": salience,
-                    "goal": goal,
-                    "plan": plan,
-                    "outcome": outcome,
-                    "tool_logs": tool_logs,
-                },
+                payload_to_validate,
                 tenant,
                 project_id,
                 agent_id,
@@ -459,6 +464,13 @@ class MemoryService:
                 client_meta["parent_client_id"],
                 client_meta["child_client_id"],
             )
+
+            if schema_errors:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail={"message": "Schema validation failed", "errors": schema_errors}
+                )
+
             embedding_id = None
             if self.vector_enabled:
                 # 1. Generate Embedding from content + goal + outcome
@@ -547,26 +559,21 @@ class MemoryService:
                 parent_client_id=parent_client_id,
                 child_client_id=child_client_id,
             )
+            payload_to_validate = self._clean_payload({
+                "skill_name": skill_name,
+                "steps": steps,
+                "description": description,
+                "trigger": trigger,
+                "code_snippet": code_snippet,
+            })
             schema_errors = self.schema_registry.validate_payload(
                 "procedural",
-                {
-                    "skill_name": skill_name,
-                    "steps": steps,
-                    "description": description,
-                    "trigger": trigger,
-                    "code_snippet": code_snippet,
-                },
+                payload_to_validate,
             )
             self._log_schema_errors(
                 "procedural",
                 schema_errors,
-                {
-                    "skill_name": skill_name,
-                    "steps": steps,
-                    "description": description,
-                    "trigger": trigger,
-                    "code_snippet": code_snippet,
-                },
+                payload_to_validate,
                 tenant,
                 project_id,
                 agent_id,
@@ -575,6 +582,13 @@ class MemoryService:
                 client_meta["parent_client_id"],
                 client_meta["child_client_id"],
             )
+
+            if schema_errors:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail={"message": "Schema validation failed", "errors": schema_errors}
+                )
+
             embedding_id = None
             if self.vector_enabled:
                 # 1. Generate Embedding from skill_name + trigger + description
@@ -684,6 +698,13 @@ class MemoryService:
                 client_meta["parent_client_id"],
                 client_meta["child_client_id"],
             )
+
+            if schema_errors:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail={"message": "Schema validation failed", "errors": schema_errors}
+                )
+
             result = self.db.add_rag(
                 query,
                 external_source,
@@ -986,6 +1007,13 @@ class MemoryService:
             client_meta["parent_client_id"],
             client_meta["child_client_id"],
         )
+
+        if schema_errors:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"message": "Schema validation failed", "errors": schema_errors}
+            )
+
         # Add to DB
         res = self.db.add_working(
             content,

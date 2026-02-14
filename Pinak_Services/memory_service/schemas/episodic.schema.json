@@ -5,12 +5,12 @@
   "additionalProperties": false,
   "properties": {
     "schema_version": {"type": "string"},
-    "content": {"type": "string", "minLength": 1},
-    "goal": {"type": "string"},
-    "outcome": {"type": "string"},
+    "content": {"type": "string", "minLength": 1, "maxLength": 65536},
+    "goal": {"type": "string", "maxLength": 1024},
+    "outcome": {"type": "string", "maxLength": 1024},
     "salience": {"type": "integer", "minimum": 0, "maximum": 10},
-    "plan": {"type": "array", "items": {"type": "string"}},
-    "tool_logs": {"type": "array", "items": {"type": "object"}}
+    "plan": {"type": "array", "items": {"type": "string", "maxLength": 1024}, "maxItems": 100},
+    "tool_logs": {"type": "array", "items": {"type": "object"}, "maxItems": 100}
   },
   "required": ["content"]
 }

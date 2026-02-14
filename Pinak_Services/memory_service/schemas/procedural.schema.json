@@ -5,11 +5,11 @@
   "additionalProperties": false,
   "properties": {
     "schema_version": {"type": "string"},
-    "skill_name": {"type": "string", "minLength": 1},
-    "steps": {"type": "array", "items": {"type": "string"}},
-    "description": {"type": "string"},
-    "trigger": {"type": "string"},
-    "code_snippet": {"type": "string"}
+    "skill_name": {"type": "string", "minLength": 1, "maxLength": 1024},
+    "steps": {"type": "array", "items": {"type": "string", "maxLength": 4096}, "maxItems": 100},
+    "description": {"type": "string", "maxLength": 65536},
+    "trigger": {"type": "string", "maxLength": 1024},
+    "code_snippet": {"type": "string", "maxLength": 65536}
   },
   "required": ["skill_name", "steps"]
 }
