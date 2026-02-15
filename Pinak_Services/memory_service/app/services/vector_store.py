@@ -60,9 +60,9 @@ class VectorStore:
                     self.norms = np.array([], dtype=np.float32)
 
     def _schedule_save(self):
-        """Schedule a debounced save."""
-        if self._save_timer is not None:
-            self._save_timer.cancel()
+        """Schedule a save if one isn't already pending (throttled)."""
+        if self._save_timer is not None and self._save_timer.is_alive():
+            return
 
         self._save_timer = threading.Timer(self._save_interval, self.save)
         self._save_timer.daemon = True
