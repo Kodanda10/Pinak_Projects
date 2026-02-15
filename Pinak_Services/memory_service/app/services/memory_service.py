@@ -1435,9 +1435,24 @@ class MemoryService:
         """
         Updates memory in DB. If content changes in Semantic layer, re-embeds.
         """
-        # Security: Prevent updating system fields
-        forbidden_keys = {"id", "tenant", "project_id", "created_at", "embedding_id"}
-        safe_updates = {k: v for k, v in updates.items() if k not in forbidden_keys}
+        # Security: Allow only specific fields per layer (Whitelist)
+        ALLOWED_UPDATES = {
+            "semantic": {"content", "tags"},
+            "episodic": {"content", "goal", "outcome", "plan", "steps", "salience"},
+            "procedural": {"skill_name", "trigger", "steps", "description", "code_snippet"},
+            "rag": {"query", "external_source", "content"},
+        }
+
+        allowed_fields = ALLOWED_UPDATES.get(layer)
+        if not allowed_fields:
+            logger.warning(f"Update rejected: Layer '{layer}' does not support updates.")
+            return False
+
+        safe_updates = {k: v for k, v in updates.items() if k in allowed_fields}
+
+        if len(safe_updates) < len(updates):
+            rejected = set(updates.keys()) - set(safe_updates.keys())
+            logger.warning(f"Update warning: Ignored restricted fields {rejected} for layer '{layer}'")
 
         if not safe_updates:
             return False
