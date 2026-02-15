@@ -1,0 +1,3 @@
+## 2024-05-23 - [Throttled Background Saves > Synchronous Saves]
+**Learning:** In a high-throughput write scenario (e.g., adding memories), synchronous disk I/O on every request is a massive bottleneck. Even a "Debounce" pattern (canceling and recreating threads) can introduce significant overhead due to thread churn. A "Throttle" pattern (checking `is_alive()` and skipping if active) provides the best balance of performance (zero per-request overhead) and durability (guaranteed save within interval).
+**Action:** Always prefer Throttled Background Workers for non-critical persistence. Avoid creating new threads in hot paths; reuse or check existing ones.
