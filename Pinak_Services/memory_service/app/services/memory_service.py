@@ -362,8 +362,8 @@ class MemoryService:
             )
 
             # 5. Save Vector Store (persist)
-            if self.vector_enabled:
-                self.vector_store.save()
+            # Optimization: Rely on VectorStore's background write-behind mechanism (self.vector_store._schedule_save)
+            # to avoid blocking disk I/O on every write.
 
             self.db.add_access_event(
                 event_type="write",
@@ -1455,7 +1455,7 @@ class MemoryService:
                     self.vector_store.remove_ids([emb_id])
                     # Add new
                     self.vector_store.add_vectors(np.array([new_embedding]), [emb_id])
-                    self.vector_store.save()
+                    # Persistence is handled via VectorStore background write-behind
 
         success = self.db.update_memory(layer, memory_id, safe_updates, tenant, project_id)
         self.db.add_access_event(
@@ -1475,7 +1475,7 @@ class MemoryService:
             item = self.db.get_memory(layer, memory_id, tenant, project_id)
             if item and item.get("embedding_id"):
                 self.vector_store.remove_ids([item["embedding_id"]])
-                self.vector_store.save()
+                # Persistence is handled via VectorStore background write-behind
 
         success = self.db.delete_memory(layer, memory_id, tenant, project_id)
         self.db.add_access_event(
