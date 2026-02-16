@@ -776,6 +776,14 @@ class DatabaseManager:
                     pass
             return d
 
+    def _get_table_columns(self, conn: sqlite3.Connection, table: str) -> set:
+        try:
+            # PRAGMA table_info returns (cid, name, type, notnull, dflt_value, pk)
+            rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+            return {row["name"] if isinstance(row, sqlite3.Row) else row[1] for row in rows}
+        except sqlite3.OperationalError:
+            return set()
+
     def update_memory(self, layer: str, memory_id: str, updates: Dict[str, Any], tenant: str, project_id: str) -> bool:
         table_map = {
             "semantic": "memories_semantic",
@@ -789,17 +797,28 @@ class DatabaseManager:
         if not updates:
             return False
 
-        # Serialize JSON fields
-        serialized = {}
-        for key, value in updates.items():
-            if key in ("tags", "plan", "steps") and value is not None:
-                serialized[key] = json.dumps(value)
-            else:
-                serialized[key] = value
-
-        set_clause = ", ".join([f"{k} = ?" for k in serialized.keys()])
-        params = list(serialized.values()) + [memory_id, tenant, project_id]
         with self.get_cursor() as conn:
+            # Security: Validate keys against actual table columns to prevent SQL injection
+            valid_columns = self._get_table_columns(conn, table)
+            if not valid_columns:
+                logger.error(f"Could not retrieve columns for table {table}")
+                return False
+
+            for key in updates.keys():
+                if key not in valid_columns:
+                    raise ValueError(f"Invalid column: {key}")
+
+            # Serialize JSON fields
+            serialized = {}
+            for key, value in updates.items():
+                if key in ("tags", "plan", "steps") and value is not None:
+                    serialized[key] = json.dumps(value)
+                else:
+                    serialized[key] = value
+
+            set_clause = ", ".join([f"{k} = ?" for k in serialized.keys()])
+            params = list(serialized.values()) + [memory_id, tenant, project_id]
+
             cur = conn.execute(
                 f"UPDATE {table} SET {set_clause} WHERE id = ? AND tenant = ? AND project_id = ?",
                 params,
