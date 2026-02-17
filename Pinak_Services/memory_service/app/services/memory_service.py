@@ -1431,13 +1431,33 @@ class MemoryService:
             )
             return
 
+    ALLOWED_UPDATES = {
+        "semantic": {"content", "tags"},
+        "episodic": {"content", "salience", "goal", "outcome", "plan", "steps", "tool_logs"},
+        "procedural": {"skill_name", "trigger", "steps", "description", "code_snippet"},
+        "rag": {"query", "external_source", "content"},
+    }
+
     def update_memory(self, layer: str, memory_id: str, updates: Dict[str, Any], tenant: str, project_id: str) -> bool:
         """
         Updates memory in DB. If content changes in Semantic layer, re-embeds.
         """
-        # Security: Prevent updating system fields
-        forbidden_keys = {"id", "tenant", "project_id", "created_at", "embedding_id"}
-        safe_updates = {k: v for k, v in updates.items() if k not in forbidden_keys}
+        # Security: Allow only whitelisted fields
+        allowed = self.ALLOWED_UPDATES.get(layer)
+        if not allowed:
+            logger.warning(f"Update rejected for unknown layer: {layer}")
+            return False
+
+        safe_updates = {}
+        for k, v in updates.items():
+            if k in allowed:
+                safe_updates[k] = v
+            else:
+                logger.warning(f"Dropped unauthorized update field '{k}' for layer '{layer}'")
+
+        # Map 'tool_logs' to 'steps' for episodic layer
+        if layer == "episodic" and "tool_logs" in safe_updates:
+            safe_updates["steps"] = safe_updates.pop("tool_logs")
 
         if not safe_updates:
             return False
