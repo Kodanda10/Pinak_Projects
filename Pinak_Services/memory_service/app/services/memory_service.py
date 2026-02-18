@@ -1435,9 +1435,31 @@ class MemoryService:
         """
         Updates memory in DB. If content changes in Semantic layer, re-embeds.
         """
-        # Security: Prevent updating system fields
-        forbidden_keys = {"id", "tenant", "project_id", "created_at", "embedding_id"}
-        safe_updates = {k: v for k, v in updates.items() if k not in forbidden_keys}
+        # Security: Enforce strict whitelist to prevent Mass Assignment
+        ALLOWED_UPDATES = {
+            "semantic": {"content", "tags"},
+            "episodic": {"content", "salience", "goal", "outcome", "plan", "steps"},
+            "procedural": {"skill_name", "trigger", "steps", "description", "code_snippet"},
+            "rag": {"query", "external_source", "content"},
+        }
+
+        # Helper: Map external API fields to internal DB columns if needed
+        # Episodic layer uses 'steps' in DB but API often refers to 'tool_logs'
+        if layer == "episodic" and "tool_logs" in updates:
+            updates["steps"] = updates.pop("tool_logs")
+
+        allowed_fields = ALLOWED_UPDATES.get(layer)
+        if not allowed_fields:
+             # Fallback or strict error? For now, if layer is unknown to whitelist, reject.
+             logger.warning(f"Update attempted on unknown/unsupported layer: {layer}")
+             return False
+
+        safe_updates = {k: v for k, v in updates.items() if k in allowed_fields}
+
+        # Log warning if fields were dropped (audit trail for attempted injection)
+        dropped = set(updates.keys()) - set(safe_updates.keys())
+        if dropped:
+            logger.warning(f"Dropped unauthorized update fields for {layer}/{memory_id}: {dropped}")
 
         if not safe_updates:
             return False
