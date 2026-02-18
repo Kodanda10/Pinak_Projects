@@ -19,10 +19,12 @@ class VectorStore:
         self.dimension = dimension
         self.lock = threading.RLock()
         
-        # In-memory storage
-        self.vectors = np.empty((0, dimension), dtype=np.float32)
-        self.ids = np.array([], dtype=np.int64)
-        self.norms = np.array([], dtype=np.float32)
+        # Internal buffers with initial capacity
+        self._capacity = 1024
+        self._size = 0
+        self._vectors_buffer = np.empty((self._capacity, dimension), dtype=np.float32)
+        self._ids_buffer = np.empty(self._capacity, dtype=np.int64)
+        self._norms_buffer = np.empty(self._capacity, dtype=np.float32)
         
         self._load_index()
 
@@ -30,13 +32,81 @@ class VectorStore:
         self._save_interval = 5.0  # seconds
         self.needs_save = False
 
+    def _resize(self, new_capacity: int):
+        """Resize internal buffers to new capacity."""
+        if new_capacity <= self._capacity:
+            return
+
+        # Double capacity or match request
+        target_capacity = max(self._capacity * 2, new_capacity)
+
+        new_vectors = np.empty((target_capacity, self.dimension), dtype=np.float32)
+        new_ids = np.empty(target_capacity, dtype=np.int64)
+        new_norms = np.empty(target_capacity, dtype=np.float32)
+
+        # Copy existing data
+        if self._size > 0:
+            new_vectors[:self._size] = self._vectors_buffer[:self._size]
+            new_ids[:self._size] = self._ids_buffer[:self._size]
+            new_norms[:self._size] = self._norms_buffer[:self._size]
+
+        self._vectors_buffer = new_vectors
+        self._ids_buffer = new_ids
+        self._norms_buffer = new_norms
+        self._capacity = target_capacity
+
     @property
     def index(self):
         return self
 
     @property
     def ntotal(self):
-        return len(self.ids)
+        return self._size
+
+    @property
+    def vectors(self):
+        return self._vectors_buffer[:self._size]
+
+    @vectors.setter
+    def vectors(self, value):
+        val = np.array(value, dtype=np.float32)
+        if val.ndim == 1:
+            val = val.reshape(1, -1)
+        # Handle empty case
+        if val.size == 0:
+            self._size = 0
+            return
+
+        count = val.shape[0]
+        if count > self._capacity:
+            self._resize(count)
+
+        self._vectors_buffer[:count] = val
+        self._size = count
+
+    @property
+    def ids(self):
+        return self._ids_buffer[:self._size]
+
+    @ids.setter
+    def ids(self, value):
+        val = np.array(value, dtype=np.int64)
+        count = val.shape[0]
+        if count > self._capacity:
+            self._resize(count)
+        self._ids_buffer[:count] = val
+
+    @property
+    def norms(self):
+        return self._norms_buffer[:self._size]
+
+    @norms.setter
+    def norms(self, value):
+        val = np.array(value, dtype=np.float32)
+        count = val.shape[0]
+        if count > self._capacity:
+            self._resize(count)
+        self._norms_buffer[:count] = val
 
     def _load_index(self):
         """Loads vectors and IDs from a numpy file."""
@@ -46,18 +116,28 @@ class VectorStore:
                 load_path = self.index_path
             elif os.path.exists(f"{self.index_path}.npy"):
                 load_path = f"{self.index_path}.npy"
+
+            self._size = 0
+
             if load_path:
                 try:
                     data = np.load(load_path, allow_pickle=True).item()
-                    self.vectors = data['vectors'].astype(np.float32)
-                    self.ids = data['ids'].astype(np.int64)
-                    self.norms = np.sum(np.square(self.vectors), axis=1)
-                    logger.info(f"Loaded Vector Store from {load_path}. Size: {len(self.ids)}")
+                    vectors = data['vectors'].astype(np.float32)
+                    ids = data['ids'].astype(np.int64)
+
+                    count = len(ids)
+                    if count > self._capacity:
+                        self._resize(count)
+
+                    self._vectors_buffer[:count] = vectors
+                    self._ids_buffer[:count] = ids
+                    self._norms_buffer[:count] = np.sum(np.square(vectors), axis=1)
+                    self._size = count
+
+                    logger.info(f"Loaded Vector Store from {load_path}. Size: {count}")
                 except Exception as e:
                     logger.error(f"Failed to load index: {e}. Creating new one.")
-                    self.vectors = np.empty((0, self.dimension), dtype=np.float32)
-                    self.ids = np.array([], dtype=np.int64)
-                    self.norms = np.array([], dtype=np.float32)
+                    self._size = 0
 
     def _schedule_save(self):
         """Schedule a debounced save."""
@@ -93,10 +173,17 @@ class VectorStore:
         id_array = np.array(ids, dtype=np.int64)
         new_norms = np.sum(np.square(vectors), axis=1)
 
+        count = len(ids)
+
         with self.lock:
-            self.vectors = np.vstack([self.vectors, vectors])
-            self.ids = np.concatenate([self.ids, id_array])
-            self.norms = np.concatenate([self.norms, new_norms])
+            if self._size + count > self._capacity:
+                self._resize(self._size + count)
+
+            self._vectors_buffer[self._size : self._size + count] = vectors
+            self._ids_buffer[self._size : self._size + count] = id_array
+            self._norms_buffer[self._size : self._size + count] = new_norms
+
+            self._size += count
             self.needs_save = True
 
         self._schedule_save()
@@ -138,22 +225,38 @@ class VectorStore:
     def remove_ids(self, ids: List[int]):
         """Remove specific vectors by ID."""
         with self.lock:
-            mask = ~np.isin(self.ids, ids)
-            self.vectors = self.vectors[mask]
-            self.ids = self.ids[mask]
-            self.norms = self.norms[mask]
+            # Operate on valid data slice
+            valid_ids = self._ids_buffer[:self._size]
+            mask = ~np.isin(valid_ids, ids)
+
+            # If nothing to remove, return early
+            if np.all(mask):
+                return
+
+            # Count remaining items
+            new_count = np.count_nonzero(mask)
+
+            # Copy kept elements
+            new_vectors = self._vectors_buffer[:self._size][mask]
+            new_ids = valid_ids[mask]
+            new_norms = self._norms_buffer[:self._size][mask]
+
+            # Place back at start of buffer
+            self._vectors_buffer[:new_count] = new_vectors
+            self._ids_buffer[:new_count] = new_ids
+            self._norms_buffer[:new_count] = new_norms
+
+            self._size = new_count
             self.needs_save = True
         self._schedule_save()
 
     @property
     def total(self):
-        return len(self.ids)
+        return self._size
 
     def reset(self):
         with self.lock:
-            self.vectors = np.empty((0, self.dimension), dtype=np.float32)
-            self.ids = np.array([], dtype=np.int64)
-            self.norms = np.array([], dtype=np.float32)
+            self._size = 0
             self.needs_save = True
 
     def reconstruct(self, vector_id: int) -> Optional[np.ndarray]:
