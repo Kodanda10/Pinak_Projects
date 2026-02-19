@@ -25,7 +25,12 @@ SERVER_PORT="${PINAK_BIND_PORT:-8000}"
 SERVER_HOST="${PINAK_BIND_HOST:-127.0.0.1}"
 VENV_PY="${PINAK_VENV_PY:-$BASE_DIR/.venv/bin/python}"
 
-export PINAK_JWT_SECRET="${PINAK_JWT_SECRET:-secret}"
+if [ -z "${PINAK_JWT_SECRET:-}" ]; then
+  echo "⚠️  PINAK_JWT_SECRET not set. Generating a random secret..."
+  export PINAK_JWT_SECRET=$(python3 -c 'import secrets; print(secrets.token_hex(32))')
+  echo "🔑 Generated Secret: $PINAK_JWT_SECRET"
+  echo "👉 You must use this secret for clients!"
+fi
 export PINAK_API_URL="${PINAK_API_URL:-http://127.0.0.1:${SERVER_PORT}/api/v1}"
 export PINAK_PROJECT_ID="${PINAK_PROJECT_ID:-pinak-memory}"
 
