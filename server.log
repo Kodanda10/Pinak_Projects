@@ -1,0 +1,13 @@
+INFO:     Started server process [2199]
+INFO:     Waiting for application startup.
+2026-02-19 17:48:06,383 [INFO] app.services.vector_store: Loaded Vector Store from data/vectors.index.npy. Size: 3
+2026-02-19 17:48:06,384 [INFO] app.services.memory_service: System Consistent. 3 memories loaded.
+2026-02-19 17:48:06,384 [INFO] app.services.background: Expiration cleanup task started (interval: 3600s)
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8002 (Press CTRL+C to quit)
+INFO:     127.0.0.1:34422 - "GET /api/v1/health HTTP/1.1" 200 OK
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+2026-02-19 17:48:09,143 [INFO] app.services.background: Cleanup task cancelled
+INFO:     Application shutdown complete.
+INFO:     Finished server process [2199]
