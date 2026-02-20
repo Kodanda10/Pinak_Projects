@@ -143,8 +143,9 @@ def mint(tenant: str, project: str = "default", secret: str = None):
         "sub": "local-dev",
         "tenant": tenant,
         "project_id": project,
-        "iat": datetime.datetime.utcnow(),
-        "exp": datetime.datetime.utcnow() + datetime.timedelta(days=30),
+        "scopes": ["memory.read", "memory.write"],
+        "iat": datetime.datetime.now(datetime.timezone.utc),
+        "exp": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=30),
     }
     token = jwt.encode(payload, jwt_secret, algorithm="HS256")
     typer.echo(token)
@@ -157,8 +158,9 @@ def search(query: str, tenant: str = "demo", project: str = "default", url: str 
         "sub": "search-cli",
         "tenant": tenant,
         "project_id": project,
-        "iat": datetime.datetime.utcnow(),
-        "exp": datetime.datetime.utcnow() + datetime.timedelta(minutes=5),
+        "scopes": ["memory.read"],
+        "iat": datetime.datetime.now(datetime.timezone.utc),
+        "exp": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=5),
     }
     token = jwt.encode(token_payload, token_secret, algorithm="HS256")
     
