@@ -69,6 +69,13 @@ class MemoryService:
         # Vector Store
         self.vector_store = VectorStore(self.vector_path, self.embedding_dim) if self.vector_enabled else None
 
+    ALLOWED_UPDATES = {
+        "semantic": {"content", "tags"},
+        "episodic": {"content", "salience", "goal", "outcome", "plan", "steps"},
+        "procedural": {"skill_name", "trigger", "steps", "description", "code_snippet"},
+        "rag": {"query", "external_source", "content"},
+    }
+
     def _normalize_client_ids(
         self,
         client_id: Optional[str],
@@ -1434,12 +1441,17 @@ class MemoryService:
     def update_memory(self, layer: str, memory_id: str, updates: Dict[str, Any], tenant: str, project_id: str) -> bool:
         """
         Updates memory in DB. If content changes in Semantic layer, re-embeds.
+        Uses a whitelist (ALLOWED_UPDATES) to prevent unauthorized field modifications.
         """
-        # Security: Prevent updating system fields
-        forbidden_keys = {"id", "tenant", "project_id", "created_at", "embedding_id"}
-        safe_updates = {k: v for k, v in updates.items() if k not in forbidden_keys}
+        # Map tool_logs -> steps for episodic layer consistency
+        if layer == "episodic" and "tool_logs" in updates:
+            updates["steps"] = updates.pop("tool_logs")
+
+        allowed_keys = self.ALLOWED_UPDATES.get(layer, set())
+        safe_updates = {k: v for k, v in updates.items() if k in allowed_keys}
 
         if not safe_updates:
+            logger.warning("Update rejected: No allowed fields in payload for layer %s. Payload keys: %s", layer, list(updates.keys()))
             return False
 
         if layer == "semantic" and "content" in safe_updates and self.vector_enabled and self.vector_store:
