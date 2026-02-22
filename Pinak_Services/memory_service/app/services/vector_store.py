@@ -13,6 +13,7 @@ class VectorStore:
     """
     Thread-safe Vector Store using Numpy for similarity search.
     Provides identical API to the previous FAISS implementation but without segfaults.
+    Refactored to use safer .npz format without pickle.
     """
     def __init__(self, index_path: str, dimension: int):
         self.index_path = index_path
@@ -38,21 +39,69 @@ class VectorStore:
     def ntotal(self):
         return len(self.ids)
 
+    def _get_actual_path(self) -> Optional[str]:
+        """Resolves the actual file path, prioritizing .npz over .npy."""
+        base, ext = os.path.splitext(self.index_path)
+
+        # 1. Check if configured path is explicitly .npz and exists
+        if ext == ".npz" and os.path.exists(self.index_path):
+            return self.index_path
+
+        # 2. Check for .npz variant (preferred)
+        # If index_path is "foo.npy", look for "foo.npz"
+        # If index_path is "foo", look for "foo.npz"
+        npz_candidate = (base + ".npz") if ext == ".npy" else (self.index_path + ".npz")
+        if os.path.exists(npz_candidate):
+            return npz_candidate
+
+        # 3. Fallback to legacy .npy paths
+        if os.path.exists(self.index_path):
+            return self.index_path
+
+        # 4. Fallback to implicit .npy extension
+        # If index_path is "foo", look for "foo.npy"
+        if os.path.exists(self.index_path + ".npy"):
+             return self.index_path + ".npy"
+
+        return None
+
     def _load_index(self):
-        """Loads vectors and IDs from a numpy file."""
+        """Loads vectors and IDs from disk, handling both .npz (safe) and .npy (legacy)."""
         with self.lock:
-            load_path = None
-            if os.path.exists(self.index_path):
-                load_path = self.index_path
-            elif os.path.exists(f"{self.index_path}.npy"):
-                load_path = f"{self.index_path}.npy"
+            load_path = self._get_actual_path()
             if load_path:
                 try:
-                    data = np.load(load_path, allow_pickle=True).item()
-                    self.vectors = data['vectors'].astype(np.float32)
-                    self.ids = data['ids'].astype(np.int64)
+                    loaded = False
+                    # Attempt safe load first (works for .npz)
+                    try:
+                        data = np.load(load_path, allow_pickle=False)
+                        if isinstance(data, np.lib.npyio.NpzFile):
+                             self.vectors = data['vectors'].astype(np.float32)
+                             self.ids = data['ids'].astype(np.int64)
+                             loaded = True
+                             logger.info(f"Loaded Vector Store from {load_path} (format: npz). Size: {len(self.ids)}")
+                    except (ValueError, OSError, KeyError):
+                         # Not a valid npz or disallowed pickle (legacy npy)
+                         pass
+
+                    if not loaded:
+                         # Fallback to legacy pickle load for .npy files
+                         # Only verify logic if filename suggests legacy
+                         if load_path.endswith(".npy") or not load_path.endswith(".npz"):
+                             try:
+                                 data = np.load(load_path, allow_pickle=True).item()
+                                 self.vectors = data['vectors'].astype(np.float32)
+                                 self.ids = data['ids'].astype(np.int64)
+                                 loaded = True
+                                 logger.warning(f"Loaded legacy Vector Store from {load_path}. This will be converted to .npz on next save.")
+                             except Exception:
+                                 pass
+
+                    if not loaded:
+                        raise ValueError(f"Could not load valid index from {load_path}")
+
                     self.norms = np.sum(np.square(self.vectors), axis=1)
-                    logger.info(f"Loaded Vector Store from {load_path}. Size: {len(self.ids)}")
+
                 except Exception as e:
                     logger.error(f"Failed to load index: {e}. Creating new one.")
                     self.vectors = np.empty((0, self.dimension), dtype=np.float32)
@@ -69,16 +118,27 @@ class VectorStore:
         self._save_timer.start()
 
     def save(self):
-        """Synchronously save to disk."""
+        """Synchronously save to disk in secure .npz format."""
         with self.lock:
             if self.needs_save:
-                dirpath = os.path.dirname(self.index_path)
+                # Determine save path. Prefer .npz
+                base, ext = os.path.splitext(self.index_path)
+                if ext == ".npy":
+                    save_path = base + ".npz"
+                elif ext == ".npz":
+                    save_path = self.index_path
+                else:
+                    save_path = self.index_path + ".npz"
+
+                dirpath = os.path.dirname(save_path)
                 if dirpath:
                     os.makedirs(dirpath, exist_ok=True)
-                with open(self.index_path, "wb") as handle:
-                    np.save(handle, {'vectors': self.vectors, 'ids': self.ids})
+
+                # Save using npz format (compressed is usually better for vectors)
+                np.savez_compressed(save_path, vectors=self.vectors, ids=self.ids)
+
                 self.needs_save = False
-                logger.info(f"Saved Vector Store to {self.index_path}. Size: {len(self.ids)}")
+                logger.info(f"Saved Vector Store to {save_path}. Size: {len(self.ids)}")
 
     def add_vectors(self, vectors: np.ndarray, ids: List[int]):
         """Add vectors with specific IDs."""
