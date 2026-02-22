@@ -50,4 +50,5 @@ def test_vector_store_batch_add(tmp_path):
         # Should not save yet automatically due to Timer (wait threading)
         # but batch_add forces save at end
     
-    assert os.path.exists(index_path)
+    # Check for .npz extension (new secure format)
+    assert os.path.exists(index_path + ".npz")
