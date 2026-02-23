@@ -40,6 +40,14 @@ class MemoryService:
     Implements Hybrid Search with Reciprocal Rank Fusion (RRF).
     """
 
+    ALLOWED_UPDATES = {
+        "semantic": {"content", "tags"},
+        "episodic": {"content", "salience", "goal", "outcome", "plan", "steps", "tool_logs"},
+        "procedural": {"skill_name", "trigger", "steps", "description", "code_snippet"},
+        "rag": {"query", "external_source", "content"},
+        "working": {"content"}
+    }
+
     def __init__(self, config_path: Optional[str] = None, model: Optional[object] = None):
         config_path = config_path or os.getenv("PINAK_CONFIG_PATH", "app/core/config.json")
         self.config = self._load_config(config_path)
@@ -1437,7 +1445,21 @@ class MemoryService:
         """
         # Security: Prevent updating system fields
         forbidden_keys = {"id", "tenant", "project_id", "created_at", "embedding_id"}
-        safe_updates = {k: v for k, v in updates.items() if k not in forbidden_keys}
+
+        # Enforce whitelist if layer is known
+        allowed = self.ALLOWED_UPDATES.get(layer)
+        if allowed:
+            # Only allow keys in whitelist AND not in forbidden (redundant but safe)
+            safe_updates = {
+                k: v for k, v in updates.items()
+                if k in allowed and k not in forbidden_keys
+            }
+        else:
+            # Fallback for unknown layers (should ideally not happen or be strict)
+            # Existing behavior was permissive minus forbidden.
+            # Let's be strict and block unknown layers or default to safe_updates logic
+            # For now, we fall back to filtering forbidden keys to avoid breaking unknown layers if any
+            safe_updates = {k: v for k, v in updates.items() if k not in forbidden_keys}
 
         if not safe_updates:
             return False
