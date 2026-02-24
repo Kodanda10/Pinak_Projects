@@ -2,9 +2,7 @@ import os
 import numpy as np
 import threading
 import logging
-import time
-import json
-from typing import List, Tuple, Optional, Dict, Any
+from typing import List, Tuple, Optional
 from contextlib import contextmanager
 
 logger = logging.getLogger(__name__)
@@ -19,16 +17,16 @@ class VectorStore:
         self.dimension = dimension
         self.lock = threading.RLock()
         
+        self._save_timer = None
+        self._save_interval = 5.0  # seconds
+        self.needs_save = False
+
         # In-memory storage
         self.vectors = np.empty((0, dimension), dtype=np.float32)
         self.ids = np.array([], dtype=np.int64)
         self.norms = np.array([], dtype=np.float32)
         
         self._load_index()
-
-        self._save_timer = None
-        self._save_interval = 5.0  # seconds
-        self.needs_save = False
 
     @property
     def index(self):
@@ -39,22 +37,46 @@ class VectorStore:
         return len(self.ids)
 
     def _load_index(self):
-        """Loads vectors and IDs from a numpy file."""
+        """Loads vectors and IDs."""
         with self.lock:
+            # Try loading NPZ (Secure, New Format)
+            if self.index_path.endswith('.npz'):
+                npz_path = self.index_path
+            elif self.index_path.endswith('.npy'):
+                npz_path = self.index_path[:-4] + ".npz"
+            else:
+                npz_path = self.index_path + ".npz"
+
+            if os.path.exists(npz_path):
+                try:
+                    with np.load(npz_path, allow_pickle=False) as data:
+                        self.vectors = data['vectors'].astype(np.float32)
+                        self.ids = data['ids'].astype(np.int64)
+                        self.norms = np.sum(np.square(self.vectors), axis=1)
+                    logger.info(f"Loaded Secure Vector Store from {npz_path}. Size: {len(self.ids)}")
+                    return
+                except Exception as e:
+                    logger.error(f"Failed to load secure index from {npz_path}: {e}")
+
+            # Fallback to Legacy NPY (Insecure Pickle)
             load_path = None
             if os.path.exists(self.index_path):
                 load_path = self.index_path
             elif os.path.exists(f"{self.index_path}.npy"):
                 load_path = f"{self.index_path}.npy"
+
             if load_path:
                 try:
+                    logger.warning(f"Loading legacy insecure index from {load_path}. Migration to .npz scheduled.")
                     data = np.load(load_path, allow_pickle=True).item()
                     self.vectors = data['vectors'].astype(np.float32)
                     self.ids = data['ids'].astype(np.int64)
                     self.norms = np.sum(np.square(self.vectors), axis=1)
-                    logger.info(f"Loaded Vector Store from {load_path}. Size: {len(self.ids)}")
+                    # Trigger save to migrate
+                    self.needs_save = True
+                    self._schedule_save()
                 except Exception as e:
-                    logger.error(f"Failed to load index: {e}. Creating new one.")
+                    logger.error(f"Failed to load legacy index: {e}. Creating new one.")
                     self.vectors = np.empty((0, self.dimension), dtype=np.float32)
                     self.ids = np.array([], dtype=np.int64)
                     self.norms = np.array([], dtype=np.float32)
@@ -69,16 +91,26 @@ class VectorStore:
         self._save_timer.start()
 
     def save(self):
-        """Synchronously save to disk."""
+        """Synchronously save to disk using secure .npz format."""
         with self.lock:
             if self.needs_save:
-                dirpath = os.path.dirname(self.index_path)
+                # Construct NPZ path
+                if self.index_path.endswith('.npz'):
+                    save_path = self.index_path
+                elif self.index_path.endswith('.npy'):
+                    save_path = self.index_path[:-4] + ".npz"
+                else:
+                    save_path = self.index_path + ".npz"
+
+                dirpath = os.path.dirname(save_path)
                 if dirpath:
                     os.makedirs(dirpath, exist_ok=True)
-                with open(self.index_path, "wb") as handle:
-                    np.save(handle, {'vectors': self.vectors, 'ids': self.ids})
+
+                # Secure save without pickle
+                np.savez_compressed(save_path, vectors=self.vectors, ids=self.ids)
+
                 self.needs_save = False
-                logger.info(f"Saved Vector Store to {self.index_path}. Size: {len(self.ids)}")
+                logger.info(f"Saved Vector Store to {save_path}. Size: {len(self.ids)}")
 
     def add_vectors(self, vectors: np.ndarray, ids: List[int]):
         """Add vectors with specific IDs."""

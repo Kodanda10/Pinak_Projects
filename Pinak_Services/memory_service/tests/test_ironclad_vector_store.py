@@ -1,8 +1,7 @@
 import os
 import pytest
 import numpy as np
-import faiss
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from app.services.vector_store import VectorStore
 
 def test_vector_store_initialization_fail_recovery(tmp_path):
@@ -14,7 +13,8 @@ def test_vector_store_initialization_fail_recovery(tmp_path):
         vs = VectorStore(str(index_file), dimension=128)
         assert vs.index is not None
         mock_logger.error.assert_called()
-        assert "Failed to load index" in mock_logger.error.call_args[0][0]
+        # Updated to be less specific as legacy loading may log "Failed to load legacy index"
+        assert "Failed to load" in mock_logger.error.call_args[0][0]
 
 def test_vector_store_add_vectors_validation(tmp_path):
     vs = VectorStore(str(tmp_path / "test.index"), dimension=128)
@@ -50,4 +50,5 @@ def test_vector_store_batch_add(tmp_path):
         # Should not save yet automatically due to Timer (wait threading)
         # but batch_add forces save at end
     
-    assert os.path.exists(index_path)
+    # VectorStore now saves to .npz
+    assert os.path.exists(index_path + ".npz") or os.path.exists(index_path)
