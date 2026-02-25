@@ -5,7 +5,10 @@ set -euo pipefail
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$BASE_DIR"
 
-export PINAK_JWT_SECRET="${PINAK_JWT_SECRET:-secret}"
+if [ -z "${PINAK_JWT_SECRET:-}" ]; then
+  echo "⚠️  PINAK_JWT_SECRET not set. Generating a random secure key."
+  export PINAK_JWT_SECRET=$(python3 -c 'import secrets; print(secrets.token_hex(32))')
+fi
 export PINAK_EMBEDDING_BACKEND="${PINAK_EMBEDDING_BACKEND:-dummy}"
 export PINAK_EMBEDDING_TIMEOUT_MS="${PINAK_EMBEDDING_TIMEOUT_MS:-50}"
 export PINAK_VERIFY_IN_BACKGROUND="${PINAK_VERIFY_IN_BACKGROUND:-1}"
