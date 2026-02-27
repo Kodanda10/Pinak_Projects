@@ -1,0 +1,4 @@
+## 2025-02-27 - Fix SQL Injection in DatabaseManager.update_memory
+**Vulnerability:** The `update_memory` method constructed dynamic SQL update queries by directly concatenating dictionary keys (column names). This allowed attackers to craft malicious keys (e.g., `content = ?, agent_id = COALESCE(?, '') /*`) that bypassed the WHERE clause and updated all records in the table, ignoring tenant isolation.
+**Learning:** Dynamic column names in SQL statements cannot be parameterized. When accepting an arbitrary dictionary of updates, the keys must be strictly validated against an allowlist or a strict format regex before being interpolated into the query string.
+**Prevention:** Enforce strict validation on dynamic SQL identifiers (like column names) using regex (`^[a-zA-Z0-9_]+$`) or built-in string methods to ensure they do not contain SQL syntax characters.
