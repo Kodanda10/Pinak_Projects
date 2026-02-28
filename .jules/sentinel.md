@@ -1,0 +1,4 @@
+## 2025-03-09 - [Fix dynamic SQL generation vulnerability]
+**Vulnerability:** The `DatabaseManager.update_memory` dynamically created SQL queries using dictionary keys directly via `set_clause = ", ".join([f"{k} = ?" for k in serialized.keys()])`. Since there was no validation on `k`, a malicious actor could theoretically supply a key like `"content = 'hacked' --"` to alter the SQL structure, leading to potential SQL injection.
+**Learning:** Even when the backend is using paramterized queries (the values are using `?`), dynamically constructed SQL from inputs can introduce SQL injections when keys/column names themselves are un-sanitized. This happens frequently when generic `update_` methods process dynamic JSON structures.
+**Prevention:** Keys for dynamically constructed SQL should always be validated. A standard safe pattern is `re.match(r"^[a-zA-Z0-9_]+$", key)` to ensure only valid column names are provided.
