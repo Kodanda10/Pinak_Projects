@@ -1,0 +1,4 @@
+## 2024-03-01 - SQL Injection via Dictionary Keys in dynamic SET clauses
+**Vulnerability:** A SQL injection vulnerability existed in `DatabaseManager.update_memory` due to the dynamic construction of the SQL `SET` clause directly from the keys of the `updates` dictionary passed to the function.
+**Learning:** Even if values are parameterized or JSON-encoded, trusting dictionary keys (which can be derived from user input or payloads) to construct SQL column names is dangerous and can lead to arbitrary SQL execution or data corruption.
+**Prevention:** Validate all dictionary keys intended for use as column names against a strict allowlist or a regex like `^[a-zA-Z0-9_]+$` before using them to construct SQL strings. Ensure robust tests verify that invalid keys are properly rejected without causing side effects.

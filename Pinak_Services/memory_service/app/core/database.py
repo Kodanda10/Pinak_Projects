@@ -789,9 +789,11 @@ class DatabaseManager:
         if not updates:
             return False
 
-        # Serialize JSON fields
+        # Serialize JSON fields and validate keys
         serialized = {}
         for key, value in updates.items():
+            if not re.match(r"^[a-zA-Z0-9_]+$", key):
+                raise ValueError(f"Invalid update key: {key}")
             if key in ("tags", "plan", "steps") and value is not None:
                 serialized[key] = json.dumps(value)
             else:
