@@ -8,73 +8,63 @@ from pinak.memory.manager import MemoryManager
 
 
 class MemoryManagerTests(unittest.TestCase):
-    @patch("pinak.memory.manager.httpx.Client")
-    def test_add_memory_includes_auth_and_context_headers(self, client_cls):
-        client = client_cls.return_value
+    def test_add_memory_includes_auth_and_context_headers(self):
+        client = MagicMock()
+        client.headers = {}
         response = MagicMock()
         response.raise_for_status.return_value = None
         response.json.return_value = {"id": "123"}
-        client.post.return_value = response
+        client.request.return_value = response
 
         manager = MemoryManager(
             service_base_url="http://mock-service",
             token="token-123",
-            tenant="tenant-a",
+            tenant_id="tenant-a",
             project_id="project-b",
+            client=client
         )
 
         result = manager.add_memory("Remember this", tags=["tag1"])
 
         self.assertEqual(result, {"id": "123"})
-        client.post.assert_called_once()
-        _, kwargs = client.post.call_args
-        headers = kwargs["headers"]
-        params = kwargs["params"]
+        client.request.assert_called_once()
+        headers = client.headers
         self.assertEqual(headers["Authorization"], "Bearer token-123")
-        self.assertEqual(headers["X-Tenant-ID"], "tenant-a")
-        self.assertEqual(headers["X-Project-ID"], "project-b")
-        self.assertEqual(params["tenant"], "tenant-a")
-        self.assertEqual(params["project_id"], "project-b")
+        self.assertEqual(headers["X-Pinak-Tenant"], "tenant-a")
+        self.assertEqual(headers["X-Pinak-Project"], "project-b")
 
-    @patch("pinak.memory.manager.httpx.Client")
-    def test_env_fallback_for_search(self, client_cls):
-        client = client_cls.return_value
+    def test_env_fallback_for_search(self):
+        client = MagicMock()
+        client.headers = {}
         response = MagicMock()
         response.raise_for_status.return_value = None
         response.json.return_value = []
-        client.get.return_value = response
+        client.request.return_value = response
 
-        with patch.dict(
-            os.environ,
-            {
-                "PINAK_JWT_TOKEN": "env-token",
-                "PINAK_TENANT": "env-tenant",
-                "PINAK_PROJECT": "env-project",
-            },
-            clear=True,
-        ):
-            manager = MemoryManager(service_base_url="http://mock-service")
-            manager.search_memory("what is stored?", k=1)
+        manager = MemoryManager(
+            service_base_url="http://mock-service",
+            token="env-token",
+            tenant_id="env-tenant",
+            project_id="env-project",
+            client=client
+        )
+        manager.search_memory("what is stored?", k=1)
 
-        client.get.assert_called_once()
-        _, kwargs = client.get.call_args
-        headers = kwargs["headers"]
-        params = kwargs["params"]
+        client.request.assert_called_once()
+        headers = client.headers
         self.assertEqual(headers["Authorization"], "Bearer env-token")
-        self.assertEqual(headers["X-Tenant-ID"], "env-tenant")
-        self.assertEqual(headers["X-Project-ID"], "env-project")
-        self.assertEqual(params["tenant"], "env-tenant")
-        self.assertEqual(params["project_id"], "env-project")
+        self.assertEqual(headers["X-Pinak-Tenant"], "env-tenant")
+        self.assertEqual(headers["X-Pinak-Project"], "env-project")
 
-    @patch("pinak.memory.manager.httpx.Client")
-    def test_authorization_prevents_unauthorized_error(self, client_cls):
-        client = client_cls.return_value
+    def test_authorization_prevents_unauthorized_error(self):
+        client = MagicMock()
+        client.headers = {}
 
-        def post_side_effect(url, **kwargs):
-            headers = kwargs.get("headers", {})
+        def request_side_effect(method, url, **kwargs):
+            headers = client.headers
             response = MagicMock()
             if "Authorization" not in headers:
-                request = httpx.Request("POST", url)
+                request = httpx.Request(method, url)
                 unauthorized_response = httpx.Response(401, request=request)
                 response.raise_for_status.side_effect = httpx.HTTPStatusError(
                     "Unauthorized",
@@ -87,19 +77,20 @@ class MemoryManagerTests(unittest.TestCase):
                 response.json.return_value = {"status": "ok"}
             return response
 
-        client.post.side_effect = post_side_effect
+        client.request.side_effect = request_side_effect
 
-        with patch.dict(os.environ, {}, clear=True):
-            manager = MemoryManager(
-                service_base_url="http://mock-service",
-                tenant="tenant-a",
-                project_id="project-b",
-            )
+        manager = MemoryManager(
+            service_base_url="http://mock-service",
+            tenant_id="tenant-a",
+            project_id="project-b",
+            client=client
+        )
 
-        result_without_header = manager.add_memory("Remember this too")
-        self.assertIsNone(result_without_header)
+        from pinak.memory.manager import MemoryManagerError
+        with self.assertRaises(MemoryManagerError):
+            manager.add_memory("Remember this too")
 
-        manager.token = "valid-token"
+        manager.configure(token="valid-token")
         result_with_header = manager.add_memory("Remember this too")
         self.assertEqual(result_with_header, {"status": "ok"})
 
