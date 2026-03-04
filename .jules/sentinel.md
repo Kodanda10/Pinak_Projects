@@ -1,0 +1,4 @@
+## 2025-03-05 - [CRITICAL] Mass Assignment Vulnerability in `MemoryService.update_memory`
+**Vulnerability:** The `MemoryService.update_memory` function filters out restricted fields using a denylist (`forbidden_keys = {"id", "tenant", "project_id", "created_at", "embedding_id"}`) rather than an allowlist. This exposes the service to mass assignment attacks, allowing agents/clients to inadvertently or maliciously update internal metadata fields such as `agent_id`, `client_id`, `client_name`, `parent_client_id`, etc.
+**Learning:** Denylists are inherently fragile because any newly added system fields in the database automatically become updatable unless manually appended to the denylist. The service logic didn't account for fields beyond the primary identifiers and timestamps.
+**Prevention:** Always use an explicit allowlist mapping for updates, restricting mutable fields to only what is functionally required for each memory layer (e.g., `content`, `tags`, `goal`).
