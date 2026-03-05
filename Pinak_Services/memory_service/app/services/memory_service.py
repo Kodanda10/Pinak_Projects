@@ -69,6 +69,15 @@ class MemoryService:
         # Vector Store
         self.vector_store = VectorStore(self.vector_path, self.embedding_dim) if self.vector_enabled else None
 
+        # Allowed update fields by layer to prevent Mass Assignment
+        self.ALLOWED_UPDATES = {
+            "semantic": {"content", "tags"},
+            "episodic": {"content", "salience", "goal", "outcome", "plan", "steps", "tool_logs"},
+            "procedural": {"skill_name", "trigger", "steps", "description", "code_snippet"},
+            "rag": {"query", "external_source", "content"},
+            "working": {"content"}
+        }
+
     def _normalize_client_ids(
         self,
         client_id: Optional[str],
@@ -1435,9 +1444,14 @@ class MemoryService:
         """
         Updates memory in DB. If content changes in Semantic layer, re-embeds.
         """
-        # Security: Prevent updating system fields
+        # Security: Prevent updating system fields and Mass Assignment
+        if layer not in self.ALLOWED_UPDATES:
+            return False
+
+        allowed_keys = self.ALLOWED_UPDATES[layer]
         forbidden_keys = {"id", "tenant", "project_id", "created_at", "embedding_id"}
-        safe_updates = {k: v for k, v in updates.items() if k not in forbidden_keys}
+
+        safe_updates = {k: v for k, v in updates.items() if k in allowed_keys and k not in forbidden_keys}
 
         if not safe_updates:
             return False
