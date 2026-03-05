@@ -361,10 +361,6 @@ class MemoryService:
                 client_name=client_meta["client_name"],
             )
 
-            # 5. Save Vector Store (persist)
-            if self.vector_enabled:
-                self.vector_store.save()
-
             self.db.add_access_event(
                 event_type="write",
                 status="ok",
@@ -1455,7 +1451,6 @@ class MemoryService:
                     self.vector_store.remove_ids([emb_id])
                     # Add new
                     self.vector_store.add_vectors(np.array([new_embedding]), [emb_id])
-                    self.vector_store.save()
 
         success = self.db.update_memory(layer, memory_id, safe_updates, tenant, project_id)
         self.db.add_access_event(
@@ -1475,7 +1470,6 @@ class MemoryService:
             item = self.db.get_memory(layer, memory_id, tenant, project_id)
             if item and item.get("embedding_id"):
                 self.vector_store.remove_ids([item["embedding_id"]])
-                self.vector_store.save()
 
         success = self.db.delete_memory(layer, memory_id, tenant, project_id)
         self.db.add_access_event(
