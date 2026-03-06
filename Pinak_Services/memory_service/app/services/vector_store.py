@@ -9,55 +9,49 @@ from contextlib import contextmanager
 
 logger = logging.getLogger(__name__)
 
+import faiss
+
 class VectorStore:
     """
-    Thread-safe Vector Store using Numpy for similarity search.
-    Provides identical API to the previous FAISS implementation but without segfaults.
+    Thread-safe Vector Store using FAISS for robust similarity search.
+    Provides scalable Approximate Nearest Neighbors (ANN) and exact search capabilities.
     """
     def __init__(self, index_path: str, dimension: int):
         self.index_path = index_path
         self.dimension = dimension
         self.lock = threading.RLock()
         
-        # In-memory storage
-        self.vectors = np.empty((0, dimension), dtype=np.float32)
-        self.ids = np.array([], dtype=np.int64)
-        self.norms = np.array([], dtype=np.float32)
-        
-        self._load_index()
-
         self._save_timer = None
         self._save_interval = 5.0  # seconds
         self.needs_save = False
 
-    @property
-    def index(self):
-        return self
+        self._load_index()
 
     @property
     def ntotal(self):
-        return len(self.ids)
+        with self.lock:
+            return self.index.ntotal
 
     def _load_index(self):
-        """Loads vectors and IDs from a numpy file."""
+        """Loads FAISS index from disk or creates a new one."""
         with self.lock:
             load_path = None
             if os.path.exists(self.index_path):
                 load_path = self.index_path
-            elif os.path.exists(f"{self.index_path}.npy"):
-                load_path = f"{self.index_path}.npy"
+            elif os.path.exists(f"{self.index_path}.index"):
+                load_path = f"{self.index_path}.index"
+
             if load_path:
                 try:
-                    data = np.load(load_path, allow_pickle=True).item()
-                    self.vectors = data['vectors'].astype(np.float32)
-                    self.ids = data['ids'].astype(np.int64)
-                    self.norms = np.sum(np.square(self.vectors), axis=1)
-                    logger.info(f"Loaded Vector Store from {load_path}. Size: {len(self.ids)}")
+                    self.index = faiss.read_index(load_path)
+                    logger.info(f"Loaded FAISS Vector Store from {load_path}. Size: {self.index.ntotal}")
                 except Exception as e:
-                    logger.error(f"Failed to load index: {e}. Creating new one.")
-                    self.vectors = np.empty((0, self.dimension), dtype=np.float32)
-                    self.ids = np.array([], dtype=np.int64)
-                    self.norms = np.array([], dtype=np.float32)
+                    logger.error(f"Failed to load index: {e}. Creating new IndexIDMap2(IndexFlatL2).")
+                    base_index = faiss.IndexFlatL2(self.dimension)
+                    self.index = faiss.IndexIDMap2(base_index)
+            else:
+                base_index = faiss.IndexFlatL2(self.dimension)
+                self.index = faiss.IndexIDMap2(base_index)
 
     def _schedule_save(self):
         """Schedule a debounced save."""
@@ -75,10 +69,15 @@ class VectorStore:
                 dirpath = os.path.dirname(self.index_path)
                 if dirpath:
                     os.makedirs(dirpath, exist_ok=True)
-                with open(self.index_path, "wb") as handle:
-                    np.save(handle, {'vectors': self.vectors, 'ids': self.ids})
+
+                # Make sure to save with standard faiss extension if saving new file
+                save_path = self.index_path
+                if not save_path.endswith('.index'):
+                    save_path += '.index'
+
+                faiss.write_index(self.index, save_path)
                 self.needs_save = False
-                logger.info(f"Saved Vector Store to {self.index_path}. Size: {len(self.ids)}")
+                logger.info(f"Saved FAISS Vector Store to {save_path}. Size: {self.index.ntotal}")
 
     def add_vectors(self, vectors: np.ndarray, ids: List[int]):
         """Add vectors with specific IDs."""
@@ -91,12 +90,9 @@ class VectorStore:
 
         vectors = vectors.astype(np.float32)
         id_array = np.array(ids, dtype=np.int64)
-        new_norms = np.sum(np.square(vectors), axis=1)
 
         with self.lock:
-            self.vectors = np.vstack([self.vectors, vectors])
-            self.ids = np.concatenate([self.ids, id_array])
-            self.norms = np.concatenate([self.norms, new_norms])
+            self.index.add_with_ids(vectors, id_array)
             self.needs_save = True
 
         self._schedule_save()
@@ -104,7 +100,7 @@ class VectorStore:
     def search(self, query_vector: np.ndarray, k: int = 10) -> Tuple[List[float], List[int]]:
         """Find top K nearest neighbors using L2 distance."""
         with self.lock:
-            if len(self.ids) == 0:
+            if self.index.ntotal == 0:
                 return [], []
 
             # Ensure vectors and query are float32 for consistency
@@ -114,54 +110,46 @@ class VectorStore:
             if query_vector.shape[1] != self.dimension:
                 return [], []
 
-            # Compute L2 distance using dot product: ||x-y||^2 = ||x||^2 + ||y||^2 - 2<x,y>
-            dot_product = np.dot(self.vectors, query_vector.T).flatten()
-            query_norm_sq = float(np.sum(np.square(query_vector)))
-            sq_dists = self.norms + query_norm_sq - (2.0 * dot_product)
-            sq_dists = np.maximum(sq_dists, 0.0)
+            actual_k = min(k, self.index.ntotal)
+            distances, indices = self.index.search(query_vector, actual_k)
 
-            # Get top K indices
-            actual_k = min(k, len(self.ids))
-            if actual_k < len(self.ids):
-                top_k_partition = np.argpartition(sq_dists, actual_k - 1)[:actual_k]
-                sorted_idx_in_top_k = np.argsort(sq_dists[top_k_partition])
-                top_k_idx = top_k_partition[sorted_idx_in_top_k]
-            else:
-                top_k_idx = np.argsort(sq_dists)
+            if len(distances) == 0:
+                return [], []
 
-            # Return in FAISS compatibility format (2D arrays)
+            # Remove -1 indices (FAISS returns -1 for not found)
+            valid_mask = indices[0] != -1
+
             return (
-                [float(d) for d in sq_dists[top_k_idx].tolist()],
-                [int(i) for i in self.ids[top_k_idx].tolist()],
+                [float(d) for d in distances[0][valid_mask].tolist()],
+                [int(i) for i in indices[0][valid_mask].tolist()],
             )
 
     def remove_ids(self, ids: List[int]):
         """Remove specific vectors by ID."""
         with self.lock:
-            mask = ~np.isin(self.ids, ids)
-            self.vectors = self.vectors[mask]
-            self.ids = self.ids[mask]
-            self.norms = self.norms[mask]
+            id_selector = faiss.IDSelectorBatch(ids)
+            self.index.remove_ids(id_selector)
             self.needs_save = True
         self._schedule_save()
 
     @property
     def total(self):
-        return len(self.ids)
+        with self.lock:
+            return self.index.ntotal
 
     def reset(self):
         with self.lock:
-            self.vectors = np.empty((0, self.dimension), dtype=np.float32)
-            self.ids = np.array([], dtype=np.int64)
-            self.norms = np.array([], dtype=np.float32)
+            self.index.reset()
             self.needs_save = True
 
     def reconstruct(self, vector_id: int) -> Optional[np.ndarray]:
         with self.lock:
-            matches = np.where(self.ids == vector_id)[0]
-            if len(matches) == 0:
+            try:
+                # FAISS reconstruct returns the vector
+                return self.index.reconstruct(vector_id)
+            except RuntimeError:
+                # Vector not found
                 return None
-            return self.vectors[matches[0]].copy()
 
     @contextmanager
     def batch_add(self):
