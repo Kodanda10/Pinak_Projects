@@ -6,3 +6,4 @@ search_output.json
 data/
 data/*.db-wal
 data/*.db-shm
+data/
