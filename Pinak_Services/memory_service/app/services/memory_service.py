@@ -1431,13 +1431,28 @@ class MemoryService:
             )
             return
 
+    # Explicitly whitelist editable fields per layer to prevent Mass Assignment
+    ALLOWED_UPDATES = {
+        "semantic": {"content", "tags"},
+        "episodic": {"content", "salience", "goal", "outcome", "plan", "steps", "tool_logs"},
+        "procedural": {"skill_name", "trigger", "steps", "description", "code_snippet"},
+        "rag": {"query", "external_source", "content"},
+        "working": {"content"}
+    }
+
     def update_memory(self, layer: str, memory_id: str, updates: Dict[str, Any], tenant: str, project_id: str) -> bool:
         """
         Updates memory in DB. If content changes in Semantic layer, re-embeds.
         """
-        # Security: Prevent updating system fields
-        forbidden_keys = {"id", "tenant", "project_id", "created_at", "embedding_id"}
-        safe_updates = {k: v for k, v in updates.items() if k not in forbidden_keys}
+        allowed_keys = self.ALLOWED_UPDATES.get(layer, set())
+        safe_updates = {}
+        for k, v in updates.items():
+            if k in allowed_keys:
+                # Map external "tool_logs" back to internal "steps" for episodic
+                if layer == "episodic" and k == "tool_logs":
+                    safe_updates["steps"] = v
+                else:
+                    safe_updates[k] = v
 
         if not safe_updates:
             return False
