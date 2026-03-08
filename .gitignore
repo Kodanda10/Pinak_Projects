@@ -16,3 +16,4 @@ data/
 # OS-specific files
 .DS_Store
 .venv/
+Pinak_Services/memory_service/data/
