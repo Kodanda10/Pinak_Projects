@@ -6,6 +6,7 @@ import uuid
 import datetime
 import logging
 import re
+import threading
 from contextlib import contextmanager
 from typing import List, Dict, Any, Optional
 
@@ -17,6 +18,10 @@ class DatabaseManager:
         db_dir = os.path.dirname(db_path)
         if db_dir:
             os.makedirs(db_dir, exist_ok=True)
+
+        self._pool: List[sqlite3.Connection] = []
+        self._pool_lock = threading.Lock()
+
         self._init_db()
 
     def _init_db(self):
@@ -369,10 +374,29 @@ class DatabaseManager:
         with self.get_cursor() as conn:
             return self._column_exists(conn, table, column)
 
+    def _get_connection(self) -> sqlite3.Connection:
+        with self._pool_lock:
+            if self._pool:
+                return self._pool.pop()
+
+        # Performance Optimization: Use a connection pool to avoid
+        # re-initializing connections on every transaction, which causes
+        # severe lock contention and slowdowns under high concurrency.
+        # check_same_thread=False allows us to share connections across threads.
+        conn = sqlite3.connect(self.db_path, check_same_thread=False)
+        conn.execute("PRAGMA journal_mode=WAL;")
+        conn.execute("PRAGMA synchronous=NORMAL;")
+        conn.execute("PRAGMA busy_timeout=5000;")
+        conn.row_factory = sqlite3.Row
+        return conn
+
+    def _release_connection(self, conn: sqlite3.Connection):
+        with self._pool_lock:
+            self._pool.append(conn)
+
     @contextmanager
     def get_cursor(self):
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
+        conn = self._get_connection()
         cur = conn.cursor()
         try:
             yield cur
@@ -381,7 +405,8 @@ class DatabaseManager:
             conn.rollback()
             raise
         finally:
-            conn.close()
+            cur.close()
+            self._release_connection(conn)
 
     def _sanitize_fts_query(self, query: str) -> str:
         terms = []
