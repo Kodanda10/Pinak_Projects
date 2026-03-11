@@ -6,6 +6,7 @@ import uuid
 import datetime
 import logging
 import re
+import threading
 from contextlib import contextmanager
 from typing import List, Dict, Any, Optional
 
@@ -14,10 +15,22 @@ logger = logging.getLogger(__name__)
 class DatabaseManager:
     def __init__(self, db_path: str):
         self.db_path = db_path
+        self._local = threading.local()
         db_dir = os.path.dirname(db_path)
         if db_dir:
             os.makedirs(db_dir, exist_ok=True)
         self._init_db()
+
+    def _get_conn(self) -> sqlite3.Connection:
+        if not hasattr(self._local, "conn"):
+            conn = sqlite3.connect(self.db_path)
+            conn.row_factory = sqlite3.Row
+            # Apply performance PRAGMAs
+            conn.execute("PRAGMA journal_mode=WAL;")
+            conn.execute("PRAGMA synchronous=NORMAL;")
+            conn.execute("PRAGMA busy_timeout=5000;")
+            self._local.conn = conn
+        return self._local.conn
 
     def _init_db(self):
         with self.get_cursor() as conn:
@@ -371,17 +384,22 @@ class DatabaseManager:
 
     @contextmanager
     def get_cursor(self):
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
+        conn = self._get_conn()
         cur = conn.cursor()
+        if not hasattr(self._local, "txn_depth"):
+            self._local.txn_depth = 0
+
+        self._local.txn_depth += 1
         try:
             yield cur
-            conn.commit()
+            if self._local.txn_depth == 1:
+                conn.commit()
         except Exception:
-            conn.rollback()
+            if self._local.txn_depth == 1:
+                conn.rollback()
             raise
         finally:
-            conn.close()
+            self._local.txn_depth -= 1
 
     def _sanitize_fts_query(self, query: str) -> str:
         terms = []
