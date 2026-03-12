@@ -1435,9 +1435,21 @@ class MemoryService:
         """
         Updates memory in DB. If content changes in Semantic layer, re-embeds.
         """
-        # Security: Prevent updating system fields
-        forbidden_keys = {"id", "tenant", "project_id", "created_at", "embedding_id"}
-        safe_updates = {k: v for k, v in updates.items() if k not in forbidden_keys}
+        # Security: Whitelist allowed fields to prevent Mass Assignment
+        ALLOWED_UPDATES = {
+            "semantic": {"content", "tags"},
+            "episodic": {"content", "salience", "goal", "outcome", "plan", "steps", "tool_logs"},
+            "procedural": {"skill_name", "trigger", "steps", "description", "code_snippet"},
+            "rag": {"query", "external_source", "content"},
+            "working": {"content"}
+        }
+
+        allowed_keys = ALLOWED_UPDATES.get(layer, set())
+        safe_updates = {k: v for k, v in updates.items() if k in allowed_keys}
+
+        # Map tool_logs to steps for episodic layer consistency
+        if layer == "episodic" and "tool_logs" in safe_updates:
+            safe_updates["steps"] = safe_updates.pop("tool_logs")
 
         if not safe_updates:
             return False
