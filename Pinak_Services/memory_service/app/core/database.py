@@ -6,6 +6,8 @@ import uuid
 import datetime
 import logging
 import re
+import threading
+import sqlite3
 from contextlib import contextmanager
 from typing import List, Dict, Any, Optional
 
@@ -17,7 +19,30 @@ class DatabaseManager:
         db_dir = os.path.dirname(db_path)
         if db_dir:
             os.makedirs(db_dir, exist_ok=True)
+
+        self._local = threading.local()
+        # WAL mode configuration for better concurrency
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                conn.execute("PRAGMA journal_mode=WAL;")
+                conn.execute("PRAGMA synchronous=NORMAL;")
+                conn.execute("PRAGMA busy_timeout=5000;")
+        except Exception:
+            pass # Fails if readonly, just ignore
+
         self._init_db()
+
+    @property
+    def _conn(self):
+        if not hasattr(self._local, "conn"):
+            # check_same_thread=False allows us to share connections if needed,
+            # though thread-local ensures one connection per thread here
+            self._local.conn = sqlite3.connect(self.db_path, check_same_thread=False)
+            self._local.conn.row_factory = sqlite3.Row
+            # Setting pragmas on each connection
+            self._local.conn.execute("PRAGMA busy_timeout=5000;")
+            self._local.conn.execute("PRAGMA synchronous=NORMAL;")
+        return self._local.conn
 
     def _init_db(self):
         with self.get_cursor() as conn:
@@ -371,8 +396,7 @@ class DatabaseManager:
 
     @contextmanager
     def get_cursor(self):
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
+        conn = self._conn
         cur = conn.cursor()
         try:
             yield cur
@@ -381,7 +405,8 @@ class DatabaseManager:
             conn.rollback()
             raise
         finally:
-            conn.close()
+            cur.close()
+        # We DO NOT close the connection here, so it can be reused by the thread pool.
 
     def _sanitize_fts_query(self, query: str) -> str:
         terms = []
