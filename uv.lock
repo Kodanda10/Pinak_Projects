@@ -1246,13 +1246,25 @@ dependencies = [
 security = [
     { name = "pip-audit" },
 ]
+tests = [
+    { name = "httpx" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "pytest-cov" },
+    { name = "typer" },
+]
 
 [package.metadata]
 requires-dist = [
     { name = "httpx", specifier = ">=0.24,<0.27" },
+    { name = "httpx", marker = "extra == 'tests'" },
     { name = "pip-audit", marker = "extra == 'security'", specifier = ">=2.7" },
+    { name = "pytest", marker = "extra == 'tests'" },
+    { name = "pytest-asyncio", marker = "extra == 'tests'" },
+    { name = "pytest-cov", marker = "extra == 'tests'" },
+    { name = "typer", marker = "extra == 'tests'" },
 ]
-provides-extras = ["security"]
+provides-extras = ["tests", "security"]
 
 [[package]]
 name = "pip"
