@@ -5,7 +5,12 @@ set -euo pipefail
 BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$BASE_DIR"
 
-export PINAK_JWT_SECRET="${PINAK_JWT_SECRET:-secret}"
+if [ -z "${PINAK_JWT_SECRET:-}" ]; then
+  echo "Error: PINAK_JWT_SECRET environment variable is not set." >&2
+  exit 1
+fi
+
+export PINAK_JWT_SECRET="${PINAK_JWT_SECRET}"
 export PINAK_EMBEDDING_BACKEND="${PINAK_EMBEDDING_BACKEND:-dummy}"
 export PINAK_EMBEDDING_TIMEOUT_MS="${PINAK_EMBEDDING_TIMEOUT_MS:-50}"
 export PINAK_VERIFY_IN_BACKGROUND="${PINAK_VERIFY_IN_BACKGROUND:-1}"
