@@ -60,9 +60,15 @@ class VectorStore:
                     self.norms = np.array([], dtype=np.float32)
 
     def _schedule_save(self):
-        """Schedule a debounced save."""
-        if self._save_timer is not None:
-            self._save_timer.cancel()
+        """Schedule a throttled save.
+
+        ⚡ Bolt Optimization:
+        Instead of cancelling and creating a new thread for every single vector addition
+        (which causes severe thread-spam and lock contention during bulk adds),
+        we check if a save is already scheduled and alive.
+        """
+        if self._save_timer is not None and self._save_timer.is_alive():
+            return
 
         self._save_timer = threading.Timer(self._save_interval, self.save)
         self._save_timer.daemon = True
