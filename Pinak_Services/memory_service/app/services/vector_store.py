@@ -24,11 +24,11 @@ class VectorStore:
         self.ids = np.array([], dtype=np.int64)
         self.norms = np.array([], dtype=np.float32)
         
-        self._load_index()
-
         self._save_timer = None
         self._save_interval = 5.0  # seconds
         self.needs_save = False
+
+        self._load_index()
 
     @property
     def index(self):
@@ -41,16 +41,38 @@ class VectorStore:
     def _load_index(self):
         """Loads vectors and IDs from a numpy file."""
         with self.lock:
+            # 🛡️ Sentinel: Automatically migrate extensions from .npy to .npz for secure saving
+            npz_path = self.index_path[:-4] + '.npz' if self.index_path.endswith('.npy') else f"{self.index_path}.npz"
+            legacy_path = self.index_path if self.index_path.endswith('.npy') else f"{self.index_path}.npy"
+
             load_path = None
-            if os.path.exists(self.index_path):
+            is_legacy = False
+
+            if os.path.exists(npz_path):
+                load_path = npz_path
+            elif os.path.exists(legacy_path):
+                load_path = legacy_path
+                is_legacy = True
+            elif os.path.exists(self.index_path) and not self.index_path.endswith('.npy') and not self.index_path.endswith('.npz'):
+                # Try loading exact path if it doesn't have an extension but exists
                 load_path = self.index_path
-            elif os.path.exists(f"{self.index_path}.npy"):
-                load_path = f"{self.index_path}.npy"
+                is_legacy = True
+
             if load_path:
                 try:
-                    data = np.load(load_path, allow_pickle=True).item()
-                    self.vectors = data['vectors'].astype(np.float32)
-                    self.ids = data['ids'].astype(np.int64)
+                    if is_legacy:
+                        # 🛡️ Sentinel: allow_pickle is a security risk, only used here for legacy read-only migration
+                        data = np.load(load_path, allow_pickle=True).item()
+                        self.vectors = data['vectors'].astype(np.float32)
+                        self.ids = data['ids'].astype(np.int64)
+                        logger.warning(f"Loaded legacy npy Vector Store from {load_path}. Scheduling migration to npz.")
+                        self.needs_save = True
+                        self._schedule_save()
+                    else:
+                        # 🛡️ Sentinel: Loading securely with allow_pickle=False
+                        with np.load(load_path, allow_pickle=False) as data:
+                            self.vectors = data['vectors'].astype(np.float32)
+                            self.ids = data['ids'].astype(np.int64)
                     self.norms = np.sum(np.square(self.vectors), axis=1)
                     logger.info(f"Loaded Vector Store from {load_path}. Size: {len(self.ids)}")
                 except Exception as e:
@@ -72,13 +94,20 @@ class VectorStore:
         """Synchronously save to disk."""
         with self.lock:
             if self.needs_save:
-                dirpath = os.path.dirname(self.index_path)
+                # 🛡️ Sentinel: Always save as .npz
+                save_path = self.index_path[:-4] + '.npz' if self.index_path.endswith('.npy') else self.index_path
+                if not save_path.endswith('.npz'):
+                    save_path += '.npz'
+
+                dirpath = os.path.dirname(save_path)
                 if dirpath:
                     os.makedirs(dirpath, exist_ok=True)
-                with open(self.index_path, "wb") as handle:
-                    np.save(handle, {'vectors': self.vectors, 'ids': self.ids})
+
+                # 🛡️ Sentinel: Saving vectors securely using np.savez_compressed (no pickle)
+                with open(save_path, "wb") as handle:
+                    np.savez_compressed(handle, vectors=self.vectors, ids=self.ids)
                 self.needs_save = False
-                logger.info(f"Saved Vector Store to {self.index_path}. Size: {len(self.ids)}")
+                logger.info(f"Saved Vector Store to {save_path}. Size: {len(self.ids)}")
 
     def add_vectors(self, vectors: np.ndarray, ids: List[int]):
         """Add vectors with specific IDs."""
