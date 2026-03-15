@@ -1,0 +1,3 @@
+## 2025-05-20 - VectorStore Save Timer Thread Spam
+**Learning:** `VectorStore._schedule_save` used `threading.Timer(..., self.save)` and `timer.cancel()` for debouncing. However, `cancel()` does not stop the thread from being created and starting execution, it only prevents the payload function from running. During bulk sequential vector additions, this resulted in hundreds of dormant threads being spawned rapidly, bottlenecking the system and wasting resources.
+**Action:** Replace debouncing with throttling by checking `if self._save_timer is None or not self._save_timer.is_alive():` inside a `with self.lock:` block before spawning a new timer. This prevents new threads from being created if one is already scheduled.
