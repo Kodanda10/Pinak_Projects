@@ -1211,6 +1211,11 @@ tests = [
     { name = "pytest-cov" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "flake8" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "asgi-lifespan", marker = "extra == 'tests'", specifier = ">=2.1.0" },
@@ -1233,6 +1238,9 @@ requires-dist = [
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.30" },
 ]
 provides-extras = ["tests"]
+
+[package.metadata.requires-dev]
+dev = [{ name = "flake8", specifier = ">=7.3.0" }]
 
 [[package]]
 name = "pinak-project"

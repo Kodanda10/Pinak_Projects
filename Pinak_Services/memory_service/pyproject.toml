@@ -40,4 +40,8 @@ include = ["app*"]
 addopts = "-ra"
 pythonpath = ["app"]
 
+[dependency-groups]
+dev = [
+    "flake8>=7.3.0",
+]
 
