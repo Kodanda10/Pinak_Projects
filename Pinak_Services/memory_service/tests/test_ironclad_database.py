@@ -81,3 +81,24 @@ def test_update_delete_invalid_layer(db):
         db.update_memory("invalid", "id", {}, "t", "p")
     with pytest.raises(ValueError, match="Invalid layer"):
         db.delete_memory("invalid", "id", "t", "p")
+
+def test_update_memory_sql_injection_prevention(db):
+    res = db.add_semantic("test", [], "t1", "p1", 1)
+    mid = res["id"]
+
+    # Try updating with an invalid key that would cause SQL syntax error if not filtered
+    updates = {
+        "content": "updated",
+        "invalid-key'; DROP TABLE memories_semantic; --": "malicious"
+    }
+
+    success = db.update_memory("semantic", mid, updates, "t1", "p1")
+    assert success is True
+
+    mem = db.get_memory("semantic", mid, "t1", "p1")
+    assert mem["content"] == "updated"
+    assert "invalid-key'; DROP TABLE memories_semantic; --" not in mem
+
+    # Update with only invalid keys should return False and not do anything
+    success2 = db.update_memory("semantic", mid, {"123invalid": "test"}, "t1", "p1")
+    assert success2 is False
