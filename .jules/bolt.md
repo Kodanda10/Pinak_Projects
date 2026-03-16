@@ -1,0 +1,3 @@
+## 2025-08-30 - [Python threading.Timer debouncing vs throttling]
+**Learning:** `threading.Timer.cancel()` in Python does NOT stop the thread from being created and starting execution; it only prevents the payload function from running. Using it for high-frequency debouncing (like on every vector insertion in a fast O(N) array) leads to massive thread creation overhead and thread exhaustion, severely degrading performance.
+**Action:** For high-frequency operations, use throttling (checking `if timer is None:` before creating, and setting to `None` when done) instead of debouncing with `cancel()`.
