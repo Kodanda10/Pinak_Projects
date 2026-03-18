@@ -1,0 +1,3 @@
+## 2024-05-24 - [Thread Exhaustion in Debouncing via timers]
+**Learning:** Python's `threading.Timer.cancel()` does not stop the thread from being created and starting execution; it only prevents the payload function from running. Using this pattern for high-frequency debouncing can lead to severe thread exhaustion and crash the app or slow down bulk inserts drastically, especially in parts like NumPy VectorStores where many fast adds happen.
+**Action:** Always use throttling (check if the timer exists before scheduling) instead of debouncing for operations that can happen in quick succession. Reset the timer carefully inside `finally` blocks when the action occurs.

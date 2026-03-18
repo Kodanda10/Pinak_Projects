@@ -60,25 +60,27 @@ class VectorStore:
                     self.norms = np.array([], dtype=np.float32)
 
     def _schedule_save(self):
-        """Schedule a debounced save."""
-        if self._save_timer is not None:
-            self._save_timer.cancel()
-
-        self._save_timer = threading.Timer(self._save_interval, self.save)
-        self._save_timer.daemon = True
-        self._save_timer.start()
+        """Schedule a throttled save instead of debounced to prevent thread exhaustion."""
+        with self.lock:
+            if self._save_timer is None:
+                self._save_timer = threading.Timer(self._save_interval, self.save)
+                self._save_timer.daemon = True
+                self._save_timer.start()
 
     def save(self):
         """Synchronously save to disk."""
         with self.lock:
-            if self.needs_save:
-                dirpath = os.path.dirname(self.index_path)
-                if dirpath:
-                    os.makedirs(dirpath, exist_ok=True)
-                with open(self.index_path, "wb") as handle:
-                    np.save(handle, {'vectors': self.vectors, 'ids': self.ids})
-                self.needs_save = False
-                logger.info(f"Saved Vector Store to {self.index_path}. Size: {len(self.ids)}")
+            try:
+                if self.needs_save:
+                    dirpath = os.path.dirname(self.index_path)
+                    if dirpath:
+                        os.makedirs(dirpath, exist_ok=True)
+                    with open(self.index_path, "wb") as handle:
+                        np.save(handle, {'vectors': self.vectors, 'ids': self.ids})
+                    self.needs_save = False
+                    logger.info(f"Saved Vector Store to {self.index_path}. Size: {len(self.ids)}")
+            finally:
+                self._save_timer = None
 
     def add_vectors(self, vectors: np.ndarray, ids: List[int]):
         """Add vectors with specific IDs."""
