@@ -6,6 +6,7 @@ import uuid
 import datetime
 import logging
 import re
+import threading
 from contextlib import contextmanager
 from typing import List, Dict, Any, Optional
 
@@ -14,6 +15,7 @@ logger = logging.getLogger(__name__)
 class DatabaseManager:
     def __init__(self, db_path: str):
         self.db_path = db_path
+        self._local = threading.local()
         db_dir = os.path.dirname(db_path)
         if db_dir:
             os.makedirs(db_dir, exist_ok=True)
@@ -371,8 +373,12 @@ class DatabaseManager:
 
     @contextmanager
     def get_cursor(self):
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
+        if not hasattr(self._local, "conn"):
+            # Cache connection per-thread to avoid open/close overhead
+            self._local.conn = sqlite3.connect(self.db_path)
+            self._local.conn.row_factory = sqlite3.Row
+
+        conn = self._local.conn
         cur = conn.cursor()
         try:
             yield cur
@@ -381,7 +387,7 @@ class DatabaseManager:
             conn.rollback()
             raise
         finally:
-            conn.close()
+            cur.close()
 
     def _sanitize_fts_query(self, query: str) -> str:
         terms = []
