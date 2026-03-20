@@ -5,6 +5,7 @@ import json
 import uuid
 import datetime
 import logging
+import threading
 import re
 from contextlib import contextmanager
 from typing import List, Dict, Any, Optional
@@ -14,6 +15,7 @@ logger = logging.getLogger(__name__)
 class DatabaseManager:
     def __init__(self, db_path: str):
         self.db_path = db_path
+        self._local = threading.local()
         db_dir = os.path.dirname(db_path)
         if db_dir:
             os.makedirs(db_dir, exist_ok=True)
@@ -369,10 +371,16 @@ class DatabaseManager:
         with self.get_cursor() as conn:
             return self._column_exists(conn, table, column)
 
+    @property
+    def _conn(self):
+        if not hasattr(self._local, "conn"):
+            self._local.conn = sqlite3.connect(self.db_path)
+            self._local.conn.row_factory = sqlite3.Row
+        return self._local.conn
+
     @contextmanager
     def get_cursor(self):
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
+        conn = self._conn
         cur = conn.cursor()
         try:
             yield cur
@@ -381,7 +389,7 @@ class DatabaseManager:
             conn.rollback()
             raise
         finally:
-            conn.close()
+            cur.close()
 
     def _sanitize_fts_query(self, query: str) -> str:
         terms = []
