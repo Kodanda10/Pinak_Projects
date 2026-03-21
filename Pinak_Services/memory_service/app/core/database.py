@@ -46,6 +46,10 @@ class DatabaseManager:
                   INSERT INTO memories_semantic_fts(rowid, content, tags) VALUES (new.rowid, new.content, new.tags);
                 END;
             """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_semantic_embedding_id
+                ON memories_semantic (embedding_id);
+            """)
 
             # 2. Episodic Memory (Events/Logs)
             conn.execute("""
@@ -75,6 +79,10 @@ class DatabaseManager:
                   INSERT INTO memories_episodic_fts(rowid, content, goal, outcome) VALUES (new.rowid, new.content, new.goal, new.outcome);
                 END;
             """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_episodic_embedding_id
+                ON memories_episodic (embedding_id);
+            """)
 
             # 3. Procedural Memory (Skills)
             conn.execute("""
@@ -103,6 +111,10 @@ class DatabaseManager:
                 CREATE TRIGGER IF NOT EXISTS memories_procedural_ai AFTER INSERT ON memories_procedural BEGIN
                   INSERT INTO memories_procedural_fts(rowid, skill_name, trigger, steps, description) VALUES (new.rowid, new.skill_name, new.trigger, new.steps, new.description);
                 END;
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_procedural_embedding_id
+                ON memories_procedural (embedding_id);
             """)
 
             # 4. RAG Memory (External Source)
