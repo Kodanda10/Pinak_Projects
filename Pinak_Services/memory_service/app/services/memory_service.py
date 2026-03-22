@@ -841,16 +841,19 @@ class MemoryService:
         all_ids = set(fts_scores.keys()) | set(vector_scores.keys())
         final_scores = {}
 
+        # ⚡ Bolt Optimization: Pre-compute hash maps for O(1) lookups
+        # Replaces O(N*M) nested loop iteration during result fusion
+        keyword_map = {x['id']: x for x in keyword_results}
+
         for mid in all_ids:
-            # Get item data from either source
+            # Get item data from either source using O(1) lookups
             item = None
             if mid in fts_scores:
-                # Find in keyword_results
-                item = next((x for x in keyword_results if x['id'] == mid), None)
+                item = keyword_map.get(mid)
 
             if not item and mid in vector_scores:
-                # Find in vector results
-                item = next((x for x in vector_results_db if x['id'] == mid), None)
+                # vector_map already exists from earlier in the function
+                item = vector_map.get(mid)
 
             if item:
                 if mid not in merged:
