@@ -348,6 +348,27 @@ class DatabaseManager:
             self._ensure_column(conn, "working_memory", "client_id", "TEXT")
             self._ensure_column(conn, "working_memory", "client_name", "TEXT")
 
+            # Ensure embedding_id exists for older schemas
+            self._ensure_column(conn, "memories_semantic", "embedding_id", "INTEGER")
+            self._ensure_column(conn, "memories_episodic", "embedding_id", "INTEGER")
+            self._ensure_column(conn, "memories_procedural", "embedding_id", "INTEGER")
+
+            # Vector Search Indexes
+            # Create indexes on embedding_id to prevent full table scans during hybrid search mapping
+            # This significantly reduces lookup latency in get_memories_by_embedding_ids
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_semantic_embedding_id
+                ON memories_semantic (embedding_id);
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_episodic_embedding_id
+                ON memories_episodic (embedding_id);
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_procedural_embedding_id
+                ON memories_procedural (embedding_id);
+            """)
+
     def _column_exists(self, conn: sqlite3.Connection, table: str, column: str) -> bool:
         try:
             rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
