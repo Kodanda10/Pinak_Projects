@@ -1,0 +1,4 @@
+## 2024-05-24 - SQL Injection via Dictionary Keys in update_memory
+**Vulnerability:** In `DatabaseManager.update_memory`, dynamic `SET` clauses for SQL `UPDATE` statements were constructed directly from user-provided dictionary keys without sanitization or validation (`f"{k} = ?"`). This allowed an attacker to execute SQL injection attacks by sending malicious update keys (e.g. `{"content = (SELECT 'hacked'), content": "ignored"}`).
+**Learning:** Python DB API parameterization only protects values passed to placeholders (`?`), not identifiers like column names. Dynamically constructing SQL using user-provided dictionary keys is an injection vector and must be sanitized.
+**Prevention:** Validate all dynamically injected identifiers against a strict allowlist or by enforcing that they are valid alphanumeric strings (e.g., using `isinstance(key, str) and key.isidentifier()`) before incorporating them into SQL statements.
