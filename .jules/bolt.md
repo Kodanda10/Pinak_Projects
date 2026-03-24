@@ -1,0 +1,3 @@
+## 2024-03-24 - [Avoid Thread Exhaustion in VectorStore Save Scheduler]
+**Learning:** Python's `threading.Timer.cancel()` does not stop the thread from being created and starting execution; it only prevents the payload function from running. Using it for high-frequency debouncing in bulk vector additions causes thread spam and OS thread limits exhaustion, which results in significant performance degradation.
+**Action:** Use throttling instead of debouncing for scheduling background saves. Check `if self._save_timer is None:` before spawning a new timer, and set it to `None` in a `finally` block when the save completes.
