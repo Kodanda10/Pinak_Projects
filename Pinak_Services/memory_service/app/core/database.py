@@ -11,13 +11,23 @@ from typing import List, Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
 
+import threading
+
 class DatabaseManager:
     def __init__(self, db_path: str):
         self.db_path = db_path
+        self._local = threading.local()
         db_dir = os.path.dirname(db_path)
         if db_dir:
             os.makedirs(db_dir, exist_ok=True)
         self._init_db()
+
+    def _get_conn(self) -> sqlite3.Connection:
+        if not hasattr(self._local, "conn"):
+            self._local.conn = sqlite3.connect(self.db_path)
+            self._local.conn.row_factory = sqlite3.Row
+            self._local.depth = 0
+        return self._local.conn
 
     def _init_db(self):
         with self.get_cursor() as conn:
@@ -371,17 +381,26 @@ class DatabaseManager:
 
     @contextmanager
     def get_cursor(self):
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
+        conn = self._get_conn()
         cur = conn.cursor()
+
+        if not hasattr(self._local, "depth"):
+            self._local.depth = 0
+
+        is_outermost = self._local.depth == 0
+        self._local.depth += 1
+
         try:
             yield cur
-            conn.commit()
+            if is_outermost:
+                conn.commit()
         except Exception:
-            conn.rollback()
+            if is_outermost:
+                conn.rollback()
             raise
         finally:
-            conn.close()
+            self._local.depth -= 1
+            cur.close()
 
     def _sanitize_fts_query(self, query: str) -> str:
         terms = []
