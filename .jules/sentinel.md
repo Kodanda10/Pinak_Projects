@@ -1,0 +1,4 @@
+## 2024-03-26 - SQL Injection via Dictionary Keys in UPDATE Queries
+**Vulnerability:** SQL injection and potential mass assignment due to unsanitized dictionary keys used to dynamically construct SQL queries for `UPDATE` statements in `DatabaseManager.update_memory`. Even when DB parameterization is used (`execute("...", params)`), it only protects the values, not the dynamically constructed column names (identifiers).
+**Learning:** Python DB API parameterization protects values but leaves column identifiers exposed if derived from untrusted user input directly mapping payload keys to columns.
+**Prevention:** Strictly validate keys used for dynamically building SQL identifiers. Always ensure they are verified as valid Python identifiers (`isinstance(key, str) and key.isidentifier()`) before using them.
