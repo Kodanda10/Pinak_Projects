@@ -115,15 +115,23 @@ class VectorStore:
                 return [], []
 
             # Compute L2 distance using dot product: ||x-y||^2 = ||x||^2 + ||y||^2 - 2<x,y>
-            dot_product = np.dot(self.vectors, query_vector.T).flatten()
-            query_norm_sq = float(np.sum(np.square(query_vector)))
-            sq_dists = self.norms + query_norm_sq - (2.0 * dot_product)
-            sq_dists = np.maximum(sq_dists, 0.0)
+            q_flat = query_vector.ravel()
+
+            # Use np.dot with 1D vector to avoid transposing and flattening
+            dot_product = np.dot(self.vectors, q_flat)
+            query_norm_sq = np.dot(q_flat, q_flat)
+
+            # Modifying array in-place rather than allocating a new array
+            sq_dists = self.norms + query_norm_sq
+            sq_dists -= (2.0 * dot_product)
+            np.maximum(sq_dists, 0.0, out=sq_dists)
 
             # Get top K indices
             actual_k = min(k, len(self.ids))
             if actual_k < len(self.ids):
                 top_k_partition = np.argpartition(sq_dists, actual_k - 1)[:actual_k]
+
+                # Sort only the partitioned k elements
                 sorted_idx_in_top_k = np.argsort(sq_dists[top_k_partition])
                 top_k_idx = top_k_partition[sorted_idx_in_top_k]
             else:
