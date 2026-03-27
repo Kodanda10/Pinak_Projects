@@ -1,0 +1,3 @@
+## 2024-05-18 - [NumPy L2 Distance Optimization]
+**Learning:** Using `np.dot` with a transposed query vector against the matrix then doing scalar math for normalization (`float(np.sum(np.square(query_vector)))`) creates unnecessary overhead and memory allocations. Calculating `sq_dists = norms + query_norm_sq - 2.0 * dot_product` allocates intermediate arrays that slow down similarity search.
+**Action:** Always flatten query vectors (`ravel()`) and perform 1D matrix multiplication `np.dot(self.vectors, q_flat)`. Avoid intermediate arrays by modifying arrays in place (e.g., using `-=` instead of `-`, and using the `out=` argument in `np.maximum`).
