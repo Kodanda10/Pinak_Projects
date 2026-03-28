@@ -29,6 +29,10 @@ class VectorStore:
         self._save_timer = None
         self._save_interval = 5.0  # seconds
         self.needs_save = False
+        self._batch_mode = False
+        self._pending_vectors = []
+        self._pending_ids = []
+        self._pending_norms = []
 
     @property
     def index(self):
@@ -94,12 +98,32 @@ class VectorStore:
         new_norms = np.sum(np.square(vectors), axis=1)
 
         with self.lock:
-            self.vectors = np.vstack([self.vectors, vectors])
-            self.ids = np.concatenate([self.ids, id_array])
-            self.norms = np.concatenate([self.norms, new_norms])
-            self.needs_save = True
+            if self._batch_mode:
+                self._pending_vectors.append(vectors)
+                self._pending_ids.append(id_array)
+                self._pending_norms.append(new_norms)
+            else:
+                self.vectors = np.vstack([self.vectors, vectors])
+                self.ids = np.concatenate([self.ids, id_array])
+                self.norms = np.concatenate([self.norms, new_norms])
+                self.needs_save = True
 
-        self._schedule_save()
+        if not self._batch_mode:
+            self._schedule_save()
+
+    def _flush_pending(self):
+        """Flush pending vectors to the main arrays. Assumes lock is already held."""
+        if not self._pending_vectors:
+            return
+
+        self.vectors = np.vstack([self.vectors] + self._pending_vectors)
+        self.ids = np.concatenate([self.ids] + self._pending_ids)
+        self.norms = np.concatenate([self.norms] + self._pending_norms)
+
+        self._pending_vectors.clear()
+        self._pending_ids.clear()
+        self._pending_norms.clear()
+        self.needs_save = True
 
     def search(self, query_vector: np.ndarray, k: int = 10) -> Tuple[List[float], List[int]]:
         """Find top K nearest neighbors using L2 distance."""
@@ -115,10 +139,17 @@ class VectorStore:
                 return [], []
 
             # Compute L2 distance using dot product: ||x-y||^2 = ||x||^2 + ||y||^2 - 2<x,y>
-            dot_product = np.dot(self.vectors, query_vector.T).flatten()
-            query_norm_sq = float(np.sum(np.square(query_vector)))
-            sq_dists = self.norms + query_norm_sq - (2.0 * dot_product)
-            sq_dists = np.maximum(sq_dists, 0.0)
+            # Optimized: use 1D arrays to avoid intermediate allocations and use in-place math
+            query_1d = query_vector.ravel()
+            dot_product = np.dot(self.vectors, query_1d)
+            query_norm_sq = float(np.dot(query_1d, query_1d))
+
+            sq_dists = np.empty_like(self.norms)
+            np.copyto(sq_dists, self.norms)
+            sq_dists += query_norm_sq
+            dot_product *= 2.0
+            sq_dists -= dot_product
+            np.maximum(sq_dists, 0.0, out=sq_dists)
 
             # Get top K indices
             actual_k = min(k, len(self.ids))
@@ -165,5 +196,12 @@ class VectorStore:
 
     @contextmanager
     def batch_add(self):
-        yield
+        # We need to lock for the whole duration to avoid race conditions with self._batch_mode
+        with self.lock:
+            self._batch_mode = True
+            try:
+                yield
+            finally:
+                self._batch_mode = False
+                self._flush_pending()
         self.save()
