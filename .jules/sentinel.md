@@ -1,0 +1,4 @@
+## 2024-05-24 - SQL Injection in Dictionary Keys Used as Identifiers
+**Vulnerability:** In `DatabaseManager.update_memory`, user-provided dictionary keys from the `updates` payload were concatenated directly into the SQL `SET` clause (`f"{k} = ?"`). This allowed SQL injection because Python's DB API parameterization protects values, but not identifiers (column names).
+**Learning:** When building dynamic update queries from a dictionary of fields, the keys themselves are a dangerous injection vector if not sanitized, even if the values are properly parameterized. Using schema validation is good, but direct database-level protection is more robust defense-in-depth.
+**Prevention:** Validate that any string dynamically inserted as a SQL identifier (like a column name) is a valid identifier. Enforce `isinstance(key, str) and key.isidentifier()` to prevent injection payloads from being accepted.
