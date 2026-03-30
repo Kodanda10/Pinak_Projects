@@ -1,0 +1,3 @@
+## 2024-11-20 - [Optimize Numpy L2 Distance Search]
+**Learning:** In NumPy-based L2 distance calculations, chaining operations with intermediate array allocations (e.g., `norms + query_norm - 2*dot`) and using `.flatten()` causes significant overhead.
+**Action:** Always prefer a fully vectorized approach using `.ravel()` for 1D views, 1D `np.dot` instead of `np.sum(np.square())`, and in-place array modifications (`-=` and `out=`) to drastically improve performance when performing bulk distance searches over large matrices.
