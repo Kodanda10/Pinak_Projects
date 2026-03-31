@@ -1,0 +1,4 @@
+## 2025-03-31 - [SQL Injection in DatabaseManager.update_memory]
+**Vulnerability:** User-provided update dictionary keys in `DatabaseManager.update_memory` were being directly formatted into the `UPDATE` SQL statement via an f-string: `f"UPDATE {table} SET {set_clause} ..."`. Since Python DB API parameterization (`?`) only sanitizes values and not identifiers (columns), an attacker could inject arbitrary SQL or cause syntax errors if they passed malformed dictionary keys.
+**Learning:** Dynamically constructing SQL column clauses from arbitrary dictionary keys is an injection vector and bypasses parameterization.
+**Prevention:** Always validate that dynamically constructed SQL identifiers (like update keys) are valid strings and valid Python identifiers using `isinstance(key, str) and key.isidentifier()` before inserting them into a query string.
