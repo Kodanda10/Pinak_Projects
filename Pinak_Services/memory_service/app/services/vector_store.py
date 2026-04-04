@@ -114,11 +114,14 @@ class VectorStore:
             if query_vector.shape[1] != self.dimension:
                 return [], []
 
+            # ⚡ Bolt Optimization: Use 1D views and in-place ops to avoid array allocations
             # Compute L2 distance using dot product: ||x-y||^2 = ||x||^2 + ||y||^2 - 2<x,y>
-            dot_product = np.dot(self.vectors, query_vector.T).flatten()
-            query_norm_sq = float(np.sum(np.square(query_vector)))
-            sq_dists = self.norms + query_norm_sq - (2.0 * dot_product)
-            sq_dists = np.maximum(sq_dists, 0.0)
+            q = query_vector.ravel()
+            dot_product = np.dot(self.vectors, q)
+            query_norm_sq = float(np.dot(q, q))
+            sq_dists = self.norms + query_norm_sq
+            sq_dists -= 2.0 * dot_product
+            np.maximum(sq_dists, 0.0, out=sq_dists)
 
             # Get top K indices
             actual_k = min(k, len(self.ids))
