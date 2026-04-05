@@ -789,6 +789,11 @@ class DatabaseManager:
         if not updates:
             return False
 
+        # Validate keys to prevent SQL injection
+        for key in updates.keys():
+            if not isinstance(key, str) or not key.isidentifier():
+                raise ValueError(f"Invalid update key: {key}")
+
         # Serialize JSON fields
         serialized = {}
         for key, value in updates.items():
