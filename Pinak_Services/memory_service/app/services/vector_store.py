@@ -107,18 +107,21 @@ class VectorStore:
             if len(self.ids) == 0:
                 return [], []
 
-            # Ensure vectors and query are float32 for consistency
-            query_vector = query_vector.astype(np.float32)
-            if query_vector.ndim == 1:
-                query_vector = query_vector.reshape(1, -1)
-            if query_vector.shape[1] != self.dimension:
+            # Ensure query is float32 and use a 1D view for faster dot product
+            query_1d = query_vector.ravel().astype(self.vectors.dtype, copy=False)
+            if query_1d.shape[0] != self.dimension:
                 return [], []
 
             # Compute L2 distance using dot product: ||x-y||^2 = ||x||^2 + ||y||^2 - 2<x,y>
-            dot_product = np.dot(self.vectors, query_vector.T).flatten()
-            query_norm_sq = float(np.sum(np.square(query_vector)))
-            sq_dists = self.norms + query_norm_sq - (2.0 * dot_product)
-            sq_dists = np.maximum(sq_dists, 0.0)
+            dot_product = np.dot(self.vectors, query_1d)
+            query_norm_sq = float(np.dot(query_1d, query_1d))
+
+            # Use in-place operations to avoid intermediate array allocations
+            sq_dists = self.norms.copy()
+            sq_dists += query_norm_sq
+            dot_product *= 2.0
+            sq_dists -= dot_product
+            np.maximum(sq_dists, 0.0, out=sq_dists)
 
             # Get top K indices
             actual_k = min(k, len(self.ids))
