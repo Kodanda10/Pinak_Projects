@@ -105,6 +105,20 @@ class DatabaseManager:
                 END;
             """)
 
+            # Indexes for embedding_id to speed up get_memories_by_embedding_ids
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_semantic_embedding_id
+                ON memories_semantic (embedding_id);
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_episodic_embedding_id
+                ON memories_episodic (embedding_id);
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_procedural_embedding_id
+                ON memories_procedural (embedding_id);
+            """)
+
             # 4. RAG Memory (External Source)
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS memories_rag (
