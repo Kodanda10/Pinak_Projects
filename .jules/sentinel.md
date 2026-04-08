@@ -1,0 +1,4 @@
+## 2025-04-08 - [SQL Injection via Dynamic Column Names]
+**Vulnerability:** SQL injection vector in `DatabaseManager.update_memory` where user-provided dictionary keys were used to dynamically construct the `SET` clause in an `UPDATE` statement without validation.
+**Learning:** Python DB API parameterization (e.g., `execute("...", params)`) only protects values passed to placeholders (`?`), not identifiers like column names. Dynamically constructing SQL using user-provided dictionary keys is an injection vector.
+**Prevention:** Always sanitize dynamically constructed SQL identifiers. For column names, validating the keys directly via `isinstance(key, str) and key.isidentifier()` is an effective mitigation to ensure they are valid Python identifiers (alphanumeric and underscores only), avoiding SQL syntax manipulation.
