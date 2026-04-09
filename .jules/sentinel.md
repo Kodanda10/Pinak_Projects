@@ -1,0 +1,5 @@
+## Sentinel Journal
+## 2024-05-24 - [SQL Injection in update_memory via Dynamic Keys]
+**Vulnerability:** The `update_memory` function in `DatabaseManager` dynamically constructed SQL update statements using keys from the user-provided `updates` dictionary without sufficient validation. This allowed an attacker to inject arbitrary SQL logic by providing malicious dictionary keys (e.g., `{"content = 'hacked', dummy": "value"}`).
+**Learning:** Python's DB API parameterization (using `?` placeholders) only protects query values, not table names or column identifiers. Directly inserting untrusted dictionary keys into SQL strings (like `set_clause = ", ".join([f"{k} = ?" for k in serialized.keys()])`) creates a critical SQL injection vector, even if the values are properly parameterized.
+**Prevention:** Always validate that dynamic column names and keys are safe before injecting them into SQL. Enforce strict validation, such as checking if the keys are valid strings and Python identifiers (`isinstance(key, str) and key.isidentifier()`), and reject any inputs that fail validation.
