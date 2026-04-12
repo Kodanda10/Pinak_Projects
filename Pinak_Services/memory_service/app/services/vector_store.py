@@ -18,12 +18,12 @@ class VectorStore:
         self.index_path = index_path
         self.dimension = dimension
         self.lock = threading.RLock()
-        
+
         # In-memory storage
         self.vectors = np.empty((0, dimension), dtype=np.float32)
         self.ids = np.array([], dtype=np.int64)
         self.norms = np.array([], dtype=np.float32)
-        
+
         self._load_index()
 
         self._save_timer = None
@@ -114,11 +114,25 @@ class VectorStore:
             if query_vector.shape[1] != self.dimension:
                 return [], []
 
-            # Compute L2 distance using dot product: ||x-y||^2 = ||x||^2 + ||y||^2 - 2<x,y>
-            dot_product = np.dot(self.vectors, query_vector.T).flatten()
-            query_norm_sq = float(np.sum(np.square(query_vector)))
-            sq_dists = self.norms + query_norm_sq - (2.0 * dot_product)
-            sq_dists = np.maximum(sq_dists, 0.0)
+            # Compute L2 distance using dot product:
+            # ||x-y||^2 = ||x||^2 + ||y||^2 - 2<x,y>
+
+            # Flatten query vector early and cast to same dtype
+            # to avoid type errors in in-place ops
+            qv = query_vector.astype(self.vectors.dtype, copy=False).ravel()
+
+            # 1D dot product gives query norm directly
+            query_norm_sq = np.dot(qv, qv)
+
+            # Fast matrix-vector multiply (1D output)
+            dot_product = np.dot(self.vectors, qv)
+
+            # In-place array operations to minimize memory allocations
+            sq_dists = np.copy(self.norms)
+            sq_dists += query_norm_sq
+            dot_product *= 2.0
+            sq_dists -= dot_product
+            np.maximum(sq_dists, 0.0, out=sq_dists)
 
             # Get top K indices
             actual_k = min(k, len(self.ids))
