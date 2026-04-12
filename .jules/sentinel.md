@@ -1,0 +1,4 @@
+## 2024-04-12 - Fix SQL Injection in dynamic UPDATE statements
+**Vulnerability:** The `DatabaseManager.update_memory` method allowed SQL injection because it dynamically constructed the `SET` clause of the SQL UPDATE statement using keys directly from the unvalidated user-provided `updates` dictionary without ensuring they were safe identifiers.
+**Learning:** Python's DB API parameterization (passing a tuple of values along with the query string containing `?` placeholders) only protects values from SQL injection. It does not protect identifiers like column names. Dynamically constructing SQL queries with user-provided keys is an injection vector.
+**Prevention:** Always validate that keys used as column names or identifiers in dynamic SQL queries are valid identifiers. We enforced this using `isinstance(key, str)` and `key.isidentifier()` to raise a ValueError immediately upon detecting unsafe keys.
