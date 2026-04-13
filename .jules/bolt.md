@@ -1,0 +1,3 @@
+## 2025-04-13 - [Timer Debounce vs Throttle Thrashing]
+**Learning:** In Python, `threading.Timer(interval, func)` creates a new OS thread immediately upon initialization. Using it for high-frequency debouncing by rapidly creating and `.cancel()`-ing timers (e.g., in `VectorStore._schedule_save` during a loop of additions) causes severe thread exhaustion and OS thrashing, degrading throughput.
+**Action:** Replace high-frequency debouncing with simple throttling (e.g., checking `if self._save_timer is None:` before creating a timer, and clearing it in a `finally` block when the payload executes). This ensures only a single sleeper thread is ever spawned.
