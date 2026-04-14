@@ -24,11 +24,23 @@ class VectorStore:
         self.ids = np.array([], dtype=np.int64)
         self.norms = np.array([], dtype=np.float32)
         
+        # Thread-local storage for batch mode buffers
+        self._thread_local = threading.local()
+        self._init_thread_local()
+
         self._load_index()
 
         self._save_timer = None
         self._save_interval = 5.0  # seconds
         self.needs_save = False
+
+    def _init_thread_local(self):
+        """Initialize thread-local buffers if they don't exist."""
+        if not hasattr(self._thread_local, 'batch_mode'):
+            self._thread_local.batch_mode = False
+            self._thread_local.batch_vectors = []
+            self._thread_local.batch_ids = []
+            self._thread_local.batch_norms = []
 
     @property
     def index(self):
@@ -93,13 +105,21 @@ class VectorStore:
         id_array = np.array(ids, dtype=np.int64)
         new_norms = np.sum(np.square(vectors), axis=1)
 
-        with self.lock:
-            self.vectors = np.vstack([self.vectors, vectors])
-            self.ids = np.concatenate([self.ids, id_array])
-            self.norms = np.concatenate([self.norms, new_norms])
-            self.needs_save = True
+        self._init_thread_local()
 
-        self._schedule_save()
+        with self.lock:
+            if self._thread_local.batch_mode:
+                self._thread_local.batch_vectors.append(vectors)
+                self._thread_local.batch_ids.append(id_array)
+                self._thread_local.batch_norms.append(new_norms)
+            else:
+                self.vectors = np.vstack([self.vectors, vectors])
+                self.ids = np.concatenate([self.ids, id_array])
+                self.norms = np.concatenate([self.norms, new_norms])
+                self.needs_save = True
+
+        if not self._thread_local.batch_mode:
+            self._schedule_save()
 
     def search(self, query_vector: np.ndarray, k: int = 10) -> Tuple[List[float], List[int]]:
         """Find top K nearest neighbors using L2 distance."""
@@ -165,5 +185,25 @@ class VectorStore:
 
     @contextmanager
     def batch_add(self):
-        yield
-        self.save()
+        self._init_thread_local()
+        self._thread_local.batch_mode = True
+        try:
+            yield
+        finally:
+            with self.lock:
+                self._thread_local.batch_mode = False
+                if getattr(self._thread_local, 'batch_vectors', []):
+                    try:
+                        self.vectors = np.vstack([self.vectors] + self._thread_local.batch_vectors)
+                        self.ids = np.concatenate([self.ids] + self._thread_local.batch_ids)
+                        self.norms = np.concatenate([self.norms] + self._thread_local.batch_norms)
+                        self.needs_save = True
+                    except Exception as e:
+                        logger.error(f"Failed to flush batch vectors: {e}")
+                        # Let it propagate if necessary, or just log
+                        raise
+                    finally:
+                        self._thread_local.batch_vectors.clear()
+                        self._thread_local.batch_ids.clear()
+                        self._thread_local.batch_norms.clear()
+            self.save()
