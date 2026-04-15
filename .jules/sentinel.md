@@ -1,0 +1,4 @@
+## 2024-04-15 - SQL Injection via Dictionary Keys in DatabaseManager
+**Vulnerability:** The `DatabaseManager.update_memory` method uses dictionary keys to dynamically construct the SET clause of an SQL UPDATE statement without any validation: `set_clause = ", ".join([f"{k} = ?" for k in serialized.keys()])`. This allows an attacker who can control the dictionary keys to inject arbitrary SQL.
+**Learning:** Python DB API parameterization (e.g., `execute("...", params)`) only protects values passed to placeholders (`?`), not identifiers like column names. Dynamically constructing SQL using user-provided dictionary keys is an injection vector and must be sanitized.
+**Prevention:** Always validate that dynamic column names or dictionary keys used in SQL construction are valid Python identifiers using `isinstance(key, str) and key.isidentifier()`.
