@@ -1,0 +1,3 @@
+## 2024-04-16 - O(N^2) Penalty in Incremental Numpy Array Building
+**Learning:** Using np.vstack repeatedly for batch vector additions results in an O(N^2) penalty, severely degrading performance as the array grows. Caching additions in a thread-safe Python list using threading.local() and performing a single np.concatenate/np.vstack at the end is orders of magnitude faster.
+**Action:** Always buffer batched array operations in thread-local storage rather than immediately calling np.vstack in a loop, then flush once upon batch completion to achieve O(N) performance without deadlocks or regressions.

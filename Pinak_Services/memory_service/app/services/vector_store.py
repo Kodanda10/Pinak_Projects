@@ -18,6 +18,7 @@ class VectorStore:
         self.index_path = index_path
         self.dimension = dimension
         self.lock = threading.RLock()
+        self._local = threading.local()
         
         # In-memory storage
         self.vectors = np.empty((0, dimension), dtype=np.float32)
@@ -90,6 +91,13 @@ class VectorStore:
             raise ValueError(f"Vector dimension {vectors.shape[1]} does not match index dimension {self.dimension}")
 
         vectors = vectors.astype(np.float32)
+
+        # If in a batch, buffer locally and return without taking the lock
+        if getattr(self._local, 'in_batch', False):
+            self._local.batch_vectors.append(vectors)
+            self._local.batch_ids.extend(ids)
+            return
+
         id_array = np.array(ids, dtype=np.int64)
         new_norms = np.sum(np.square(vectors), axis=1)
 
@@ -165,5 +173,32 @@ class VectorStore:
 
     @contextmanager
     def batch_add(self):
-        yield
-        self.save()
+        """Context manager to batch add vectors efficiently."""
+        self._local.in_batch = True
+        self._local.batch_vectors = []
+        self._local.batch_ids = []
+
+        try:
+            yield
+        finally:
+            self._local.in_batch = False
+            b_vecs = self._local.batch_vectors
+            b_ids = self._local.batch_ids
+
+            # Clean up thread-local variables
+            self._local.batch_vectors = None
+            self._local.batch_ids = None
+
+            if b_vecs and b_ids:
+                # Combine all buffered vectors into one array
+                combined_vectors = np.vstack(b_vecs)
+                id_array = np.array(b_ids, dtype=np.int64)
+                new_norms = np.sum(np.square(combined_vectors), axis=1)
+
+                with self.lock:
+                    self.vectors = np.vstack([self.vectors, combined_vectors])
+                    self.ids = np.concatenate([self.ids, id_array])
+                    self.norms = np.concatenate([self.norms, new_norms])
+                    self.needs_save = True
+
+            self.save()
