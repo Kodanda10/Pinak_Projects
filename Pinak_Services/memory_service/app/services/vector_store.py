@@ -24,6 +24,8 @@ class VectorStore:
         self.ids = np.array([], dtype=np.int64)
         self.norms = np.array([], dtype=np.float32)
         
+        self._local = threading.local()
+
         self._load_index()
 
         self._save_timer = None
@@ -93,13 +95,17 @@ class VectorStore:
         id_array = np.array(ids, dtype=np.int64)
         new_norms = np.sum(np.square(vectors), axis=1)
 
-        with self.lock:
-            self.vectors = np.vstack([self.vectors, vectors])
-            self.ids = np.concatenate([self.ids, id_array])
-            self.norms = np.concatenate([self.norms, new_norms])
-            self.needs_save = True
-
-        self._schedule_save()
+        if getattr(self._local, 'batching', False):
+            self._local.vectors.append(vectors)
+            self._local.ids.append(id_array)
+            self._local.norms.append(new_norms)
+        else:
+            with self.lock:
+                self.vectors = np.vstack([self.vectors, vectors])
+                self.ids = np.concatenate([self.ids, id_array])
+                self.norms = np.concatenate([self.norms, new_norms])
+                self.needs_save = True
+            self._schedule_save()
 
     def search(self, query_vector: np.ndarray, k: int = 10) -> Tuple[List[float], List[int]]:
         """Find top K nearest neighbors using L2 distance."""
@@ -165,5 +171,21 @@ class VectorStore:
 
     @contextmanager
     def batch_add(self):
-        yield
-        self.save()
+        """Context manager to batch vector additions into a single numpy append for performance."""
+        self._local.batching = True
+        self._local.vectors = []
+        self._local.ids = []
+        self._local.norms = []
+
+        try:
+            yield
+        finally:
+            self._local.batching = False
+            if self._local.vectors:
+                with self.lock:
+                    self.vectors = np.vstack([self.vectors] + self._local.vectors)
+                    self.ids = np.concatenate([self.ids] + self._local.ids)
+                    self.norms = np.concatenate([self.norms] + self._local.norms)
+                    self.needs_save = True
+            # Force a synchronous save to maintain identical previous batch_add test/behavior
+            self.save()
