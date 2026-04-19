@@ -1,0 +1,4 @@
+## 2025-05-18 - [SQL Injection via Dynamic Dictionary Keys]
+**Vulnerability:** The `update_memory` method constructs an SQL `UPDATE` query by iterating through the keys of an arbitrary user-supplied dictionary (`updates`) and generating a set clause `f"{k} = ?"`. If a dictionary key is formatted as malicious SQL, it allows for SQL injection despite values being properly parameterized.
+**Learning:** Python DB API parameterization only protects values passed to placeholders (`?`), not identifiers like column names. Dynamically constructing SQL using user-provided dictionary keys is an injection vector if the keys are not validated.
+**Prevention:** Always validate that dynamically injected column names/identifiers are safe (e.g. using `isinstance(key, str) and key.isidentifier()`) and ensure dictionary keys are strictly validated before using them to dynamically construct SQL queries.
