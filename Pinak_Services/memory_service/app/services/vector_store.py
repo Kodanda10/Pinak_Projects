@@ -29,6 +29,7 @@ class VectorStore:
         self._save_timer = None
         self._save_interval = 5.0  # seconds
         self.needs_save = False
+        self._local = threading.local()
 
     @property
     def index(self):
@@ -93,8 +94,17 @@ class VectorStore:
         id_array = np.array(ids, dtype=np.int64)
         new_norms = np.sum(np.square(vectors), axis=1)
 
+        if getattr(self._local, "in_batch", False):
+            self._local.batch_vectors.append(vectors)
+            self._local.batch_ids.append(id_array)
+            self._local.batch_norms.append(new_norms)
+            return
+
         with self.lock:
-            self.vectors = np.vstack([self.vectors, vectors])
+            if self.vectors.shape[0] > 0:
+                self.vectors = np.vstack([self.vectors, vectors])
+            else:
+                self.vectors = vectors
             self.ids = np.concatenate([self.ids, id_array])
             self.norms = np.concatenate([self.norms, new_norms])
             self.needs_save = True
@@ -165,5 +175,34 @@ class VectorStore:
 
     @contextmanager
     def batch_add(self):
-        yield
-        self.save()
+        """Context manager to batch vector additions, preventing O(N^2) scaling."""
+        self._local.in_batch = True
+        self._local.batch_vectors = []
+        self._local.batch_ids = []
+        self._local.batch_norms = []
+        try:
+            yield
+
+            if self._local.batch_vectors:
+                # Concatenate all buffered vectors
+                batch_vec = np.concatenate(self._local.batch_vectors, axis=0)
+                batch_idx = np.concatenate(self._local.batch_ids, axis=0)
+                batch_nrm = np.concatenate(self._local.batch_norms, axis=0)
+
+                with self.lock:
+                    if self.vectors.shape[0] > 0:
+                        self.vectors = np.vstack([self.vectors, batch_vec])
+                    else:
+                        self.vectors = batch_vec
+                    self.ids = np.concatenate([self.ids, batch_idx])
+                    self.norms = np.concatenate([self.norms, batch_nrm])
+                    self.needs_save = True
+        finally:
+            self._local.in_batch = False
+            self._local.batch_vectors = []
+            self._local.batch_ids = []
+            self._local.batch_norms = []
+
+            # Save if changes were made
+            if getattr(self, "needs_save", False):
+                self.save()
