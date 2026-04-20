@@ -18,6 +18,7 @@ class VectorStore:
         self.index_path = index_path
         self.dimension = dimension
         self.lock = threading.RLock()
+        self._batch_local = threading.local()
         
         # In-memory storage
         self.vectors = np.empty((0, dimension), dtype=np.float32)
@@ -93,10 +94,17 @@ class VectorStore:
         id_array = np.array(ids, dtype=np.int64)
         new_norms = np.sum(np.square(vectors), axis=1)
 
+        is_batching = getattr(self._batch_local, 'is_batching', False)
+
         with self.lock:
-            self.vectors = np.vstack([self.vectors, vectors])
-            self.ids = np.concatenate([self.ids, id_array])
-            self.norms = np.concatenate([self.norms, new_norms])
+            if is_batching:
+                self._batch_local.vectors_buffer.append(vectors)
+                self._batch_local.ids_buffer.append(id_array)
+                self._batch_local.norms_buffer.append(new_norms)
+            else:
+                self.vectors = np.vstack([self.vectors, vectors])
+                self.ids = np.concatenate([self.ids, id_array])
+                self.norms = np.concatenate([self.norms, new_norms])
             self.needs_save = True
 
         self._schedule_save()
@@ -165,5 +173,21 @@ class VectorStore:
 
     @contextmanager
     def batch_add(self):
-        yield
-        self.save()
+        self._batch_local.is_batching = True
+        self._batch_local.vectors_buffer = []
+        self._batch_local.ids_buffer = []
+        self._batch_local.norms_buffer = []
+        try:
+            yield
+        finally:
+            with self.lock:
+                if self._batch_local.vectors_buffer:
+                    self.vectors = np.vstack([self.vectors] + self._batch_local.vectors_buffer)
+                    self.ids = np.concatenate([self.ids] + self._batch_local.ids_buffer)
+                    self.norms = np.concatenate([self.norms] + self._batch_local.norms_buffer)
+                    self.needs_save = True
+            self._batch_local.is_batching = False
+            self._batch_local.vectors_buffer = []
+            self._batch_local.ids_buffer = []
+            self._batch_local.norms_buffer = []
+            self.save()
