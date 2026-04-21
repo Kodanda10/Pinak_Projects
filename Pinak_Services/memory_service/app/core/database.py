@@ -792,6 +792,8 @@ class DatabaseManager:
         # Serialize JSON fields
         serialized = {}
         for key, value in updates.items():
+            if not isinstance(key, str) or not key.isidentifier():
+                raise ValueError(f"Invalid update key: {key}")
             if key in ("tags", "plan", "steps") and value is not None:
                 serialized[key] = json.dumps(value)
             else:
@@ -803,7 +805,7 @@ class DatabaseManager:
             cur = conn.execute(
                 f"UPDATE {table} SET {set_clause} WHERE id = ? AND tenant = ? AND project_id = ?",
                 params,
-            )
+            )  # nosec B608
             return cur.rowcount > 0
 
     def delete_memory(self, layer: str, memory_id: str, tenant: str, project_id: str) -> bool:
