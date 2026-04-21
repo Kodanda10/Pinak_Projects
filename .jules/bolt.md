@@ -1,0 +1,3 @@
+## 2024-05-18 - [SQLite Index Creation vs Test Mock Schemas]
+**Learning:** Adding new performance indexes on columns (like `tenant` or `project_id`) during application startup/initialization (e.g., `_init_db`) can break existing test suites if those test suites use hardcoded, minimal mock schemas that omit the newly indexed columns.
+**Action:** When adding or modifying database indexes on existing SQLite tables, always `grep` for the `CREATE TABLE` definitions in both the application code and the `tests/` directory. Synchronize any manually defined mock schemas in the test suite to include the new columns being indexed to prevent `sqlite3.OperationalError: no such column`.
