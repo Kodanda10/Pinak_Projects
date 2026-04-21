@@ -314,6 +314,22 @@ class DatabaseManager:
                 CREATE INDEX IF NOT EXISTS idx_logs_client_issues_ts
                 ON logs_client_issues (created_at);
             """)
+
+            # --- PERFORMANCE INDEXES ---
+            # Indexes on tenant and project_id for fast filtering
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_semantic_tenant_proj ON memories_semantic (tenant, project_id);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_episodic_tenant_proj ON memories_episodic (tenant, project_id);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_procedural_tenant_proj ON memories_procedural (tenant, project_id);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_rag_tenant_proj ON memories_rag (tenant, project_id);")
+
+            # Indexes on embedding_id for vector fetch operations
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_semantic_embedding ON memories_semantic (embedding_id);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_episodic_embedding ON memories_episodic (embedding_id);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_procedural_embedding ON memories_procedural (embedding_id);")
+
+            # Indexes on session_id for context fetching
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_logs_session_session ON logs_session (session_id, tenant, project_id);")
+
             self._ensure_column(conn, "working_memory", "expires_at", "TEXT")
             self._ensure_column(conn, "working_memory", "updated_at", "TEXT")
             self._ensure_column(conn, "logs_session", "expires_at", "TEXT")
