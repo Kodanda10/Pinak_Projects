@@ -1,0 +1,7 @@
+## 2024-05-19 - Missing FTS update triggers in SQLite database
+**Learning:** The Pinak Memory Service uses SQLite FTS5 for full-text search. However, the update triggers are missing for FTS virtual tables. The triggers `memories_semantic_ai`, `memories_episodic_ai`, and `memories_procedural_ai` handle inserts, but updates to memory content do not propagate to the FTS indexes because `memories_semantic_au`, `memories_episodic_au`, `memories_procedural_au` are not created.
+**Action:** When working with SQLite FTS5 tables, always ensure both AFTER INSERT, AFTER UPDATE, and AFTER DELETE triggers are present to keep the FTS index in sync with the source table.
+
+## 2024-05-19 - Inefficient bulk loading during index rebuild
+**Learning:** During vector index rebuilding in `MemoryService._rebuild_index`, the code queries all rows from the SQLite database and adds them to the `VectorStore` one by one. The `VectorStore.batch_add` context manager simply delays writing to disk but doesn't change how arrays are built. Under the hood, `add_vectors` invokes `np.vstack` each time, which creates an \(O(N^2)\) penalty during large additions due to repeated numpy array reallocation for each row.
+**Action:** When working with large datasets and numpy arrays, especially within a batch transaction context (like `VectorStore.batch_add`), accumulate items in thread-local python lists first and perform a single `np.vstack` or `np.concatenate` operation at the end of the batch block to achieve \(O(N)\) performance.
