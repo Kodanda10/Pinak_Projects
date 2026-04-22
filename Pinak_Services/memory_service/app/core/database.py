@@ -728,7 +728,7 @@ class DatabaseManager:
                 cur = conn.execute(f"""
                     SELECT *, '{mtype}' as type FROM {table}
                     WHERE embedding_id IN ({placeholders}) AND tenant = ? AND project_id = ?
-                """, (*embedding_ids, tenant, project_id))
+                """, (*embedding_ids, tenant, project_id))  # nosec B608
                 for row in cur.fetchall():
                     d = dict(row)
                     if mtype == "procedural": d['content'] = d['skill_name']
@@ -753,7 +753,7 @@ class DatabaseManager:
             cur = conn.execute(
                 f"SELECT * FROM {table} WHERE id = ? AND tenant = ? AND project_id = ?",
                 (memory_id, tenant, project_id),
-            )
+            )  # nosec B608
             row = cur.fetchone()
             if not row:
                 return None
@@ -792,6 +792,8 @@ class DatabaseManager:
         # Serialize JSON fields
         serialized = {}
         for key, value in updates.items():
+            if not isinstance(key, str) or not key.isidentifier():
+                raise ValueError(f"Invalid column name: {key}")
             if key in ("tags", "plan", "steps") and value is not None:
                 serialized[key] = json.dumps(value)
             else:
@@ -803,7 +805,7 @@ class DatabaseManager:
             cur = conn.execute(
                 f"UPDATE {table} SET {set_clause} WHERE id = ? AND tenant = ? AND project_id = ?",
                 params,
-            )
+            )  # nosec B608
             return cur.rowcount > 0
 
     def delete_memory(self, layer: str, memory_id: str, tenant: str, project_id: str) -> bool:
@@ -820,7 +822,7 @@ class DatabaseManager:
             cur = conn.execute(
                 f"DELETE FROM {table} WHERE id = ? AND tenant = ? AND project_id = ?",
                 (memory_id, tenant, project_id),
-            )
+            )  # nosec B608
             return cur.rowcount > 0
 
     def list_working(self, tenant: str, project_id: str, limit: int = 100) -> List[Dict[str, Any]]:
@@ -996,7 +998,7 @@ class DatabaseManager:
                 cur = conn.execute(
                     f"SELECT COUNT(*), MAX({ts_col}) FROM {table} WHERE tenant = ? AND project_id = ? AND client_id = ?",
                     (tenant, project_id, client_id),
-                )
+                )  # nosec B608
                 row = cur.fetchone()
                 counts[layer] = int(row[0] or 0)
                 last_write[layer] = row[1]
