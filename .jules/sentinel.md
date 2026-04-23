@@ -1,0 +1,4 @@
+## 2025-02-12 - [SQL Injection via Dynamic Column Names]
+**Vulnerability:** SQL injection vector in `DatabaseManager.update_memory` caused by directly injecting dictionary keys (`updates.items()`) into the `UPDATE` statement's `SET` clause using string formatting without validation.
+**Learning:** Python's parameterization (`?`) only sanitizes values, not identifiers. Using user-controlled dictionary keys directly to construct SQL statements like `SET key = ?` allows arbitrary SQL execution if the keys are not validated.
+**Prevention:** Always validate dynamic identifiers against an allowlist, or structurally ensure they are safe alphanumeric identifiers using `isinstance(key, str) and key.isidentifier()` before inserting them into an SQL statement, and securely raise an error upon failure.
