@@ -348,6 +348,13 @@ class DatabaseManager:
             self._ensure_column(conn, "working_memory", "client_id", "TEXT")
             self._ensure_column(conn, "working_memory", "client_name", "TEXT")
 
+            # Index optimization for layer stats and queries based on tenant, project_id, and client_id
+            for table in ["memories_semantic", "memories_episodic", "memories_procedural", "memories_rag", "working_memory"]:
+                conn.execute(f"""
+                    CREATE INDEX IF NOT EXISTS idx_{table}_tenant_project_client
+                    ON {table} (tenant, project_id, client_id);
+                """)
+
     def _column_exists(self, conn: sqlite3.Connection, table: str, column: str) -> bool:
         try:
             rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
