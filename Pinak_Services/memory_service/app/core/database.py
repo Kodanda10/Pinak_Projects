@@ -314,6 +314,29 @@ class DatabaseManager:
                 CREATE INDEX IF NOT EXISTS idx_logs_client_issues_ts
                 ON logs_client_issues (created_at);
             """)
+
+            # Composite indexes for fast client stats lookups
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_semantic_tenant_project_client
+                ON memories_semantic (tenant, project_id, client_id);
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_episodic_tenant_project_client
+                ON memories_episodic (tenant, project_id, client_id);
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_procedural_tenant_project_client
+                ON memories_procedural (tenant, project_id, client_id);
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_rag_tenant_project_client
+                ON memories_rag (tenant, project_id, client_id);
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_working_memory_tenant_project_client
+                ON working_memory (tenant, project_id, client_id);
+            """)
+
             self._ensure_column(conn, "working_memory", "expires_at", "TEXT")
             self._ensure_column(conn, "working_memory", "updated_at", "TEXT")
             self._ensure_column(conn, "logs_session", "expires_at", "TEXT")
