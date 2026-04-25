@@ -1,0 +1,3 @@
+## 2024-04-26 - Add composite indexes for memory layer statistics querying
+**Learning:** `get_client_layer_stats` in `Pinak_Services/memory_service/app/core/database.py` executes `SELECT COUNT(*), MAX(created_at) FROM <table> WHERE tenant = ? AND project_id = ? AND client_id = ?` across five different table memory layers without an index, resulting in five separate unindexed table scans on large tables for every summary operation.
+**Action:** Always verify querying paths for potential missing database indexes on frequently queried combinations (like `tenant, project_id, client_id`) to avoid O(N) linear scan performance degradation.
