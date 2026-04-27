@@ -1,0 +1,3 @@
+## 2024-04-28 - Optimizing Database _init_db Schema Modifications
+**Learning:** When modifying `DatabaseManager._init_db()` in `app/core/database.py` to add new indexes, putting `CREATE INDEX` immediately after the `CREATE TABLE` definitions can cause `sqlite3.OperationalError: no such column` on legacy databases if the indexes rely on columns added later in `_init_db` via `self._ensure_column()`.
+**Action:** Always place newly added `CREATE INDEX` statements at the very end of `_init_db()`, *after* all `_ensure_column()` calls have completed, ensuring the underlying columns exist before the index is built.
