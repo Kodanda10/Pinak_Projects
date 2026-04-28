@@ -1,0 +1,3 @@
+## 2024-05-18 - SQLite Legacy Schema Upgrades via Context Manager
+**Learning:** In the SQLite database schema evolution within `DatabaseManager._init_db()` (`app/core/database.py`), explicitly created test schemas or early DB schema versions might lack new columns. Appending `CREATE INDEX` references to these conditionally-added columns directly after a `CREATE TABLE` execution leads to a `sqlite3.OperationalError` as the column is dynamically added via `_ensure_column` further down.
+**Action:** When adding indexes that depend on dynamically updated schema attributes, ensure `CREATE INDEX` queries are placed unequivocally at the end of the `_init_db()` lifecycle to sidestep database structural incongruencies.
