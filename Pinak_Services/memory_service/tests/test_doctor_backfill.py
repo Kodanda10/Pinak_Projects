@@ -11,13 +11,15 @@ def _init_db(path: str) -> None:
                 id TEXT,
                 content TEXT,
                 client_id TEXT,
-                client_name TEXT
+                client_name TEXT,
+                tenant TEXT,
+                project_id TEXT
             )
             """
         )
         conn.execute(
-            "INSERT INTO memories_semantic (id, content, client_id, client_name) VALUES (?, ?, ?, ?)",
-            ("1", "hello", None, None),
+            "INSERT INTO memories_semantic (id, content, client_id, client_name, tenant, project_id) VALUES (?, ?, ?, ?, ?, ?)",
+            ("1", "hello", None, None, "test", "test"),
         )
         conn.commit()
 
