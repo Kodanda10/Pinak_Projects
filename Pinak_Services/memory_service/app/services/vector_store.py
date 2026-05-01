@@ -18,6 +18,7 @@ class VectorStore:
         self.index_path = index_path
         self.dimension = dimension
         self.lock = threading.RLock()
+        self._local = threading.local()
         
         # In-memory storage
         self.vectors = np.empty((0, dimension), dtype=np.float32)
@@ -93,6 +94,13 @@ class VectorStore:
         id_array = np.array(ids, dtype=np.int64)
         new_norms = np.sum(np.square(vectors), axis=1)
 
+        # Optimization: O(1) buffer append if in a batch context
+        if getattr(self._local, "in_batch", False):
+            self._local.vectors_batch.append(vectors)
+            self._local.ids_batch.append(id_array)
+            self._local.norms_batch.append(new_norms)
+            return
+
         with self.lock:
             self.vectors = np.vstack([self.vectors, vectors])
             self.ids = np.concatenate([self.ids, id_array])
@@ -165,5 +173,34 @@ class VectorStore:
 
     @contextmanager
     def batch_add(self):
-        yield
-        self.save()
+        # Prevent nested batch clearing outer state
+        if getattr(self._local, "in_batch", False):
+            yield
+            return
+
+        self._local.in_batch = True
+        self._local.vectors_batch = []
+        self._local.ids_batch = []
+        self._local.norms_batch = []
+        try:
+            yield
+
+            if self._local.vectors_batch:
+                v_concat = np.concatenate(self._local.vectors_batch, axis=0)
+                id_concat = np.concatenate(self._local.ids_batch)
+                norm_concat = np.concatenate(self._local.norms_batch)
+
+                with self.lock:
+                    self.vectors = np.vstack([self.vectors, v_concat])
+                    self.ids = np.concatenate([self.ids, id_concat])
+                    self.norms = np.concatenate([self.norms, norm_concat])
+                    self.needs_save = True
+
+            if self.needs_save:
+                self.save()
+        finally:
+            self._local.in_batch = False
+            # Clear buffers to prevent memory leaks
+            self._local.vectors_batch = []
+            self._local.ids_batch = []
+            self._local.norms_batch = []
