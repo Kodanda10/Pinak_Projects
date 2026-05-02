@@ -1,0 +1,4 @@
+## 2024-05-09 - SQL Injection Vulnerability via Dynamically Constructed Identifiers
+**Vulnerability:** In `update_memory` within `DatabaseManager`, the SQL query's `SET` clause was constructed using dictionary keys (`updates.keys()`) provided by the user. While values were parameterized, the keys were inserted directly into the query string (`f"{k} = ?"`). An attacker could bypass parameterization and inject arbitrary SQL by passing a malformed key like `"content = 'Hacked!', id"`.
+**Learning:** Python DB API parameterization only protects values passed to placeholders (`?`), not identifiers like column names. Dynamically constructing SQL using user-provided dictionary keys is an injection vector if the keys aren't sanitized.
+**Prevention:** Explicitly enforce that dictionary keys are valid strings and Python identifiers using `if not isinstance(key, str) or not key.isidentifier(): raise ValueError(...)` before constructing the query.
