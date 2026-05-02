@@ -11,13 +11,21 @@ def _init_db(path: str) -> None:
                 id TEXT,
                 content TEXT,
                 client_id TEXT,
-                client_name TEXT
+                client_name TEXT,
+                tenant TEXT,
+                project_id TEXT
             )
             """
         )
         conn.execute(
-            "INSERT INTO memories_semantic (id, content, client_id, client_name) VALUES (?, ?, ?, ?)",
-            ("1", "hello", None, None),
+            """
+            CREATE INDEX IF NOT EXISTS idx_memories_semantic_tenant_project_client
+            ON memories_semantic (tenant, project_id, client_id);
+            """
+        )
+        conn.execute(
+            "INSERT INTO memories_semantic (id, content, client_id, client_name, tenant, project_id) VALUES (?, ?, ?, ?, ?, ?)",
+            ("1", "hello", None, None, "default", "default"),
         )
         conn.commit()
 
