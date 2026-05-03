@@ -792,6 +792,10 @@ class DatabaseManager:
         # Serialize JSON fields
         serialized = {}
         for key, value in updates.items():
+            # Security check: Ensure dictionary keys are valid identifiers to prevent SQL injection
+            # when constructing the SET clause for the dynamic UPDATE query.
+            if not isinstance(key, str) or not key.isidentifier():
+                raise ValueError(f"Invalid column name: {key}")
             if key in ("tags", "plan", "steps") and value is not None:
                 serialized[key] = json.dumps(value)
             else:
