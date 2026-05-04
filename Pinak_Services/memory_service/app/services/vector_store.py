@@ -19,6 +19,9 @@ class VectorStore:
         self.dimension = dimension
         self.lock = threading.RLock()
         
+        # Thread-local storage for O(N) batch additions
+        self._batch_local = threading.local()
+
         # In-memory storage
         self.vectors = np.empty((0, dimension), dtype=np.float32)
         self.ids = np.array([], dtype=np.int64)
@@ -29,6 +32,15 @@ class VectorStore:
         self._save_timer = None
         self._save_interval = 5.0  # seconds
         self.needs_save = False
+
+    @property
+    def _in_batch(self) -> bool:
+        """Check if current thread is in a batch_add context."""
+        return getattr(self._batch_local, 'in_batch', False)
+
+    @_in_batch.setter
+    def _in_batch(self, value: bool):
+        self._batch_local.in_batch = value
 
     @property
     def index(self):
@@ -92,6 +104,12 @@ class VectorStore:
         vectors = vectors.astype(np.float32)
         id_array = np.array(ids, dtype=np.int64)
         new_norms = np.sum(np.square(vectors), axis=1)
+
+        if self._in_batch:
+            self._batch_local.batch_vectors.append(vectors)
+            self._batch_local.batch_ids.append(id_array)
+            self._batch_local.batch_norms.append(new_norms)
+            return
 
         with self.lock:
             self.vectors = np.vstack([self.vectors, vectors])
@@ -165,5 +183,39 @@ class VectorStore:
 
     @contextmanager
     def batch_add(self):
-        yield
-        self.save()
+        """
+        Thread-local context manager that buffers add_vectors calls and merges them
+        all at once upon exit, eliminating the O(N^2) penalty of repeated vstacks.
+        """
+        if self._in_batch:
+            # Already in a batch context on this thread, allow nesting safely
+            yield
+            return
+
+        self._in_batch = True
+        self._batch_local.batch_vectors = []
+        self._batch_local.batch_ids = []
+        self._batch_local.batch_norms = []
+
+        try:
+            yield
+
+            # Commit the batch if we collected anything
+            if self._batch_local.batch_vectors:
+                merged_vectors = np.vstack(self._batch_local.batch_vectors)
+                merged_ids = np.concatenate(self._batch_local.batch_ids)
+                merged_norms = np.concatenate(self._batch_local.batch_norms)
+
+                with self.lock:
+                    self.vectors = np.vstack([self.vectors, merged_vectors])
+                    self.ids = np.concatenate([self.ids, merged_ids])
+                    self.norms = np.concatenate([self.norms, merged_norms])
+                    self.needs_save = True
+
+                self.save()
+        finally:
+            # Clean up thread-local state
+            self._in_batch = False
+            self._batch_local.batch_vectors = []
+            self._batch_local.batch_ids = []
+            self._batch_local.batch_norms = []
