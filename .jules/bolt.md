@@ -1,0 +1,3 @@
+## 2024-05-04 - O(N^2) VectorStore Batch Addition Bottleneck
+**Learning:** In `VectorStore`, calling `add_vectors` repeatedly within the `batch_add` context manager historically resulted in an O(N^2) complexity penalty because `np.vstack` was allocating and copying the entire growing `self.vectors` array on every single iteration.
+**Action:** Implement thread-local storage (`threading.local()`) within the `batch_add` context manager to temporarily buffer arrays in a Python list. Upon context exit, perform a single `np.vstack` and `np.concatenate` to commit all buffered additions at once, effectively reducing the operation to O(N).
