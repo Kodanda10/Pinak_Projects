@@ -1,0 +1,3 @@
+## $(date +%Y-%m-%d) - O(N^2) Penalty with NumPy array building in context managers
+**Learning:** Using `np.vstack` and `np.concatenate` incrementally inside a lock block (`VectorStore.add_vectors`) within a `batch_add` context manager results in massive array re-allocations and an O(N^2) overhead penalty.
+**Action:** Always buffer iterative array building using standard Python `list.append()` inside thread-local variables (`threading.local()`) across context managers, then execute a single `np.vstack` / `np.concatenate` on the combined list inside the `try` block upon exiting the outer context manager.
