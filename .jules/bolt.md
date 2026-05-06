@@ -1,0 +1,3 @@
+## 2024-05-06 - Optimize Numpy VectorStore Batch Addition
+**Learning:** When incrementally building large NumPy arrays for batch vector additions, using `np.vstack` repeatedly inside the `batch_add` context manager but outside the buffer is O(N^2) and extremely slow. Caching additions in a Python list buffer (using `threading.local` for thread safety) and performing a single `np.vstack` / `np.concatenate` upon exiting the context block is orders of magnitude faster (time dropped from 5.4s to 0.28s for 5000 additions).
+**Action:** Always buffer repeated Numpy array concatenations/vstacks in a list and perform the concatenation once at the end.
