@@ -1,0 +1,4 @@
+## 2024-10-27 - [Mitigate SQL Injection in Dynamic Updates]
+**Vulnerability:** The `DatabaseManager.update_memory` function was constructing dynamic SQL queries by blindly interpolating dictionary keys directly into the `SET` clause without validation. This allowed an attacker to potentially inject malicious SQL identifiers and bypass parameterized inputs.
+**Learning:** This vulnerability existed because Python dictionaries can contain any string as a key, and while parameterizing values protects against data injection, it does not protect against column name injection.
+**Prevention:** To avoid this next time, always explicitly check that any dynamic key used in an SQL query is a valid identifier (e.g., using `isinstance(key, str) and key.isidentifier()`) and raise a `ValueError` before constructing the query string.
