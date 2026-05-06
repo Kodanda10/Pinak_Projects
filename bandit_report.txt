@@ -1,0 +1,280 @@
+Run started:2026-05-06 18:08:52.905803+00:00
+
+Test results:
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b110_try_except_pass.html
+   Location: Pinak_Services/memory_service/app/core/database.py:441:20
+440	                        row["tags"] = json.loads(row["tags"])
+441	                    except Exception:
+442	                        pass
+443	            results.extend(sem_rows)
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b110_try_except_pass.html
+   Location: Pinak_Services/memory_service/app/core/database.py:458:20
+457	                        row["plan"] = json.loads(row["plan"])
+458	                    except Exception:
+459	                        pass
+460	                if row.get("steps"):
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b110_try_except_pass.html
+   Location: Pinak_Services/memory_service/app/core/database.py:464:20
+463	                        row["tool_logs"] = row["steps"]
+464	                    except Exception:
+465	                        pass
+466	            results.extend(epi_rows)
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b110_try_except_pass.html
+   Location: Pinak_Services/memory_service/app/core/database.py:481:20
+480	                        row["steps"] = json.loads(row["steps"])
+481	                    except Exception:
+482	                        pass
+483	            results.extend(proc_rows)
+
+--------------------------------------------------
+>> Issue: [B608:hardcoded_sql_expressions] Possible SQL injection vector through string-based query construction.
+   Severity: Medium   Confidence: Medium
+   CWE: CWE-89 (https://cwe.mitre.org/data/definitions/89.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html
+   Location: Pinak_Services/memory_service/app/core/database.py:728:39
+727	                content_col = "skill_name" if mtype == "procedural" else "content"
+728	                cur = conn.execute(f"""
+729	                    SELECT *, '{mtype}' as type FROM {table}
+730	                    WHERE embedding_id IN ({placeholders}) AND tenant = ? AND project_id = ?
+731	                """, (*embedding_ids, tenant, project_id))
+732	                for row in cur.fetchall():
+
+--------------------------------------------------
+>> Issue: [B608:hardcoded_sql_expressions] Possible SQL injection vector through string-based query construction.
+   Severity: Medium   Confidence: Medium
+   CWE: CWE-89 (https://cwe.mitre.org/data/definitions/89.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html
+   Location: Pinak_Services/memory_service/app/core/database.py:754:18
+753	            cur = conn.execute(
+754	                f"SELECT * FROM {table} WHERE id = ? AND tenant = ? AND project_id = ?",
+755	                (memory_id, tenant, project_id),
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b110_try_except_pass.html
+   Location: Pinak_Services/memory_service/app/core/database.py:764:16
+763	                    d["tags"] = json.loads(d["tags"])
+764	                except Exception:
+765	                    pass
+766	            if d.get("plan"):
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b110_try_except_pass.html
+   Location: Pinak_Services/memory_service/app/core/database.py:769:16
+768	                    d["plan"] = json.loads(d["plan"])
+769	                except Exception:
+770	                    pass
+771	            if d.get("steps"):
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b110_try_except_pass.html
+   Location: Pinak_Services/memory_service/app/core/database.py:775:16
+774	                    d["tool_logs"] = d["steps"]
+775	                except Exception:
+776	                    pass
+777	            return d
+
+--------------------------------------------------
+>> Issue: [B608:hardcoded_sql_expressions] Possible SQL injection vector through string-based query construction.
+   Severity: Medium   Confidence: Medium
+   CWE: CWE-89 (https://cwe.mitre.org/data/definitions/89.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html
+   Location: Pinak_Services/memory_service/app/core/database.py:804:18
+803	            cur = conn.execute(
+804	                f"UPDATE {table} SET {set_clause} WHERE id = ? AND tenant = ? AND project_id = ?",
+805	                params,
+
+--------------------------------------------------
+>> Issue: [B608:hardcoded_sql_expressions] Possible SQL injection vector through string-based query construction.
+   Severity: Medium   Confidence: Medium
+   CWE: CWE-89 (https://cwe.mitre.org/data/definitions/89.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html
+   Location: Pinak_Services/memory_service/app/core/database.py:821:18
+820	            cur = conn.execute(
+821	                f"DELETE FROM {table} WHERE id = ? AND tenant = ? AND project_id = ?",
+822	                (memory_id, tenant, project_id),
+
+--------------------------------------------------
+>> Issue: [B608:hardcoded_sql_expressions] Possible SQL injection vector through string-based query construction.
+   Severity: Medium   Confidence: Medium
+   CWE: CWE-89 (https://cwe.mitre.org/data/definitions/89.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html
+   Location: Pinak_Services/memory_service/app/core/database.py:997:22
+996	                cur = conn.execute(
+997	                    f"SELECT COUNT(*), MAX({ts_col}) FROM {table} WHERE tenant = ? AND project_id = ? AND client_id = ?",
+998	                    (tenant, project_id, client_id),
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b110_try_except_pass.html
+   Location: Pinak_Services/memory_service/app/services/memory_service.py:120:20
+119	                        )
+120	                    except Exception:
+121	                        pass
+122	        except Exception:
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b110_try_except_pass.html
+   Location: Pinak_Services/memory_service/app/services/memory_service.py:122:8
+121	                        pass
+122	        except Exception:
+123	            pass
+124	        if not client_id:
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b110_try_except_pass.html
+   Location: Pinak_Services/memory_service/app/services/memory_service.py:139:12
+138	                )
+139	            except Exception:
+140	                pass
+141	        return {
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b110_try_except_pass.html
+   Location: Pinak_Services/memory_service/app/services/memory_service.py:192:8
+191	            )
+192	        except Exception:
+193	            pass
+194
+
+--------------------------------------------------
+>> Issue: [B608:hardcoded_sql_expressions] Possible SQL injection vector through string-based query construction.
+   Severity: Medium   Confidence: Medium
+   CWE: CWE-89 (https://cwe.mitre.org/data/definitions/89.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b608_hardcoded_sql_expressions.html
+   Location: Pinak_Services/memory_service/app/services/memory_service.py:207:35
+206	                try:
+207	                    conn.execute(f"SELECT count(*) FROM {table} WHERE embedding_id IS NOT NULL")
+208	                    db_count += conn.fetchone()[0]
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b110_try_except_pass.html
+   Location: Pinak_Services/memory_service/app/services/memory_service.py:411:12
+410	                )
+411	            except Exception:
+412	                pass
+413	            raise e
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b110_try_except_pass.html
+   Location: Pinak_Services/memory_service/app/services/memory_service.py:530:12
+529	                )
+530	            except Exception:
+531	                pass
+532	            raise
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b110_try_except_pass.html
+   Location: Pinak_Services/memory_service/app/services/memory_service.py:645:12
+644	                )
+645	            except Exception:
+646	                pass
+647	            raise
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b110_try_except_pass.html
+   Location: Pinak_Services/memory_service/app/services/memory_service.py:740:12
+739	                )
+740	            except Exception:
+741	                pass
+742	            raise
+
+--------------------------------------------------
+>> Issue: [B110:try_except_pass] Try, Except, Pass detected.
+   Severity: Low   Confidence: High
+   CWE: CWE-703 (https://cwe.mitre.org/data/definitions/703.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b110_try_except_pass.html
+   Location: Pinak_Services/memory_service/app/services/memory_service.py:1284:12
+1283	                )
+1284	            except Exception:
+1285	                pass
+1286	        auto_approve = os.getenv("PINAK_QUARANTINE_AUTO_APPROVE", "false").lower() in ("1", "true", "yes")
+
+--------------------------------------------------
+>> Issue: [B404:blacklist] Consider possible security implications associated with the subprocess module.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/blacklists/blacklist_imports.html#b404-import-subprocess
+   Location: src/pinak/security/auditor.py:5:0
+4	import datetime
+5	import subprocess
+6
+
+--------------------------------------------------
+>> Issue: [B603:subprocess_without_shell_equals_true] subprocess call - check for execution of untrusted input.
+   Severity: Low   Confidence: High
+   CWE: CWE-78 (https://cwe.mitre.org/data/definitions/78.html)
+   More Info: https://bandit.readthedocs.io/en/1.9.4/plugins/b603_subprocess_without_shell_equals_true.html
+   Location: src/pinak/security/auditor.py:49:21
+48
+49	            result = subprocess.run(command, capture_output=True, text=True, check=False)
+50	            if result.stdout:
+
+--------------------------------------------------
+
+Code scanned:
+	Total lines of code: 3689
+	Total lines skipped (#nosec): 0
+	Total potential issues skipped due to specifically being disabled (e.g., #nosec BXXX): 0
+
+Run metrics:
+	Total issues (by severity):
+		Undefined: 0
+		Low: 18
+		Medium: 6
+		High: 0
+	Total issues (by confidence):
+		Undefined: 0
+		Low: 0
+		Medium: 6
+		High: 18
+Files skipped (0):
