@@ -24,6 +24,9 @@ class VectorStore:
         self.ids = np.array([], dtype=np.int64)
         self.norms = np.array([], dtype=np.float32)
         
+        # Thread-local storage for batch additions
+        self._thread_local = threading.local()
+
         self._load_index()
 
         self._save_timer = None
@@ -92,6 +95,14 @@ class VectorStore:
         vectors = vectors.astype(np.float32)
         id_array = np.array(ids, dtype=np.int64)
         new_norms = np.sum(np.square(vectors), axis=1)
+
+        # Optimization: Buffer additions if we are within a batch_add context
+        in_batch = getattr(self._thread_local, 'in_batch', 0) > 0
+        if in_batch:
+            self._thread_local.batch_vectors.append(vectors)
+            self._thread_local.batch_ids.append(id_array)
+            self._thread_local.batch_norms.append(new_norms)
+            return
 
         with self.lock:
             self.vectors = np.vstack([self.vectors, vectors])
@@ -165,5 +176,36 @@ class VectorStore:
 
     @contextmanager
     def batch_add(self):
-        yield
-        self.save()
+        """
+        Optimized context manager for batch vector additions.
+        O(N) performance by caching items in thread-local storage
+        and flushing them with a single vstack/concatenate upon exit.
+        """
+        if getattr(self._thread_local, 'in_batch', 0) == 0:
+            self._thread_local.in_batch = 0
+            self._thread_local.batch_vectors = []
+            self._thread_local.batch_ids = []
+            self._thread_local.batch_norms = []
+
+        self._thread_local.in_batch += 1
+
+        try:
+            yield
+
+            # Only commit the batch if we are exiting the outermost context
+            if self._thread_local.in_batch == 1 and self._thread_local.batch_vectors:
+                vectors_to_add = np.vstack(self._thread_local.batch_vectors)
+                ids_to_add = np.concatenate(self._thread_local.batch_ids)
+                norms_to_add = np.concatenate(self._thread_local.batch_norms)
+                with self.lock:
+                    self.vectors = np.vstack([self.vectors, vectors_to_add])
+                    self.ids = np.concatenate([self.ids, ids_to_add])
+                    self.norms = np.concatenate([self.norms, norms_to_add])
+                    self.needs_save = True
+                self.save()
+        finally:
+            self._thread_local.in_batch -= 1
+            if self._thread_local.in_batch == 0:
+                self._thread_local.batch_vectors = []
+                self._thread_local.batch_ids = []
+                self._thread_local.batch_norms = []
