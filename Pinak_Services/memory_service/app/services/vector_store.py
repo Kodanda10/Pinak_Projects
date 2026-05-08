@@ -18,6 +18,7 @@ class VectorStore:
         self.index_path = index_path
         self.dimension = dimension
         self.lock = threading.RLock()
+        self._local = threading.local()
         
         # In-memory storage
         self.vectors = np.empty((0, dimension), dtype=np.float32)
@@ -93,13 +94,21 @@ class VectorStore:
         id_array = np.array(ids, dtype=np.int64)
         new_norms = np.sum(np.square(vectors), axis=1)
 
-        with self.lock:
-            self.vectors = np.vstack([self.vectors, vectors])
-            self.ids = np.concatenate([self.ids, id_array])
-            self.norms = np.concatenate([self.norms, new_norms])
-            self.needs_save = True
+        is_batch = getattr(self._local, "in_batch", False)
 
-        self._schedule_save()
+        if is_batch:
+            # Batch mode: append to thread-local buffer
+            self._local.vectors_buffer.append(vectors)
+            self._local.ids_buffer.append(id_array)
+            self._local.norms_buffer.append(new_norms)
+        else:
+            with self.lock:
+                self.vectors = np.vstack([self.vectors, vectors])
+                self.ids = np.concatenate([self.ids, id_array])
+                self.norms = np.concatenate([self.norms, new_norms])
+                self.needs_save = True
+
+            self._schedule_save()
 
     def search(self, query_vector: np.ndarray, k: int = 10) -> Tuple[List[float], List[int]]:
         """Find top K nearest neighbors using L2 distance."""
@@ -165,5 +174,30 @@ class VectorStore:
 
     @contextmanager
     def batch_add(self):
-        yield
-        self.save()
+        # Handle nested batch calls
+        is_nested = getattr(self._local, "in_batch", False)
+        if not is_nested:
+            self._local.in_batch = True
+            self._local.vectors_buffer = []
+            self._local.ids_buffer = []
+            self._local.norms_buffer = []
+
+        try:
+            yield
+
+            if not is_nested and self._local.vectors_buffer:
+                # Flush the buffers with a single concatenation
+                with self.lock:
+                    self.vectors = np.vstack([self.vectors] + self._local.vectors_buffer)
+                    self.ids = np.concatenate([self.ids] + self._local.ids_buffer)
+                    self.norms = np.concatenate([self.norms] + self._local.norms_buffer)
+                    self.needs_save = True
+
+                self.save()
+
+        finally:
+            if not is_nested:
+                self._local.in_batch = False
+                self._local.vectors_buffer = []
+                self._local.ids_buffer = []
+                self._local.norms_buffer = []
