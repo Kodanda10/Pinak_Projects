@@ -2,28 +2,32 @@ import os
 import numpy as np
 import threading
 import logging
-import time
-import json
-from typing import List, Tuple, Optional, Dict, Any
+from typing import List, Tuple, Optional
 from contextlib import contextmanager
 
 logger = logging.getLogger(__name__)
 
+
 class VectorStore:
     """
     Thread-safe Vector Store using Numpy for similarity search.
-    Provides identical API to the previous FAISS implementation but without segfaults.
+    Provides identical API to the previous FAISS implementation
+    but without segfaults.
     """
+
     def __init__(self, index_path: str, dimension: int):
         self.index_path = index_path
         self.dimension = dimension
         self.lock = threading.RLock()
-        
+
         # In-memory storage
         self.vectors = np.empty((0, dimension), dtype=np.float32)
         self.ids = np.array([], dtype=np.int64)
         self.norms = np.array([], dtype=np.float32)
-        
+
+        # Thread-local storage for batch additions
+        self._local = threading.local()
+
         self._load_index()
 
         self._save_timer = None
@@ -52,10 +56,13 @@ class VectorStore:
                     self.vectors = data['vectors'].astype(np.float32)
                     self.ids = data['ids'].astype(np.int64)
                     self.norms = np.sum(np.square(self.vectors), axis=1)
-                    logger.info(f"Loaded Vector Store from {load_path}. Size: {len(self.ids)}")
+                    logger.info(f"Loaded Vector Store from {load_path}. "
+                                f"Size: {len(self.ids)}")
                 except Exception as e:
-                    logger.error(f"Failed to load index: {e}. Creating new one.")
-                    self.vectors = np.empty((0, self.dimension), dtype=np.float32)
+                    logger.error(
+                        f"Failed to load index: {e}. Creating new one.")
+                    self.vectors = np.empty(
+                        (0, self.dimension), dtype=np.float32)
                     self.ids = np.array([], dtype=np.int64)
                     self.norms = np.array([], dtype=np.float32)
 
@@ -78,7 +85,8 @@ class VectorStore:
                 with open(self.index_path, "wb") as handle:
                     np.save(handle, {'vectors': self.vectors, 'ids': self.ids})
                 self.needs_save = False
-                logger.info(f"Saved Vector Store to {self.index_path}. Size: {len(self.ids)}")
+                logger.info(f"Saved Vector Store to {self.index_path}. "
+                            f"Size: {len(self.ids)}")
 
     def add_vectors(self, vectors: np.ndarray, ids: List[int]):
         """Add vectors with specific IDs."""
@@ -87,21 +95,32 @@ class VectorStore:
         if vectors.shape[0] != len(ids):
             raise ValueError("Number of vectors and IDs must match")
         if vectors.shape[1] != self.dimension:
-            raise ValueError(f"Vector dimension {vectors.shape[1]} does not match index dimension {self.dimension}")
+            raise ValueError(
+                f"Vector dimension {vectors.shape[1]} does not match "
+                f"index dimension {self.dimension}")
 
         vectors = vectors.astype(np.float32)
         id_array = np.array(ids, dtype=np.int64)
         new_norms = np.sum(np.square(vectors), axis=1)
 
-        with self.lock:
-            self.vectors = np.vstack([self.vectors, vectors])
-            self.ids = np.concatenate([self.ids, id_array])
-            self.norms = np.concatenate([self.norms, new_norms])
-            self.needs_save = True
+        if getattr(self._local, "in_batch", False):
+            # Buffer additions instead of locking and reallocating
+            self._local.batch_vectors.append(vectors)
+            self._local.batch_ids.append(id_array)
+            self._local.batch_norms.append(new_norms)
+        else:
+            with self.lock:
+                if self.vectors.size:
+                    self.vectors = np.vstack([self.vectors, vectors])
+                else:
+                    self.vectors = vectors
+                self.ids = np.concatenate([self.ids, id_array])
+                self.norms = np.concatenate([self.norms, new_norms])
+                self.needs_save = True
+            self._schedule_save()
 
-        self._schedule_save()
-
-    def search(self, query_vector: np.ndarray, k: int = 10) -> Tuple[List[float], List[int]]:
+    def search(self, query_vector: np.ndarray,
+               k: int = 10) -> Tuple[List[float], List[int]]:
         """Find top K nearest neighbors using L2 distance."""
         with self.lock:
             if len(self.ids) == 0:
@@ -114,7 +133,8 @@ class VectorStore:
             if query_vector.shape[1] != self.dimension:
                 return [], []
 
-            # Compute L2 distance using dot product: ||x-y||^2 = ||x||^2 + ||y||^2 - 2<x,y>
+            # Compute L2 distance using dot product:
+            # ||x-y||^2 = ||x||^2 + ||y||^2 - 2<x,y>
             dot_product = np.dot(self.vectors, query_vector.T).flatten()
             query_norm_sq = float(np.sum(np.square(query_vector)))
             sq_dists = self.norms + query_norm_sq - (2.0 * dot_product)
@@ -123,7 +143,8 @@ class VectorStore:
             # Get top K indices
             actual_k = min(k, len(self.ids))
             if actual_k < len(self.ids):
-                top_k_partition = np.argpartition(sq_dists, actual_k - 1)[:actual_k]
+                top_k_partition = np.argpartition(
+                    sq_dists, actual_k - 1)[:actual_k]
                 sorted_idx_in_top_k = np.argsort(sq_dists[top_k_partition])
                 top_k_idx = top_k_partition[sorted_idx_in_top_k]
             else:
@@ -165,5 +186,41 @@ class VectorStore:
 
     @contextmanager
     def batch_add(self):
-        yield
-        self.save()
+        # Handle nested batches by checking if we're already in one
+        if getattr(self._local, "in_batch", False):
+            yield
+            return
+
+        self._local.in_batch = True
+        self._local.batch_vectors = []
+        self._local.batch_ids = []
+        self._local.batch_norms = []
+
+        try:
+            yield
+
+            with self.lock:
+                if self._local.batch_vectors:
+                    # Concatenate all buffered additions at once
+                    # (O(N) instead of O(N^2))
+                    v_concat = np.concatenate(
+                        self._local.batch_vectors, axis=0)
+                    id_concat = np.concatenate(self._local.batch_ids, axis=0)
+                    norm_concat = np.concatenate(
+                        self._local.batch_norms, axis=0)
+
+                    if self.vectors.size:
+                        self.vectors = np.vstack([self.vectors, v_concat])
+                    else:
+                        self.vectors = v_concat
+                    self.ids = np.concatenate([self.ids, id_concat])
+                    self.norms = np.concatenate([self.norms, norm_concat])
+                    self.needs_save = True
+
+            # Save once after the batch completes
+            self.save()
+        finally:
+            self._local.in_batch = False
+            self._local.batch_vectors = []
+            self._local.batch_ids = []
+            self._local.batch_norms = []
