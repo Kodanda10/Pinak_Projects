@@ -792,6 +792,9 @@ class DatabaseManager:
         # Serialize JSON fields
         serialized = {}
         for key, value in updates.items():
+            # Security: validate key is a valid identifier to prevent SQL injection in dynamic SET clause
+            if not isinstance(key, str) or not key.isidentifier():
+                raise ValueError(f"Invalid update key: {key}")
             if key in ("tags", "plan", "steps") and value is not None:
                 serialized[key] = json.dumps(value)
             else:
@@ -801,7 +804,7 @@ class DatabaseManager:
         params = list(serialized.values()) + [memory_id, tenant, project_id]
         with self.get_cursor() as conn:
             cur = conn.execute(
-                f"UPDATE {table} SET {set_clause} WHERE id = ? AND tenant = ? AND project_id = ?",
+                f"UPDATE {table} SET {set_clause} WHERE id = ? AND tenant = ? AND project_id = ?",  # nosec B608
                 params,
             )
             return cur.rowcount > 0
