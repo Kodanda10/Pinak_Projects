@@ -1,0 +1,4 @@
+## 2025-05-12 - Prevent SQL Injection / Mass Assignment in Dynamic Updates
+**Vulnerability:** A SQL injection and mass assignment vulnerability was found in `app/core/database.py`'s `update_memory` function, where unsanitized keys from an `updates` dictionary were directly interpolated into an `UPDATE` query's `SET` clause via f-strings (e.g., `f"{k} = ?"`).
+**Learning:** Generating dynamic SQL schemas using unvalidated user input keys bypasses the safety of parameterized query values. Even if values are parameterized, malicious keys (like `"status = 1; --"`) can alter query structure or modify arbitrary table columns.
+**Prevention:** Always enforce strict input validation on dynamic dictionary keys used in SQL schema construction. Ensure keys are valid strings and Python identifiers using `if not isinstance(key, str) or not key.isidentifier(): raise ValueError(...)` before incorporating them into the query.
