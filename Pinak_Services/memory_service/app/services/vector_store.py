@@ -18,6 +18,7 @@ class VectorStore:
         self.index_path = index_path
         self.dimension = dimension
         self.lock = threading.RLock()
+        self._local = threading.local()
         
         # In-memory storage
         self.vectors = np.empty((0, dimension), dtype=np.float32)
@@ -93,6 +94,13 @@ class VectorStore:
         id_array = np.array(ids, dtype=np.int64)
         new_norms = np.sum(np.square(vectors), axis=1)
 
+        batch_state = getattr(self._local, 'batch_state', None)
+        if batch_state is not None:
+            batch_state['vectors'].append(vectors)
+            batch_state['ids'].append(id_array)
+            batch_state['norms'].append(new_norms)
+            return
+
         with self.lock:
             self.vectors = np.vstack([self.vectors, vectors])
             self.ids = np.concatenate([self.ids, id_array])
@@ -165,5 +173,23 @@ class VectorStore:
 
     @contextmanager
     def batch_add(self):
-        yield
-        self.save()
+        """Context manager to buffer additions and commit them all at once."""
+        # Handle nested batch_add contexts gracefully
+        batch_state = getattr(self._local, 'batch_state', None)
+        if batch_state is not None:
+            yield
+            return
+
+        self._local.batch_state = {'vectors': [], 'ids': [], 'norms': []}
+        try:
+            yield
+            state = self._local.batch_state
+            if state['vectors']:
+                with self.lock:
+                    self.vectors = np.vstack([self.vectors] + state['vectors'])
+                    self.ids = np.concatenate([self.ids] + state['ids'])
+                    self.norms = np.concatenate([self.norms] + state['norms'])
+                    self.needs_save = True
+                self.save()
+        finally:
+            self._local.batch_state = None
