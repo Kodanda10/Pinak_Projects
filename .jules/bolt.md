@@ -1,0 +1,3 @@
+## $(date +%Y-%m-%d) - Optimizing Numpy Vector Additions with Thread-Local Context Managers
+**Learning:** `VectorStore.batch_add` previously simply wrapped operations, meaning adding vectors inside the context resulted in repeating O(N) re-allocations (via `np.vstack` and `np.concatenate`) for *each* addition, leading to O(N^2) total execution time. Using instance variables to track batch state isn't thread-safe and holding the lock for the entire batch duration leads to deadlocks.
+**Action:** Always implement batch context managers using thread-local storage (`threading.local()`) to securely buffer data without race conditions or deadlocks. Ensure data commits occur strictly inside the `try` block after `yield`, and handle nested context managers gracefully.
