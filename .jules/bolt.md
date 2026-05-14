@@ -1,0 +1,3 @@
+## 2024-05-18 - Missing columns issue during index creation
+**Learning:** Legacy mock databases in test files such as `test_doctor_backfill.py` can lack certain columns like `tenant` and `project_id`. When adding new composite indexes that reference these columns inside `DatabaseManager._init_db`, a `sqlite3.OperationalError` (no such column) can occur when testing against these legacy databases.
+**Action:** When updating `DatabaseManager._init_db()` to add new indexes, always ensure that test cases with manually mocked schemas are updated to match the production schema so the indexes can be created successfully without breaking tests.
