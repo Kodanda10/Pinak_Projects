@@ -1,0 +1,4 @@
+## 2024-05-15 - [Mitigate SQL Injection and Mass Assignment in update_memory]
+**Vulnerability:** The `update_memory` method in `app/core/database.py` takes an unvalidated dictionary `updates` and constructs a dynamic `SET` clause using `", ".join([f"{k} = ?" for k in serialized.keys()])`. This allows attackers to potentially inject malicious keys, bypass column boundaries, or create invalid SQL syntax, causing an injection risk if the keys are not validated.
+**Learning:** This existed because of the need to build a dynamic update query based on provided fields without explicit schema validation, trusting the input structure.
+**Prevention:** Always explicitly enforce that dictionary keys are valid strings and Python identifiers (`isinstance(key, str)` and `key.isidentifier()`) before constructing the query to mitigate SQL injection and mass assignment vulnerabilities when building dynamic SQL queries.
