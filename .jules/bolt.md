@@ -1,0 +1,3 @@
+## 2024-06-25 - [Optimize count_client_issues and count_quarantine in memory_service]
+**Learning:** `count_client_issues` and `count_quarantine` queries performed a full table scan because there were no indexes covering `(client_id, tenant, project_id, status)`, taking ~1.8 seconds for 500 count operations on 10k items.
+**Action:** Adding a composite index `(client_id, tenant, project_id, status)` for these tables significantly improves read operations by fulfilling count queries via index-only scans without reading the main table, resulting in a 5x to 6x speedup (dropping from ~1.8s to ~0.27s). Ensure all queried columns are covered by index to optimize query planning in SQLite.
