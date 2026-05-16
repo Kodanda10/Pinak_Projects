@@ -348,6 +348,22 @@ class DatabaseManager:
             self._ensure_column(conn, "working_memory", "client_id", "TEXT")
             self._ensure_column(conn, "working_memory", "client_name", "TEXT")
 
+            # Optimization: Added composite index on (embedding_id, tenant, project_id)
+            # Impact: Prevents O(N) full table scans when resolving vector search results via `get_memories_by_embedding_ids`.
+            # Reduces lookup time from O(N) to O(log N).
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_semantic_embedding
+                ON memories_semantic (embedding_id, tenant, project_id);
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_episodic_embedding
+                ON memories_episodic (embedding_id, tenant, project_id);
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_procedural_embedding
+                ON memories_procedural (embedding_id, tenant, project_id);
+            """)
+
     def _column_exists(self, conn: sqlite3.Connection, table: str, column: str) -> bool:
         try:
             rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
