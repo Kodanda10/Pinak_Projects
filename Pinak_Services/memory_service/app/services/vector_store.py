@@ -18,6 +18,7 @@ class VectorStore:
         self.index_path = index_path
         self.dimension = dimension
         self.lock = threading.RLock()
+        self.local_state = threading.local()
         
         # In-memory storage
         self.vectors = np.empty((0, dimension), dtype=np.float32)
@@ -91,6 +92,15 @@ class VectorStore:
 
         vectors = vectors.astype(np.float32)
         id_array = np.array(ids, dtype=np.int64)
+
+        if getattr(self.local_state, 'is_batching', False):
+            if not hasattr(self.local_state, 'vectors_buffer'):
+                self.local_state.vectors_buffer = []
+                self.local_state.ids_buffer = []
+            self.local_state.vectors_buffer.append(vectors)
+            self.local_state.ids_buffer.append(id_array)
+            return
+
         new_norms = np.sum(np.square(vectors), axis=1)
 
         with self.lock:
@@ -165,5 +175,31 @@ class VectorStore:
 
     @contextmanager
     def batch_add(self):
-        yield
-        self.save()
+        already_batching = getattr(self.local_state, 'is_batching', False)
+        if already_batching:
+            yield
+            return
+
+        self.local_state.is_batching = True
+        self.local_state.vectors_buffer = []
+        self.local_state.ids_buffer = []
+
+        try:
+            yield
+
+            if self.local_state.vectors_buffer:
+                merged_vectors = np.vstack(self.local_state.vectors_buffer)
+                merged_ids = np.concatenate(self.local_state.ids_buffer)
+                new_norms = np.sum(np.square(merged_vectors), axis=1)
+
+                with self.lock:
+                    self.vectors = np.vstack([self.vectors, merged_vectors])
+                    self.ids = np.concatenate([self.ids, merged_ids])
+                    self.norms = np.concatenate([self.norms, new_norms])
+                    self.needs_save = True
+
+                self.save()
+        finally:
+            self.local_state.is_batching = False
+            self.local_state.vectors_buffer = []
+            self.local_state.ids_buffer = []
