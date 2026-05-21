@@ -18,6 +18,7 @@ class VectorStore:
         self.index_path = index_path
         self.dimension = dimension
         self.lock = threading.RLock()
+        self._local = threading.local()
         
         # In-memory storage
         self.vectors = np.empty((0, dimension), dtype=np.float32)
@@ -93,6 +94,14 @@ class VectorStore:
         id_array = np.array(ids, dtype=np.int64)
         new_norms = np.sum(np.square(vectors), axis=1)
 
+        # ⚡ Bolt Optimization: Buffer vectors in thread-local storage when in a batch context
+        # to avoid O(N^2) performance penalty of repeated array reallocations.
+        if getattr(self._local, 'in_batch', False):
+            self._local.batch_vectors.append(vectors)
+            self._local.batch_ids.append(id_array)
+            self._local.batch_norms.append(new_norms)
+            return
+
         with self.lock:
             self.vectors = np.vstack([self.vectors, vectors])
             self.ids = np.concatenate([self.ids, id_array])
@@ -165,5 +174,30 @@ class VectorStore:
 
     @contextmanager
     def batch_add(self):
-        yield
-        self.save()
+        # ⚡ Bolt Optimization: Thread-local state for O(N) batch additions.
+        # Flushes batched vectors with a single stack/concatenate at context exit.
+        if getattr(self._local, 'in_batch', False):
+            yield
+            return
+
+        self._local.in_batch = True
+        self._local.batch_vectors = []
+        self._local.batch_ids = []
+        self._local.batch_norms = []
+
+        try:
+            yield
+
+            # Commit batched vectors in a single O(N) operation
+            if self._local.batch_vectors:
+                with self.lock:
+                    self.vectors = np.vstack([self.vectors] + self._local.batch_vectors)
+                    self.ids = np.concatenate([self.ids] + self._local.batch_ids)
+                    self.norms = np.concatenate([self.norms] + self._local.batch_norms)
+                    self.needs_save = True
+                self.save()
+        finally:
+            self._local.in_batch = False
+            self._local.batch_vectors = []
+            self._local.batch_ids = []
+            self._local.batch_norms = []
