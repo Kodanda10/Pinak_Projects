@@ -348,6 +348,29 @@ class DatabaseManager:
             self._ensure_column(conn, "working_memory", "client_id", "TEXT")
             self._ensure_column(conn, "working_memory", "client_name", "TEXT")
 
+            # --- Composite Indexes for Performance Optimization ---
+            index_queries = [
+                # Optimize get_client_layer_stats
+                "CREATE INDEX IF NOT EXISTS idx_memories_semantic_tenant_project_client ON memories_semantic (tenant, project_id, client_id);",
+                "CREATE INDEX IF NOT EXISTS idx_memories_episodic_tenant_project_client ON memories_episodic (tenant, project_id, client_id);",
+                "CREATE INDEX IF NOT EXISTS idx_memories_procedural_tenant_project_client ON memories_procedural (tenant, project_id, client_id);",
+                "CREATE INDEX IF NOT EXISTS idx_memories_rag_tenant_project_client ON memories_rag (tenant, project_id, client_id);",
+                "CREATE INDEX IF NOT EXISTS idx_working_memory_tenant_project_client ON working_memory (tenant, project_id, client_id);",
+                # Optimize vector search resolution (get_memories_by_embedding_ids)
+                "CREATE INDEX IF NOT EXISTS idx_memories_semantic_embedding_tenant_project ON memories_semantic (embedding_id, tenant, project_id);",
+                "CREATE INDEX IF NOT EXISTS idx_memories_episodic_embedding_tenant_project ON memories_episodic (embedding_id, tenant, project_id);",
+                "CREATE INDEX IF NOT EXISTS idx_memories_procedural_embedding_tenant_project ON memories_procedural (embedding_id, tenant, project_id);",
+                # Optimize issue and quarantine count queries
+                "CREATE INDEX IF NOT EXISTS idx_logs_client_issues_client_tenant_project_status ON logs_client_issues (client_id, tenant, project_id, status);",
+                "CREATE INDEX IF NOT EXISTS idx_memory_quarantine_client_tenant_project_status ON memory_quarantine (client_id, tenant, project_id, status);"
+            ]
+            for q in index_queries:
+                try:
+                    conn.execute(q)
+                except sqlite3.OperationalError:
+                    pass
+
+
     def _column_exists(self, conn: sqlite3.Connection, table: str, column: str) -> bool:
         try:
             rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
