@@ -1,0 +1,4 @@
+## 2025-05-27 - Mass Assignment & SQL Injection in Dynamic UPDATE Query
+**Vulnerability:** The `DatabaseManager.update_memory` method dynamically constructed an SQL `UPDATE` statement using keys directly from the `updates` dictionary without sanitizing them. This allowed potential SQL injection or mass assignment attacks if untrusted keys were provided.
+**Learning:** This vulnerability existed because the database update logic assumed all incoming update dictionary keys were safe column names, using string formatting `f"{k} = ?"` instead of relying solely on parameterized queries for the column identifiers.
+**Prevention:** Always validate that dictionary keys used in dynamic SQL queries are valid Python identifiers using `isinstance(key, str)` and `key.isidentifier()` to prevent injection. Combine this with parameterized queries for the values.
