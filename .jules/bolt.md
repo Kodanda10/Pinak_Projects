@@ -1,0 +1,3 @@
+## 2024-05-27 - [SQLite Memory Service Full Table Scan]
+**Learning:** The `get_client_layer_stats` method in `DatabaseManager` runs a query (`SELECT COUNT(*), MAX(created_at) FROM {table} WHERE tenant = ? AND project_id = ? AND client_id = ?`) across 5 large memory tables without indexes on `(tenant, project_id, client_id)`. This results in severe performance degradation and full table scans on large SQLite databases.
+**Action:** When adding memory database tables, ensure composite indexes like `idx_{table}_tenant_project_client` are created inside `_init_db()` to prevent full table scans on analytics queries. Handle `sqlite3.OperationalError` during index creation to avoid breaking legacy schemas lacking certain columns.
