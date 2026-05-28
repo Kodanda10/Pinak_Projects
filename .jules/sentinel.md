@@ -1,0 +1,4 @@
+## 2025-05-28 - SQL Injection & Mass Assignment in Dynamic SET Clauses
+**Vulnerability:** The `DatabaseManager.update_memory` method allowed attackers to pass arbitrary strings as keys in the `updates` dictionary, which were directly string-interpolated into the SQL `UPDATE` statement's `SET` clause. This allowed mass assignment (manipulating other columns) and SQL injection (injecting raw SQL snippets).
+**Learning:** Using `set_clause = ", ".join([f"{k} = ?" for k in serialized.keys()])` without checking `k` allows injection because the dictionary keys act as unparameterized user input directly constructing the query structure.
+**Prevention:** Always validate dictionary keys used for dynamic SQL queries as valid string identifiers using `if not isinstance(key, str) or not key.isidentifier(): raise ValueError(...)`.
