@@ -1,0 +1,3 @@
+## 2024-06-03 - VectorStore NumPy Bottleneck
+**Learning:** The initial implementation of `VectorStore` acquired a global lock and repeatedly called `np.vstack` and `np.concatenate` for every single invocation of `add_vectors`, resulting in O(N^2) memory reallocation behavior during batch updates or index rebuilds.
+**Action:** When implementing batch insertions or updates into Numpy structures, always utilize local buffering (e.g., `threading.local()` for thread safety) during context management (like `batch_add`), appending to python lists and doing a single `np.vstack` only upon context exit to maintain O(N) performance. Ensure nested contexts and cleanup via `finally` blocks are correctly managed.

@@ -23,6 +23,7 @@ class VectorStore:
         self.vectors = np.empty((0, dimension), dtype=np.float32)
         self.ids = np.array([], dtype=np.int64)
         self.norms = np.array([], dtype=np.float32)
+        self._local = threading.local()
         
         self._load_index()
 
@@ -93,11 +94,16 @@ class VectorStore:
         id_array = np.array(ids, dtype=np.int64)
         new_norms = np.sum(np.square(vectors), axis=1)
 
-        with self.lock:
-            self.vectors = np.vstack([self.vectors, vectors])
-            self.ids = np.concatenate([self.ids, id_array])
-            self.norms = np.concatenate([self.norms, new_norms])
-            self.needs_save = True
+        if getattr(self._local, 'batch_active', False):
+            self._local.batch_vectors.append(vectors)
+            self._local.batch_ids.append(id_array)
+            self._local.batch_norms.append(new_norms)
+        else:
+            with self.lock:
+                self.vectors = np.vstack([self.vectors, vectors])
+                self.ids = np.concatenate([self.ids, id_array])
+                self.norms = np.concatenate([self.norms, new_norms])
+                self.needs_save = True
 
         self._schedule_save()
 
@@ -165,5 +171,25 @@ class VectorStore:
 
     @contextmanager
     def batch_add(self):
-        yield
-        self.save()
+        if getattr(self._local, 'batch_active', False):
+            yield
+            return
+
+        self._local.batch_active = True
+        self._local.batch_vectors = []
+        self._local.batch_ids = []
+        self._local.batch_norms = []
+        try:
+            yield
+            if self._local.batch_vectors:
+                with self.lock:
+                    self.vectors = np.vstack([self.vectors] + self._local.batch_vectors)
+                    self.ids = np.concatenate([self.ids] + self._local.batch_ids)
+                    self.norms = np.concatenate([self.norms] + self._local.batch_norms)
+                    self.needs_save = True
+                self.save()
+        finally:
+            self._local.batch_active = False
+            del self._local.batch_vectors
+            del self._local.batch_ids
+            del self._local.batch_norms
