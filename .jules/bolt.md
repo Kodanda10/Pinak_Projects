@@ -1,0 +1,3 @@
+## 2024-06-08 - Composite Index for Analytics Counts
+**Learning:** The memory service performs frequent `COUNT(*)` queries on logging tables (`logs_client_issues` and `memory_quarantine`) filtering by `client_id`, `tenant`, `project_id`, and `status`. These lack appropriate composite indexes, causing full table scans. Indexing `(tenant, project_id)` for the FTS `search_keyword` function was previously benchmarked and did not yield significant performance improvements, but indexing the count queries yields a 100x improvement.
+**Action:** When adding analytics or counting queries grouped by tenant/project/client, ensure a composite index exists that covers all the `WHERE` clause parameters to allow index-only scans.
