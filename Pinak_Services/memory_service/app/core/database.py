@@ -348,6 +348,21 @@ class DatabaseManager:
             self._ensure_column(conn, "working_memory", "client_id", "TEXT")
             self._ensure_column(conn, "working_memory", "client_name", "TEXT")
 
+            # ⚡ Bolt Performance Optimization:
+            # Adding composite indices to prevent O(N) full table scans
+            # for frequent count and embedding queries.
+            try:
+                # Accelerate count_client_issues() and count_quarantine() (O(N) -> O(log N))
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_logs_client_issues_composite ON logs_client_issues (client_id, tenant, project_id, status);")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_memory_quarantine_composite ON memory_quarantine (client_id, tenant, project_id, status);")
+
+                # Accelerate get_memories_by_embedding_ids() during vector search (O(N) -> O(log N))
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_semantic_embedding ON memories_semantic (embedding_id, tenant, project_id);")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_episodic_embedding ON memories_episodic (embedding_id, tenant, project_id);")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_procedural_embedding ON memories_procedural (embedding_id, tenant, project_id);")
+            except sqlite3.OperationalError:
+                pass
+
     def _column_exists(self, conn: sqlite3.Connection, table: str, column: str) -> bool:
         try:
             rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
