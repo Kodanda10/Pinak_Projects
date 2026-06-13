@@ -348,6 +348,20 @@ class DatabaseManager:
             self._ensure_column(conn, "working_memory", "client_id", "TEXT")
             self._ensure_column(conn, "working_memory", "client_name", "TEXT")
 
+            try:
+                # Performance Optimization: Composite indexes for vector search
+                # Prevents O(N) full table scans when querying by embedding_id in multi-tenant environments
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_semantic_embedding ON memories_semantic (embedding_id, tenant, project_id);")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_episodic_embedding ON memories_episodic (embedding_id, tenant, project_id);")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_procedural_embedding ON memories_procedural (embedding_id, tenant, project_id);")
+
+                # Performance Optimization: Composite indexes for counts
+                # Speeds up count queries which filter by these specific columns
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_logs_client_issues_count ON logs_client_issues (client_id, tenant, project_id, status);")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_memory_quarantine_count ON memory_quarantine (client_id, tenant, project_id, status);")
+            except sqlite3.OperationalError:
+                pass
+
     def _column_exists(self, conn: sqlite3.Connection, table: str, column: str) -> bool:
         try:
             rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
