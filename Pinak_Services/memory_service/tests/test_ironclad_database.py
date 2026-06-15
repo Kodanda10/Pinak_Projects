@@ -81,3 +81,19 @@ def test_update_delete_invalid_layer(db):
         db.update_memory("invalid", "id", {}, "t", "p")
     with pytest.raises(ValueError, match="Invalid layer"):
         db.delete_memory("invalid", "id", "t", "p")
+
+def test_update_memory_sql_injection(db):
+    res = db.add_semantic("semantic content", [], "t1", "p1", 1)
+    mid = res["id"]
+
+    # Attempt SQL injection via dictionary keys
+    malicious_updates = {
+        "content = 'Hacked' --": "value"
+    }
+
+    with pytest.raises(ValueError, match="Invalid column name"):
+        db.update_memory("semantic", mid, malicious_updates, "t1", "p1")
+
+    # Verify the value was not updated
+    mem = db.get_memory("semantic", mid, "t1", "p1")
+    assert mem["content"] == "semantic content"
