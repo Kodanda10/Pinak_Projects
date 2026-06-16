@@ -792,6 +792,8 @@ class DatabaseManager:
         # Serialize JSON fields
         serialized = {}
         for key, value in updates.items():
+            if not key.isidentifier():
+                raise ValueError("Invalid key for update")
             if key in ("tags", "plan", "steps") and value is not None:
                 serialized[key] = json.dumps(value)
             else:
