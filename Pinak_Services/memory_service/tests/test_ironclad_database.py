@@ -81,3 +81,8 @@ def test_update_delete_invalid_layer(db):
         db.update_memory("invalid", "id", {}, "t", "p")
     with pytest.raises(ValueError, match="Invalid layer"):
         db.delete_memory("invalid", "id", "t", "p")
+
+def test_update_sqli_protection(db):
+    db.add_semantic("hello", [], "t", "p", 1)
+    with pytest.raises(ValueError, match="Invalid key for update"):
+        db.update_memory("semantic", "id", {"content='hacked'": "value"}, "t", "p")
