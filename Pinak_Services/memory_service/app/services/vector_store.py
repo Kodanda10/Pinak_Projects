@@ -18,6 +18,8 @@ class VectorStore:
         self.index_path = index_path
         self.dimension = dimension
         self.lock = threading.RLock()
+        self._local = threading.local()
+        self._local.in_batch = False
         
         # In-memory storage
         self.vectors = np.empty((0, dimension), dtype=np.float32)
@@ -93,6 +95,12 @@ class VectorStore:
         id_array = np.array(ids, dtype=np.int64)
         new_norms = np.sum(np.square(vectors), axis=1)
 
+        if getattr(self._local, 'in_batch', False):
+            self._local.batch_vectors.append(vectors)
+            self._local.batch_ids.append(id_array)
+            self._local.batch_norms.append(new_norms)
+            return
+
         with self.lock:
             self.vectors = np.vstack([self.vectors, vectors])
             self.ids = np.concatenate([self.ids, id_array])
@@ -165,5 +173,24 @@ class VectorStore:
 
     @contextmanager
     def batch_add(self):
-        yield
+        self._local.batch_vectors = []
+        self._local.batch_ids = []
+        self._local.batch_norms = []
+        self._local.in_batch = True
+        try:
+            yield
+        finally:
+            self._local.in_batch = False
+            if self._local.batch_vectors:
+                vectors = np.vstack(self._local.batch_vectors)
+                ids = np.concatenate(self._local.batch_ids)
+                norms = np.concatenate(self._local.batch_norms)
+                with self.lock:
+                    self.vectors = np.vstack([self.vectors, vectors])
+                    self.ids = np.concatenate([self.ids, ids])
+                    self.norms = np.concatenate([self.norms, norms])
+                    self.needs_save = True
+                self._local.batch_vectors = []
+                self._local.batch_ids = []
+                self._local.batch_norms = []
         self.save()
