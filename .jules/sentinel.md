@@ -1,0 +1,4 @@
+## 2025-02-14 - SQL Injection via Unsanitized Dictionary Keys
+**Vulnerability:** The `update_memory` method in `DatabaseManager` dynamically constructed SQL `UPDATE` statements by iterating over the `updates` dictionary keys (`", ".join([f"{k} = ?" for k in serialized.keys()])`). If an attacker could control the keys passed to this function, they could inject arbitrary SQL into the `SET` clause.
+**Learning:** Application-level validations (like filtering known "forbidden keys") are not sufficient to prevent SQL injection if the database access layer dynamically builds queries from any provided dictionary keys. We must validate the structural safety of the keys themselves.
+**Prevention:** Always validate that dynamic column names or keys used to construct SQL strings are safe identifiers using `str.isidentifier()` at the database query execution layer, before string interpolation.
