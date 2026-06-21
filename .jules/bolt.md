@@ -1,0 +1,3 @@
+## 2024-06-25 - SQLite missing composite indices for filtering
+**Learning:** `get_memories_by_embedding_ids` had to perform an O(N) full table scan because it requested records `WHERE embedding_id IN (...) AND tenant = ? AND project_id = ?`, but there was no index combining all 3 properties on the memories tables. Similar scans occurred in logs when filtering by multiple properties simultaneously.
+**Action:** Always create explicitly matching composite indices for recurring multi-tenant plus status/ID filtering in SQLite to engage O(log N) operations and avoid latency spikes for high-volume deployments.
