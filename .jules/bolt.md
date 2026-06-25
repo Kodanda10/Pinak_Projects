@@ -1,3 +1,0 @@
-## 2026-06-25 - VectorStore Batch Add Optimization
-**Learning:** In NumPy-based VectorStore, appending vectors individually using `np.vstack` and `np.concatenate` inside a loop leads to O(N²) time complexity due to array reallocation and copying on every insertion. For example, adding 10,000 vectors sequentially takes ~10.4 seconds.
-**Action:** Use thread-local buffering via `threading.local()` and a context manager (`batch_add`) to accumulate vectors and perform a single `np.vstack` and `np.concatenate` at the end. This changes time complexity to O(N) and drastically reduces execution time (from ~10.4s to ~0.16s for 10,000 vectors).
