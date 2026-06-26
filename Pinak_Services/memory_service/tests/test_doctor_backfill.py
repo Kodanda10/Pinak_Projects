@@ -12,7 +12,7 @@ def _init_db(path: str) -> None:
                 content TEXT,
                 client_id TEXT,
                 client_name TEXT
-            )
+            , embedding_id INTEGER, tenant TEXT NOT NULL DEFAULT 't', project_id TEXT NOT NULL DEFAULT 'p')
             """
         )
         conn.execute(
