@@ -1,0 +1,3 @@
+## 2026-06-27 - Prevent Full Table Scans in Vector Search
+**Learning:** The memory tables utilize `embedding_id`, `tenant`, and `project_id` in their `WHERE` clause during `get_memories_by_embedding_ids`, causing a full table scan because composite indices on `(embedding_id, tenant, project_id)` were missing. Using `EXPLAIN QUERY PLAN` confirmed that queries with `IN` clauses correctly utilize composite indices if present.
+**Action:** Always verify if database indices mentioned in codebase knowledge actually exist in the database schema (e.g., by checking `_init_db` in `app/core/database.py`).

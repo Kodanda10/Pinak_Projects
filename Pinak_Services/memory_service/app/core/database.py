@@ -46,6 +46,12 @@ class DatabaseManager:
                   INSERT INTO memories_semantic_fts(rowid, content, tags) VALUES (new.rowid, new.content, new.tags);
                 END;
             """)
+            # Performance Optimization (Bolt):
+            # Added composite index to prevent O(N) full table scans during vector search in `get_memories_by_embedding_ids`.
+            # Reduces retrieval time from linear to logarithmic when querying by embedding_id.
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_semantic_embedding ON memories_semantic(embedding_id, tenant, project_id);
+            """)
 
             # 2. Episodic Memory (Events/Logs)
             conn.execute("""
@@ -75,6 +81,11 @@ class DatabaseManager:
                   INSERT INTO memories_episodic_fts(rowid, content, goal, outcome) VALUES (new.rowid, new.content, new.goal, new.outcome);
                 END;
             """)
+            # Performance Optimization (Bolt):
+            # Added composite index to prevent O(N) full table scans during vector search.
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_episodic_embedding ON memories_episodic(embedding_id, tenant, project_id);
+            """)
 
             # 3. Procedural Memory (Skills)
             conn.execute("""
@@ -103,6 +114,11 @@ class DatabaseManager:
                 CREATE TRIGGER IF NOT EXISTS memories_procedural_ai AFTER INSERT ON memories_procedural BEGIN
                   INSERT INTO memories_procedural_fts(rowid, skill_name, trigger, steps, description) VALUES (new.rowid, new.skill_name, new.trigger, new.steps, new.description);
                 END;
+            """)
+            # Performance Optimization (Bolt):
+            # Added composite index to prevent O(N) full table scans during vector search.
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_procedural_embedding ON memories_procedural(embedding_id, tenant, project_id);
             """)
 
             # 4. RAG Memory (External Source)
