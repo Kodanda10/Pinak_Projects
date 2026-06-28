@@ -267,6 +267,13 @@ class DatabaseManager:
                 CREATE INDEX IF NOT EXISTS idx_memory_quarantine_status
                 ON memory_quarantine (status);
             """)
+            # Performance Optimization: Composite index to prevent O(N) full table scans
+            # or suboptimal single-index usage when filtering queries. Expected impact:
+            # Significant read performance boost for complex filters by enabling COVERING INDEX.
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memory_quarantine_composite
+                ON memory_quarantine (client_id, tenant, project_id, status);
+            """)
 
             # 11. Audit Log (Tamper-evident)
             conn.execute("""
@@ -309,6 +316,13 @@ class DatabaseManager:
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_logs_client_issues_status
                 ON logs_client_issues (status);
+            """)
+            # Performance Optimization: Composite index to prevent O(N) full table scans
+            # or suboptimal single-index usage when filtering queries. Expected impact:
+            # Significant read performance boost for complex filters by enabling COVERING INDEX.
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_logs_client_issues_composite
+                ON logs_client_issues (client_id, tenant, project_id, status);
             """)
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_logs_client_issues_ts
