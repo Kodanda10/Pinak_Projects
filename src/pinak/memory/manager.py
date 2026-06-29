@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from typing import Any, Dict, List, Optional
 
 import httpx
@@ -29,9 +30,9 @@ class MemoryManager:
         self.service_base_url = service_base_url.rstrip("/")
         self.base_url = f"{self.service_base_url}/api/v1/memory"
 
-        self.token = token
-        self.tenant_id = tenant_id
-        self.project_id = project_id
+        self.token = token or os.getenv("PINAK_JWT_TOKEN")
+        self.tenant_id = tenant_id or os.getenv("PINAK_TENANT")
+        self.project_id = project_id or os.getenv("PINAK_PROJECT")
         self._apply_headers()
 
     # ------------------------------------------------------------------
