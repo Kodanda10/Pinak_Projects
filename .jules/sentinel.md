@@ -1,0 +1,4 @@
+## 2025-05-25 - [SQL Injection Fix in Database Manager]
+**Vulnerability:** SQL Injection in `update_memory` caused by dynamically interpolating unsanitized dictionary keys into the SET clause of the SQL UPDATE statement.
+**Learning:** Even if the memory service applies a blocklist for specific fields, the underlying database logic didn't validate keys, allowing a user to supply a malicious key (e.g., `{"content = 'hacked' --": ""}`). Application-level key filters don't prevent SQL injection when the database layer dynamically constructs queries from unsanitized dictionary keys.
+**Prevention:** Always validate dictionary keys using `str.isidentifier()` at the database query execution layer, or use parameterized queries for column names where possible (though parameterization only works for values, so explicit key validation is the primary defense).
