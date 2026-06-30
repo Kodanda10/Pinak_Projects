@@ -47,6 +47,11 @@ class DatabaseManager:
                 END;
             """)
 
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_semantic_embedding
+                ON memories_semantic (embedding_id, tenant, project_id);
+            """)
+
             # 2. Episodic Memory (Events/Logs)
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS memories_episodic (
@@ -76,6 +81,11 @@ class DatabaseManager:
                 END;
             """)
 
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_episodic_embedding
+                ON memories_episodic (embedding_id, tenant, project_id);
+            """)
+
             # 3. Procedural Memory (Skills)
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS memories_procedural (
@@ -103,6 +113,11 @@ class DatabaseManager:
                 CREATE TRIGGER IF NOT EXISTS memories_procedural_ai AFTER INSERT ON memories_procedural BEGIN
                   INSERT INTO memories_procedural_fts(rowid, skill_name, trigger, steps, description) VALUES (new.rowid, new.skill_name, new.trigger, new.steps, new.description);
                 END;
+            """)
+
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_procedural_embedding
+                ON memories_procedural (embedding_id, tenant, project_id);
             """)
 
             # 4. RAG Memory (External Source)
@@ -267,6 +282,10 @@ class DatabaseManager:
                 CREATE INDEX IF NOT EXISTS idx_memory_quarantine_status
                 ON memory_quarantine (status);
             """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memory_quarantine_composite
+                ON memory_quarantine (client_id, tenant, project_id, status);
+            """)
 
             # 11. Audit Log (Tamper-evident)
             conn.execute("""
@@ -313,6 +332,10 @@ class DatabaseManager:
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_logs_client_issues_ts
                 ON logs_client_issues (created_at);
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_logs_client_issues_composite
+                ON logs_client_issues (client_id, tenant, project_id, status);
             """)
             self._ensure_column(conn, "working_memory", "expires_at", "TEXT")
             self._ensure_column(conn, "working_memory", "updated_at", "TEXT")
