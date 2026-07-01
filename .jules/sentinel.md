@@ -1,0 +1,4 @@
+## 2026-07-01 - Prevent SQL Injection via Dictionary Keys in DatabaseManager.update_memory
+**Vulnerability:** The `update_memory` function in `DatabaseManager` dynamically constructs SQL UPDATE queries using dictionary keys from the `updates` parameter (`set_clause = ", ".join([f"{k} = ?" for k in serialized.keys()])`). This creates a SQL injection vulnerability if untrusted keys are passed, as `bandit` warned.
+**Learning:** Even if `memory_service.py` filters `forbidden_keys`, it does not strictly guarantee all keys are safe SQL identifiers. The database query execution layer must validate its own inputs to enforce security boundaries.
+**Prevention:** Always validate dynamically interpolated SQL column names or dictionary keys using `str.isidentifier()` at the database query execution layer, before constructing query strings.
