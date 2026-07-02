@@ -1,0 +1,3 @@
+## 2025-08-29 - Missing composite indices on multi-tenant lookup operations
+**Learning:** The `memories_semantic`, `memories_episodic`, and `memories_procedural` tables lack indices on `embedding_id`, `tenant`, and `project_id`, causing O(N) full table scans during vector search result retrieval (`get_memories_by_embedding_ids`). The `logs_client_issues` and `memory_quarantine` tables also fall back to single-column index on `status` instead of optimal composite index `(client_id, tenant, project_id, status)` for multi-tenant queries.
+**Action:** Always verify if database indices mentioned in codebase knowledge or documentation actually exist in the database schema. Add composite indices to optimize multi-tenant lookups.
