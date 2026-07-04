@@ -1,0 +1,3 @@
+## 2024-07-04 - Multi-tenant filter performance optimization
+**Learning:** Frequent multi-tenant queries filtering by `client_id`, `tenant`, `project_id`, and `status` (such as in `logs_client_issues` and `memory_quarantine`) suffer from linear scans if only a single-column index on `status` exists. SQLite has to filter the remaining multi-tenant conditions linearly. Same logic applies for composite indexes over embeddings.
+**Action:** Always create composite indexes or covering indexes incorporating the multi-tenant fields (like `tenant`, `project_id`, `client_id`) along with the most selective query field (like `status` or `embedding_id`) to ensure optimal COVERING INDEX usage and prevent O(N) full table scans as tables grow.

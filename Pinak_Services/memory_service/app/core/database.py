@@ -38,6 +38,10 @@ class DatabaseManager:
             """)
             # FTS for Semantic
             conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_semantic_embedding
+                ON memories_semantic(embedding_id, tenant, project_id);
+            """)
+            conn.execute("""
                 CREATE VIRTUAL TABLE IF NOT EXISTS memories_semantic_fts 
                 USING fts5(content, tags, content='memories_semantic', content_rowid='rowid');
             """)
@@ -67,6 +71,10 @@ class DatabaseManager:
                 );
             """)
             conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_episodic_embedding
+                ON memories_episodic(embedding_id, tenant, project_id);
+            """)
+            conn.execute("""
                 CREATE VIRTUAL TABLE IF NOT EXISTS memories_episodic_fts
                 USING fts5(content, goal, outcome, content='memories_episodic', content_rowid='rowid');
             """)
@@ -93,6 +101,10 @@ class DatabaseManager:
                     project_id TEXT NOT NULL,
                     created_at TEXT NOT NULL
                 );
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_procedural_embedding
+                ON memories_procedural(embedding_id, tenant, project_id);
             """)
             # FTS for Procedural
             conn.execute("""
@@ -264,8 +276,8 @@ class DatabaseManager:
                 );
             """)
             conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_memory_quarantine_status
-                ON memory_quarantine (status);
+                CREATE INDEX IF NOT EXISTS idx_memory_quarantine_composite
+                ON memory_quarantine (client_id, tenant, project_id, status);
             """)
 
             # 11. Audit Log (Tamper-evident)
@@ -307,8 +319,8 @@ class DatabaseManager:
                 );
             """)
             conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_logs_client_issues_status
-                ON logs_client_issues (status);
+                CREATE INDEX IF NOT EXISTS idx_logs_client_issues_composite
+                ON logs_client_issues (client_id, tenant, project_id, status);
             """)
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_logs_client_issues_ts
