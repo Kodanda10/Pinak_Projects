@@ -46,6 +46,12 @@ class DatabaseManager:
                   INSERT INTO memories_semantic_fts(rowid, content, tags) VALUES (new.rowid, new.content, new.tags);
                 END;
             """)
+            # ⚡ Bolt: Adding composite index for faster vector search lookups by embedding_id.
+            # Without this, filtering multi-tenant layers causes inefficient full table scans.
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_semantic_embedding
+                ON memories_semantic (embedding_id, tenant, project_id);
+            """)
 
             # 2. Episodic Memory (Events/Logs)
             conn.execute("""
@@ -75,6 +81,11 @@ class DatabaseManager:
                   INSERT INTO memories_episodic_fts(rowid, content, goal, outcome) VALUES (new.rowid, new.content, new.goal, new.outcome);
                 END;
             """)
+            # ⚡ Bolt: Composite index to prevent O(N) table scans on episodic memory lookups.
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_episodic_embedding
+                ON memories_episodic (embedding_id, tenant, project_id);
+            """)
 
             # 3. Procedural Memory (Skills)
             conn.execute("""
@@ -103,6 +114,11 @@ class DatabaseManager:
                 CREATE TRIGGER IF NOT EXISTS memories_procedural_ai AFTER INSERT ON memories_procedural BEGIN
                   INSERT INTO memories_procedural_fts(rowid, skill_name, trigger, steps, description) VALUES (new.rowid, new.skill_name, new.trigger, new.steps, new.description);
                 END;
+            """)
+            # ⚡ Bolt: Composite index to prevent O(N) table scans on procedural memory lookups.
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_procedural_embedding
+                ON memories_procedural (embedding_id, tenant, project_id);
             """)
 
             # 4. RAG Memory (External Source)
@@ -267,6 +283,11 @@ class DatabaseManager:
                 CREATE INDEX IF NOT EXISTS idx_memory_quarantine_status
                 ON memory_quarantine (status);
             """)
+            # ⚡ Bolt: Using covering composite index to optimize multi-tenant query performance in count_quarantine
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memory_quarantine_multi
+                ON memory_quarantine (client_id, tenant, project_id, status);
+            """)
 
             # 11. Audit Log (Tamper-evident)
             conn.execute("""
@@ -313,6 +334,11 @@ class DatabaseManager:
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_logs_client_issues_ts
                 ON logs_client_issues (created_at);
+            """)
+            # ⚡ Bolt: Using covering composite index to optimize multi-tenant query performance in count_client_issues
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_logs_client_issues_multi
+                ON logs_client_issues (client_id, tenant, project_id, status);
             """)
             self._ensure_column(conn, "working_memory", "expires_at", "TEXT")
             self._ensure_column(conn, "working_memory", "updated_at", "TEXT")
