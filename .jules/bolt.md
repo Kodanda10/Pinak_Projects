@@ -1,0 +1,3 @@
+## 2024-05-24 - Database Query Optimization via Composite Indices
+**Learning:** SQLite single-column indices on `status` result in inefficient linear scans for multi-tenant queries that also filter by `client_id`, `tenant`, and `project_id`. Combining `ORDER BY` with these filters also causes `USE TEMP B-TREE FOR ORDER BY` unless the index explicitly includes the sort column at the end.
+**Action:** When creating indices for frequent lookup queries in multi-tenant tables like `logs_client_issues` and `memory_quarantine`, always use composite indices that include all filtering criteria (e.g., `client_id`, `tenant`, `project_id`, `status`) and sort keys (e.g., `created_at`) to enable covering index usage and avoid temporary b-tree sorts.
