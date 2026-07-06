@@ -267,6 +267,15 @@ class DatabaseManager:
                 CREATE INDEX IF NOT EXISTS idx_memory_quarantine_status
                 ON memory_quarantine (status);
             """)
+            # ⚡ Bolt: Added composite indices to prevent full table scans and temporary b-tree sorts for multi-tenant filtering and sorting
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memory_quarantine_composite
+                ON memory_quarantine (client_id, tenant, project_id, status);
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memory_quarantine_list
+                ON memory_quarantine (tenant, project_id, status, created_at);
+            """)
 
             # 11. Audit Log (Tamper-evident)
             conn.execute("""
@@ -313,6 +322,15 @@ class DatabaseManager:
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_logs_client_issues_ts
                 ON logs_client_issues (created_at);
+            """)
+            # ⚡ Bolt: Added composite indices to optimize multi-tenant lookups and order by
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_logs_client_issues_composite
+                ON logs_client_issues (client_id, tenant, project_id, status);
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_logs_client_issues_list
+                ON logs_client_issues (tenant, project_id, status, created_at);
             """)
             self._ensure_column(conn, "working_memory", "expires_at", "TEXT")
             self._ensure_column(conn, "working_memory", "updated_at", "TEXT")
