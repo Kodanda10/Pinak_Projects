@@ -264,8 +264,9 @@ class DatabaseManager:
                 );
             """)
             conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_memory_quarantine_status
-                ON memory_quarantine (status);
+                -- ⚡ Bolt: Use composite index to avoid linear scans for multi-tenant query on memory_quarantine
+                CREATE INDEX IF NOT EXISTS idx_memory_quarantine_multi_tenant_status
+                ON memory_quarantine (client_id, tenant, project_id, status);
             """)
 
             # 11. Audit Log (Tamper-evident)
@@ -307,8 +308,9 @@ class DatabaseManager:
                 );
             """)
             conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_logs_client_issues_status
-                ON logs_client_issues (status);
+                -- ⚡ Bolt: Use composite index to avoid linear scans for multi-tenant query on logs_client_issues
+                CREATE INDEX IF NOT EXISTS idx_logs_client_issues_multi_tenant_status
+                ON logs_client_issues (client_id, tenant, project_id, status);
             """)
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_logs_client_issues_ts
