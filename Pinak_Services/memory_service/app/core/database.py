@@ -46,6 +46,11 @@ class DatabaseManager:
                   INSERT INTO memories_semantic_fts(rowid, content, tags) VALUES (new.rowid, new.content, new.tags);
                 END;
             """)
+            # ⚡ Bolt: Add composite index for multi-tenant query optimization
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_semantic_embedding_composite
+                ON memories_semantic (embedding_id, tenant, project_id);
+            """)
 
             # 2. Episodic Memory (Events/Logs)
             conn.execute("""
@@ -75,6 +80,11 @@ class DatabaseManager:
                   INSERT INTO memories_episodic_fts(rowid, content, goal, outcome) VALUES (new.rowid, new.content, new.goal, new.outcome);
                 END;
             """)
+            # ⚡ Bolt: Add composite index for multi-tenant query optimization
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_episodic_embedding_composite
+                ON memories_episodic (embedding_id, tenant, project_id);
+            """)
 
             # 3. Procedural Memory (Skills)
             conn.execute("""
@@ -103,6 +113,11 @@ class DatabaseManager:
                 CREATE TRIGGER IF NOT EXISTS memories_procedural_ai AFTER INSERT ON memories_procedural BEGIN
                   INSERT INTO memories_procedural_fts(rowid, skill_name, trigger, steps, description) VALUES (new.rowid, new.skill_name, new.trigger, new.steps, new.description);
                 END;
+            """)
+            # ⚡ Bolt: Add composite index for multi-tenant query optimization
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_procedural_embedding_composite
+                ON memories_procedural (embedding_id, tenant, project_id);
             """)
 
             # 4. RAG Memory (External Source)
@@ -263,9 +278,10 @@ class DatabaseManager:
                     reviewed_by TEXT
                 );
             """)
+            # ⚡ Bolt: Use composite index to optimize multi-tenant query performance
             conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_memory_quarantine_status
-                ON memory_quarantine (status);
+                CREATE INDEX IF NOT EXISTS idx_memory_quarantine_composite
+                ON memory_quarantine (client_id, tenant, project_id, status);
             """)
 
             # 11. Audit Log (Tamper-evident)
@@ -306,9 +322,10 @@ class DatabaseManager:
                     resolution TEXT
                 );
             """)
+            # ⚡ Bolt: Use composite index to optimize multi-tenant query performance
             conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_logs_client_issues_status
-                ON logs_client_issues (status);
+                CREATE INDEX IF NOT EXISTS idx_logs_client_issues_composite
+                ON logs_client_issues (client_id, tenant, project_id, status);
             """)
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_logs_client_issues_ts

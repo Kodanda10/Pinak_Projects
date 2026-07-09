@@ -11,7 +11,10 @@ def _init_db(path: str) -> None:
                 id TEXT,
                 content TEXT,
                 client_id TEXT,
-                client_name TEXT
+                client_name TEXT,
+                embedding_id INTEGER,
+                tenant TEXT NOT NULL DEFAULT 't',
+                project_id TEXT NOT NULL DEFAULT 'p'
             )
             """
         )
