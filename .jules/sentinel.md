@@ -1,0 +1,4 @@
+## 2024-07-10 - Dynamic Query Construction Vulnerability
+**Vulnerability:** SQL Injection in `update_memory` due to dynamic generation of `SET` clauses from dictionary keys without validation.
+**Learning:** The application allowed an attacker to inject SQL expressions because it built update queries directly from user-provided dictionary keys. Application-level key filters (like `forbidden_keys` in `memory_service.py`) do not prevent SQL injection or mass assignment if the underlying database layer (`app/core/database.py`) dynamically constructs queries from unsanitized dictionary keys.
+**Prevention:** Always validate dictionary keys used for dynamic query construction. In Python, use `str.isidentifier()` or an explicitly allowed list of columns to ensure the key is safe before incorporating it into an SQL string.
