@@ -36,6 +36,11 @@ class DatabaseManager:
                     created_at TEXT NOT NULL
                 );
             """)
+            # ⚡ Bolt: Composite index to prevent O(N) full table scans during vector search
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_semantic_embed_tenant_proj
+                ON memories_semantic (embedding_id, tenant, project_id);
+            """)
             # FTS for Semantic
             conn.execute("""
                 CREATE VIRTUAL TABLE IF NOT EXISTS memories_semantic_fts 
@@ -66,6 +71,11 @@ class DatabaseManager:
                     created_at TEXT NOT NULL
                 );
             """)
+            # ⚡ Bolt: Composite index to prevent O(N) full table scans during vector search
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_episodic_embed_tenant_proj
+                ON memories_episodic (embedding_id, tenant, project_id);
+            """)
             conn.execute("""
                 CREATE VIRTUAL TABLE IF NOT EXISTS memories_episodic_fts
                 USING fts5(content, goal, outcome, content='memories_episodic', content_rowid='rowid');
@@ -93,6 +103,11 @@ class DatabaseManager:
                     project_id TEXT NOT NULL,
                     created_at TEXT NOT NULL
                 );
+            """)
+            # ⚡ Bolt: Composite index to prevent O(N) full table scans during vector search
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_procedural_embed_tenant_proj
+                ON memories_procedural (embedding_id, tenant, project_id);
             """)
             # FTS for Procedural
             conn.execute("""
@@ -263,9 +278,10 @@ class DatabaseManager:
                     reviewed_by TEXT
                 );
             """)
+            # ⚡ Bolt: Composite index to optimize multi-tenant lookups and prevent linear scans
             conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_memory_quarantine_status
-                ON memory_quarantine (status);
+                CREATE INDEX IF NOT EXISTS idx_memory_quarantine_client_tenant_proj_status
+                ON memory_quarantine (client_id, tenant, project_id, status);
             """)
 
             # 11. Audit Log (Tamper-evident)
@@ -306,9 +322,10 @@ class DatabaseManager:
                     resolution TEXT
                 );
             """)
+            # ⚡ Bolt: Composite index to optimize multi-tenant lookups and prevent linear scans
             conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_logs_client_issues_status
-                ON logs_client_issues (status);
+                CREATE INDEX IF NOT EXISTS idx_logs_client_issues_client_tenant_proj_status
+                ON logs_client_issues (client_id, tenant, project_id, status);
             """)
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_logs_client_issues_ts
