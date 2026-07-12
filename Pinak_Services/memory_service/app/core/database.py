@@ -263,9 +263,11 @@ class DatabaseManager:
                     reviewed_by TEXT
                 );
             """)
+            # ⚡ Bolt: Using composite index (client_id, tenant, project_id, status) instead of just (status)
+            # to enable covering index usage and prevent O(N) linear scans on remaining filter fields during multi-tenant queries.
             conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_memory_quarantine_status
-                ON memory_quarantine (status);
+                CREATE INDEX IF NOT EXISTS idx_memory_quarantine_composite_v1
+                ON memory_quarantine (client_id, tenant, project_id, status);
             """)
 
             # 11. Audit Log (Tamper-evident)
@@ -306,9 +308,11 @@ class DatabaseManager:
                     resolution TEXT
                 );
             """)
+            # ⚡ Bolt: Using composite index (client_id, tenant, project_id, status) instead of just (status)
+            # to enable covering index usage and prevent O(N) linear scans on remaining filter fields during multi-tenant queries.
             conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_logs_client_issues_status
-                ON logs_client_issues (status);
+                CREATE INDEX IF NOT EXISTS idx_logs_client_issues_composite_v1
+                ON logs_client_issues (client_id, tenant, project_id, status);
             """)
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_logs_client_issues_ts
