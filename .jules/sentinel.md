@@ -1,0 +1,4 @@
+## 2025-02-27 - SQL Injection via Dictionary Keys in UPDATE statements
+**Vulnerability:** SQL Injection via dictionary keys in `DatabaseManager.update_memory` where user-controlled keys were directly injected into the `SET` clause string (e.g. `set_clause = ", ".join([f"{k} = ?" for k in serialized.keys()])`). This allowed bypassing trailing `WHERE` constraints using comment markers (`--`) while balancing parameter bindings.
+**Learning:** Even if parameter binding (`?`) is used for the *values*, directly injecting dictionary *keys* into SQL queries is vulnerable to SQL injection if the keys are dynamic or attacker-controlled. SQLite `conn.execute()` blocks multiple statements, but single-statement logic bypassing is still possible.
+**Prevention:** Validate all dynamically injected SQL identifiers (like column names) against an allowlist or using strict format checks (e.g., `str.isidentifier()`) before incorporating them into the SQL query string.
