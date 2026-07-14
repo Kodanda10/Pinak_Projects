@@ -1,0 +1,3 @@
+## 2024-05-24 - Multi-tenant Index Optimization
+**Learning:** Single-column indexes on highly selective fields (like `status`) in multi-tenant environments cause inefficient linear scans across other critical filters (`client_id`, `tenant`, `project_id`). This occurs because the database must evaluate the remaining conditions for every matching status row.
+**Action:** When filtering by `client_id`, `tenant`, `project_id`, and a selective field like `status` or `embedding_id`, always create composite indexes incorporating all these fields to enable efficient filtering and potential covering index usage.
