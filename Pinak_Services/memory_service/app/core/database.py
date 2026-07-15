@@ -263,9 +263,11 @@ class DatabaseManager:
                     reviewed_by TEXT
                 );
             """)
+            conn.execute("DROP INDEX IF EXISTS idx_memory_quarantine_status;")
+            # ⚡ Bolt: Use composite index for multi-tenant query performance in quarantine queue
             conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_memory_quarantine_status
-                ON memory_quarantine (status);
+                CREATE INDEX IF NOT EXISTS idx_memory_quarantine_multi
+                ON memory_quarantine (client_id, tenant, project_id, status);
             """)
 
             # 11. Audit Log (Tamper-evident)
@@ -306,9 +308,11 @@ class DatabaseManager:
                     resolution TEXT
                 );
             """)
+            conn.execute("DROP INDEX IF EXISTS idx_logs_client_issues_status;")
+            # ⚡ Bolt: Use composite index for multi-tenant query performance in client issues log
             conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_logs_client_issues_status
-                ON logs_client_issues (status);
+                CREATE INDEX IF NOT EXISTS idx_logs_client_issues_multi
+                ON logs_client_issues (client_id, tenant, project_id, status);
             """)
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_logs_client_issues_ts
