@@ -789,6 +789,11 @@ class DatabaseManager:
         if not updates:
             return False
 
+        # 🛡️ Sentinel: Validate dictionary keys to prevent SQL injection
+        for key in updates.keys():
+            if not str(key).isidentifier():
+                raise ValueError(f"Invalid column name: {key}")
+
         # Serialize JSON fields
         serialized = {}
         for key, value in updates.items():
@@ -801,7 +806,7 @@ class DatabaseManager:
         params = list(serialized.values()) + [memory_id, tenant, project_id]
         with self.get_cursor() as conn:
             cur = conn.execute(
-                f"UPDATE {table} SET {set_clause} WHERE id = ? AND tenant = ? AND project_id = ?",
+                f"UPDATE {table} SET {set_clause} WHERE id = ? AND tenant = ? AND project_id = ?",  # nosec B608
                 params,
             )
             return cur.rowcount > 0
