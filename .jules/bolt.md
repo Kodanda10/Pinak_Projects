@@ -1,0 +1,3 @@
+## 2025-10-24 - SQLite Multi-Tenant Composite Indexes
+**Learning:** In multi-tenant SQLite schemas, relying on single-column indexes for selective fields (like `status`) while querying alongside high-cardinality multi-tenant fields (`client_id`, `tenant`, `project_id`) causes the query planner to perform inefficient linear scans for the remaining filters.
+**Action:** When filtering by `client_id`, `tenant`, `project_id`, and a selective field, use composite/covering indexes incorporating all these fields. Modify existing indexes by explicitly renaming them and adding a `DROP INDEX IF EXISTS` step to ensure the new structure applies.

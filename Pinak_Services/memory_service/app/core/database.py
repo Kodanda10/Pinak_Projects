@@ -46,6 +46,10 @@ class DatabaseManager:
                   INSERT INTO memories_semantic_fts(rowid, content, tags) VALUES (new.rowid, new.content, new.tags);
                 END;
             """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_semantic_embedding
+                ON memories_semantic (tenant, project_id, embedding_id); -- ⚡ Bolt: Multi-tenant embedding composite index
+            """)
 
             # 2. Episodic Memory (Events/Logs)
             conn.execute("""
@@ -75,6 +79,10 @@ class DatabaseManager:
                   INSERT INTO memories_episodic_fts(rowid, content, goal, outcome) VALUES (new.rowid, new.content, new.goal, new.outcome);
                 END;
             """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_episodic_embedding
+                ON memories_episodic (tenant, project_id, embedding_id); -- ⚡ Bolt: Multi-tenant embedding composite index
+            """)
 
             # 3. Procedural Memory (Skills)
             conn.execute("""
@@ -103,6 +111,10 @@ class DatabaseManager:
                 CREATE TRIGGER IF NOT EXISTS memories_procedural_ai AFTER INSERT ON memories_procedural BEGIN
                   INSERT INTO memories_procedural_fts(rowid, skill_name, trigger, steps, description) VALUES (new.rowid, new.skill_name, new.trigger, new.steps, new.description);
                 END;
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_procedural_embedding
+                ON memories_procedural (tenant, project_id, embedding_id); -- ⚡ Bolt: Multi-tenant embedding composite index
             """)
 
             # 4. RAG Memory (External Source)
@@ -264,8 +276,11 @@ class DatabaseManager:
                 );
             """)
             conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_memory_quarantine_status
-                ON memory_quarantine (status);
+                DROP INDEX IF EXISTS idx_memory_quarantine_status;
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memory_quarantine_tenant_status
+                ON memory_quarantine (tenant, project_id, client_id, status); -- ⚡ Bolt: Multi-tenant status composite index
             """)
 
             # 11. Audit Log (Tamper-evident)
@@ -307,8 +322,11 @@ class DatabaseManager:
                 );
             """)
             conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_logs_client_issues_status
-                ON logs_client_issues (status);
+                DROP INDEX IF EXISTS idx_logs_client_issues_status;
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_logs_client_issues_tenant_status
+                ON logs_client_issues (tenant, project_id, client_id, status); -- ⚡ Bolt: Multi-tenant status composite index
             """)
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_logs_client_issues_ts
