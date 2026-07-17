@@ -1,0 +1,11 @@
+--- Pinak_Services/memory_service/app/core/database.py
++++ Pinak_Services/memory_service/app/core/database.py
+@@ -791,6 +791,8 @@
+         # Serialize JSON fields
+         serialized = {}
+         for key, value in updates.items():
++            if not isinstance(key, str) or not key.isidentifier():
++                raise ValueError(f"Invalid field name: {key}")
+             if key in ("tags", "plan", "steps") and value is not None:
+                 serialized[key] = json.dumps(value)
+             else:

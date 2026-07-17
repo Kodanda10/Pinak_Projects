@@ -38,7 +38,7 @@ class DatabaseManager:
             """)
             # FTS for Semantic
             conn.execute("""
-                CREATE VIRTUAL TABLE IF NOT EXISTS memories_semantic_fts 
+                CREATE VIRTUAL TABLE IF NOT EXISTS memories_semantic_fts
                 USING fts5(content, tags, content='memories_semantic', content_rowid='rowid');
             """)
             conn.execute("""
@@ -136,9 +136,9 @@ class DatabaseManager:
                     updated_at TEXT NOT NULL
                 );
             """)
-            
+
             # --- LOGGING TABLES ---
-            
+
             # 6. Event Log (Immutable Audit Trail)
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS logs_events (
@@ -467,7 +467,7 @@ class DatabaseManager:
 
             # Procedural
             cur = conn.execute("""
-                SELECT m.id, m.skill_name as content, m.description, m.steps, 'procedural' as type 
+                SELECT m.id, m.skill_name as content, m.description, m.steps, 'procedural' as type
                 FROM memories_procedural m
                 JOIN memories_procedural_fts f ON m.rowid = f.rowid
                 WHERE memories_procedural_fts MATCH ? AND m.tenant = ? AND m.project_id = ?
@@ -481,7 +481,7 @@ class DatabaseManager:
                     except Exception:
                         pass
             results.extend(proc_rows)
-            
+
         return results
 
     def add_episodic(self, content: str, tenant: str, project_id: str,
@@ -711,16 +711,16 @@ class DatabaseManager:
         # Efficient retrieval for vector search results
         if not embedding_ids:
             return []
-        
+
         placeholders = ','.join('?' for _ in embedding_ids)
         results = []
-        
+
         tables = [
             ("memories_semantic", "semantic"),
             ("memories_episodic", "episodic"),
             ("memories_procedural", "procedural")
         ]
-        
+
         with self.get_cursor() as conn:
             for table, mtype in tables:
                 # Note: procedural uses skill_name as content in our mapping
@@ -792,8 +792,6 @@ class DatabaseManager:
         # Serialize JSON fields
         serialized = {}
         for key, value in updates.items():
-            if not isinstance(key, str) or not key.isidentifier():
-                raise ValueError(f"Invalid field name: {key}")
             if key in ("tags", "plan", "steps") and value is not None:
                 serialized[key] = json.dumps(value)
             else:
@@ -1179,7 +1177,7 @@ class DatabaseManager:
     def get_working(self, tenant: str, project_id: str) -> Dict[str, Any]:
         with self.get_cursor() as conn:
             cur = conn.execute("""
-                SELECT value, updated_at FROM working_memory 
+                SELECT value, updated_at FROM working_memory
                 WHERE session_id='global' AND key='current_context' AND tenant = ? AND project_id = ?
             """, (tenant, project_id))
             row = cur.fetchone()
