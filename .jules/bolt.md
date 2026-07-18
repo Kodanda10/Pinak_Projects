@@ -1,0 +1,3 @@
+## 2024-07-18 - Missing DB Indexes for Multi-Tenant Filtering
+**Learning:** The Pinak memory service stores logs and memories in a single SQLite database filtered constantly by `client_id`, `tenant`, and `project_id`. Many indexes currently only target a single column (e.g. `status` or `ts`), leading to inefficient linear table scans.
+**Action:** When working on SQLite databases with multi-tenant designs, always use composite covering indexes that match the common WHERE conditions (e.g., `(tenant, project_id, client_id)` or `(client_id, tenant, project_id, status)`). I will create a PR to add these multi-column indexes.
