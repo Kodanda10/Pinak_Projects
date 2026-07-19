@@ -263,9 +263,13 @@ class DatabaseManager:
                     reviewed_by TEXT
                 );
             """)
+            # ⚡ Bolt: Use composite covering index for multi-tenant quarantine queries
             conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_memory_quarantine_status
-                ON memory_quarantine (status);
+                DROP INDEX IF EXISTS idx_memory_quarantine_status;
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memory_quarantine_composite
+                ON memory_quarantine (client_id, tenant, project_id, status);
             """)
 
             # 11. Audit Log (Tamper-evident)
@@ -306,13 +310,31 @@ class DatabaseManager:
                     resolution TEXT
                 );
             """)
+            # ⚡ Bolt: Use composite covering index for multi-tenant client issue queries
             conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_logs_client_issues_status
-                ON logs_client_issues (status);
+                DROP INDEX IF EXISTS idx_logs_client_issues_status;
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_logs_client_issues_composite
+                ON logs_client_issues (client_id, tenant, project_id, status);
             """)
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_logs_client_issues_ts
                 ON logs_client_issues (created_at);
+            """)
+
+            # ⚡ Bolt: Use composite covering index for multi-tenant embedding lookups
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_semantic_composite
+                ON memories_semantic (embedding_id, tenant, project_id);
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_episodic_composite
+                ON memories_episodic (embedding_id, tenant, project_id);
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_procedural_composite
+                ON memories_procedural (embedding_id, tenant, project_id);
             """)
             self._ensure_column(conn, "working_memory", "expires_at", "TEXT")
             self._ensure_column(conn, "working_memory", "updated_at", "TEXT")
