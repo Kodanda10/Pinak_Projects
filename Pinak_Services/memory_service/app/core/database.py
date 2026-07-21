@@ -792,6 +792,9 @@ class DatabaseManager:
         # Serialize JSON fields
         serialized = {}
         for key, value in updates.items():
+            # 🛡️ Sentinel: Validate column names to prevent SQL injection
+            if not key.isidentifier():
+                raise ValueError(f"Invalid column name: {key}")
             if key in ("tags", "plan", "steps") and value is not None:
                 serialized[key] = json.dumps(value)
             else:
