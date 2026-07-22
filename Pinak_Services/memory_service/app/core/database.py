@@ -46,6 +46,11 @@ class DatabaseManager:
                   INSERT INTO memories_semantic_fts(rowid, content, tags) VALUES (new.rowid, new.content, new.tags);
                 END;
             """)
+            # ⚡ Bolt: Added composite index to optimize multi-tenant query performance
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_semantic_tenant_project_embedding
+                ON memories_semantic (tenant, project_id, embedding_id);
+            """)
 
             # 2. Episodic Memory (Events/Logs)
             conn.execute("""
@@ -74,6 +79,11 @@ class DatabaseManager:
                 CREATE TRIGGER IF NOT EXISTS memories_episodic_ai AFTER INSERT ON memories_episodic BEGIN
                   INSERT INTO memories_episodic_fts(rowid, content, goal, outcome) VALUES (new.rowid, new.content, new.goal, new.outcome);
                 END;
+            """)
+            # ⚡ Bolt: Added composite index to optimize multi-tenant query performance
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_episodic_tenant_project_embedding
+                ON memories_episodic (tenant, project_id, embedding_id);
             """)
 
             # 3. Procedural Memory (Skills)
@@ -104,6 +114,11 @@ class DatabaseManager:
                   INSERT INTO memories_procedural_fts(rowid, skill_name, trigger, steps, description) VALUES (new.rowid, new.skill_name, new.trigger, new.steps, new.description);
                 END;
             """)
+            # ⚡ Bolt: Added composite index to optimize multi-tenant query performance
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_procedural_tenant_project_embedding
+                ON memories_procedural (tenant, project_id, embedding_id);
+            """)
 
             # 4. RAG Memory (External Source)
             conn.execute("""
@@ -119,6 +134,11 @@ class DatabaseManager:
                     project_id TEXT NOT NULL,
                     created_at TEXT NOT NULL
                 );
+            """)
+            # ⚡ Bolt: Added composite index to optimize multi-tenant query performance
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_rag_tenant_project
+                ON memories_rag (tenant, project_id);
             """)
 
             # 5. Working Memory (Short-term)
