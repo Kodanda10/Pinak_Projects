@@ -185,6 +185,24 @@ class DatabaseManager:
                     last_seen TEXT
                 );
             """)
+            # Composite indices for multi-tenant querying
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_semantic_tenant_proj_emb
+                ON memories_semantic (tenant, project_id, embedding_id);
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_episodic_tenant_proj_emb
+                ON memories_episodic (tenant, project_id, embedding_id);
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_procedural_tenant_proj_emb
+                ON memories_procedural (tenant, project_id, embedding_id);
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_rag_tenant_proj
+                ON memories_rag (tenant, project_id);
+            """)
+
             conn.execute("""
                 CREATE UNIQUE INDEX IF NOT EXISTS idx_clients_registry_unique
                 ON clients_registry (client_id, tenant, project_id);
