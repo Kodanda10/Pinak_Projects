@@ -37,6 +37,12 @@ class DatabaseManager:
                 );
             """)
             # FTS for Semantic
+            # ⚡ Bolt: Add composite index for efficient multi-tenant memory retrieval
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_semantic_tenant_project_embedding
+                ON memories_semantic (tenant, project_id, embedding_id);
+            """)
+
             conn.execute("""
                 CREATE VIRTUAL TABLE IF NOT EXISTS memories_semantic_fts 
                 USING fts5(content, tags, content='memories_semantic', content_rowid='rowid');
@@ -66,6 +72,12 @@ class DatabaseManager:
                     created_at TEXT NOT NULL
                 );
             """)
+            # ⚡ Bolt: Add composite index for efficient multi-tenant memory retrieval
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_episodic_tenant_project_embedding
+                ON memories_episodic (tenant, project_id, embedding_id);
+            """)
+
             conn.execute("""
                 CREATE VIRTUAL TABLE IF NOT EXISTS memories_episodic_fts
                 USING fts5(content, goal, outcome, content='memories_episodic', content_rowid='rowid');
@@ -95,6 +107,12 @@ class DatabaseManager:
                 );
             """)
             # FTS for Procedural
+            # ⚡ Bolt: Add composite index for efficient multi-tenant memory retrieval
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_procedural_tenant_project_embedding
+                ON memories_procedural (tenant, project_id, embedding_id);
+            """)
+
             conn.execute("""
                 CREATE VIRTUAL TABLE IF NOT EXISTS memories_procedural_fts
                 USING fts5(skill_name, trigger, steps, description, content='memories_procedural', content_rowid='rowid');
@@ -121,6 +139,12 @@ class DatabaseManager:
                 );
             """)
 
+            # ⚡ Bolt: Add composite index for efficient multi-tenant memory retrieval
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_rag_tenant_project
+                ON memories_rag (tenant, project_id);
+            """)
+
             # 5. Working Memory (Short-term)
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS working_memory (
@@ -135,6 +159,12 @@ class DatabaseManager:
                     project_id TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 );
+            """)
+
+            # ⚡ Bolt: Add composite index for efficient multi-tenant memory retrieval
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_working_memory_tenant_project
+                ON working_memory (tenant, project_id);
             """)
             
             # --- LOGGING TABLES ---
