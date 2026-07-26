@@ -1,0 +1,4 @@
+## 2025-08-30 - Hardcoded JWT Secret in CLI
+**Vulnerability:** The CLI (`cli/main.py`) uses a hardcoded fallback secret `"dev-secret-change-me"` for JWT token generation if the `PINAK_JWT_SECRET` environment variable is missing. This happens in both the `mint` and `search` commands.
+**Learning:** Hardcoding secrets like a JWT signing secret is a critical vulnerability. An attacker can craft malicious JWT tokens if the default secret is used in any deployed or distributed environment without properly setting `PINAK_JWT_SECRET`.
+**Prevention:** Always require secrets to be passed via configuration, environment variables, or CLI arguments. Never provide a fallback default secret unless generating tokens exclusively for an entirely isolated local test environment, and even then, it's safer to fail loudly and force the user to set a development secret explicitly.
