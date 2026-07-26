@@ -121,6 +121,20 @@ class DatabaseManager:
                 );
             """)
 
+            conn.execute("""
+                -- ⚡ Bolt: Add composite indices on tenant, project_id, embedding_id to prevent full table scans during vector search resolution.
+                CREATE INDEX IF NOT EXISTS idx_memories_semantic_tenant_project_embedding
+                ON memories_semantic (tenant, project_id, embedding_id);
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_episodic_tenant_project_embedding
+                ON memories_episodic (tenant, project_id, embedding_id);
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_procedural_tenant_project_embedding
+                ON memories_procedural (tenant, project_id, embedding_id);
+            """)
+
             # 5. Working Memory (Short-term)
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS working_memory (

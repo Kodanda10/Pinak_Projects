@@ -1,0 +1,3 @@
+## 2024-11-20 - Multi-tenant Vector Search Indexing
+**Learning:** In a multi-tenant memory architecture where vector search (FAISS) returns `embedding_id`s, resolving these back to full memory objects via `WHERE embedding_id IN (...) AND tenant = ? AND project_id = ?` requires composite indices `(tenant, project_id, embedding_id)`. Without these, SQLite falls back to table scans, causing severe performance regressions on large multi-tenant datasets.
+**Action:** Always add composite indices prioritizing strict equality filters (`tenant`, `project_id`) followed by the IN clause target (`embedding_id`) for hybrid vector-relational lookups.
