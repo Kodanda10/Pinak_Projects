@@ -138,7 +138,9 @@ def tui():
 @app.command()
 def mint(tenant: str, project: str = "default", secret: str = None):
     """Mint a development JWT token."""
-    jwt_secret = secret or os.environ.get("PINAK_JWT_SECRET", "dev-secret-change-me")
+    jwt_secret = secret or os.environ.get("PINAK_JWT_SECRET")
+    if not jwt_secret:
+        raise ValueError("PINAK_JWT_SECRET must be set")  # 🛡️ Sentinel: Enforce secure JWT secret
     payload = {
         "sub": "local-dev",
         "tenant": tenant,
@@ -152,7 +154,9 @@ def mint(tenant: str, project: str = "default", secret: str = None):
 @app.command()
 def search(query: str, tenant: str = "demo", project: str = "default", url: str = "http://localhost:8001"):
     """Perform a hybrid search (RRF) across all memory layers."""
-    token_secret = os.environ.get("PINAK_JWT_SECRET", "dev-secret-change-me")
+    token_secret = os.environ.get("PINAK_JWT_SECRET")
+    if not token_secret:
+        raise ValueError("PINAK_JWT_SECRET must be set")  # 🛡️ Sentinel: Enforce secure JWT secret
     token_payload = {
         "sub": "search-cli",
         "tenant": tenant,
