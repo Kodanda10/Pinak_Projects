@@ -38,6 +38,10 @@ class DatabaseManager:
             """)
             # FTS for Semantic
             conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_semantic_tenant_project_emb
+                ON memories_semantic (tenant, project_id, embedding_id); -- ⚡ Bolt: Accelerate vector multi-tenant queries
+            """)
+            conn.execute("""
                 CREATE VIRTUAL TABLE IF NOT EXISTS memories_semantic_fts 
                 USING fts5(content, tags, content='memories_semantic', content_rowid='rowid');
             """)
@@ -65,6 +69,10 @@ class DatabaseManager:
                     project_id TEXT NOT NULL,
                     created_at TEXT NOT NULL
                 );
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_episodic_tenant_project_emb
+                ON memories_episodic (tenant, project_id, embedding_id); -- ⚡ Bolt: Accelerate vector multi-tenant queries
             """)
             conn.execute("""
                 CREATE VIRTUAL TABLE IF NOT EXISTS memories_episodic_fts
@@ -96,6 +104,10 @@ class DatabaseManager:
             """)
             # FTS for Procedural
             conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_procedural_tenant_project_emb
+                ON memories_procedural (tenant, project_id, embedding_id); -- ⚡ Bolt: Accelerate vector multi-tenant queries
+            """)
+            conn.execute("""
                 CREATE VIRTUAL TABLE IF NOT EXISTS memories_procedural_fts
                 USING fts5(skill_name, trigger, steps, description, content='memories_procedural', content_rowid='rowid');
             """)
@@ -123,6 +135,10 @@ class DatabaseManager:
 
             # 5. Working Memory (Short-term)
             conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memories_rag_tenant_project
+                ON memories_rag (tenant, project_id); -- ⚡ Bolt: Accelerate RAG multi-tenant queries
+            """)
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS working_memory (
                     id TEXT PRIMARY KEY,
                     session_id TEXT NOT NULL,
@@ -138,6 +154,10 @@ class DatabaseManager:
             """)
             
             # --- LOGGING TABLES ---
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_working_memory_tenant_project
+                ON working_memory (tenant, project_id); -- ⚡ Bolt: Accelerate Working multi-tenant queries
+            """)
             
             # 6. Event Log (Immutable Audit Trail)
             conn.execute("""
