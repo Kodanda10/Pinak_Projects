@@ -121,6 +121,12 @@ class DatabaseManager:
                 );
             """)
 
+            # ⚡ Bolt: Added composite indexes to prevent O(N) table scans during multi-tenant vector hydration
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_semantic_tenant_project_embed ON memories_semantic (tenant, project_id, embedding_id);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_episodic_tenant_project_embed ON memories_episodic (tenant, project_id, embedding_id);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_procedural_tenant_project_embed ON memories_procedural (tenant, project_id, embedding_id);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_rag_tenant_project ON memories_rag (tenant, project_id);")
+
             # 5. Working Memory (Short-term)
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS working_memory (
