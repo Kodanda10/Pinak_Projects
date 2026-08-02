@@ -1,0 +1,3 @@
+## 2024-08-02 - Multi-tenant indexing in DatabaseManager
+**Learning:** In a heavily multi-tenant application, relying on simple indexes (like timestamps) without considering the tenant partitioning in SQLite can lead to massive performance regressions as data scales, as every read query will perform a partial or full table scan.
+**Action:** Always create composite indexes that start with common filtering fields (e.g. `tenant`, `project_id`, `client_id`) for tables holding multi-tenant data that are queried frequently by these parameters. Ensure tests cover these schema modifications to avoid breaking inline initializations in isolated test cases.
