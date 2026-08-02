@@ -791,11 +791,17 @@ class DatabaseManager:
 
         # Serialize JSON fields
         serialized = {}
+        # 🛡️ Sentinel: Validate column names to prevent SQL injection
         for key, value in updates.items():
+            if not key.isidentifier():
+                continue
             if key in ("tags", "plan", "steps") and value is not None:
                 serialized[key] = json.dumps(value)
             else:
                 serialized[key] = value
+
+        if not serialized:
+            return False
 
         set_clause = ", ".join([f"{k} = ?" for k in serialized.keys()])
         params = list(serialized.values()) + [memory_id, tenant, project_id]
