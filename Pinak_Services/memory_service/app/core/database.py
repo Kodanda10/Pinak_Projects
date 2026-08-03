@@ -136,6 +136,12 @@ class DatabaseManager:
                     updated_at TEXT NOT NULL
                 );
             """)
+
+            # ⚡ Bolt: Added composite indexes to prevent O(N) full table scans during multi-tenant vector retrieval.
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_semantic_tenant ON memories_semantic (tenant, project_id, embedding_id);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_episodic_tenant ON memories_episodic (tenant, project_id, embedding_id);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_procedural_tenant ON memories_procedural (tenant, project_id, embedding_id);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_rag_tenant ON memories_rag (tenant, project_id);")
             
             # --- LOGGING TABLES ---
             
