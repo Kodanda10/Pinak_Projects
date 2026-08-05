@@ -331,6 +331,33 @@ class DatabaseManager:
             self._ensure_column(conn, "memory_quarantine", "client_id", "TEXT")
             self._ensure_column(conn, "memory_quarantine", "client_name", "TEXT")
             self._ensure_column(conn, "memory_quarantine", "validation_errors", "TEXT")
+            # ⚡ Bolt: Adding multi-tenant indexes for faster multi-tenant queries (O(1) lookups instead of full table scans)
+            # Create indexes conditionally, only if 'tenant' column exists, since older test setups might not have it.
+            if self._column_exists(conn, "memories_semantic", "tenant"):
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_semantic_tenant ON memories_semantic (tenant, project_id, embedding_id);")
+            if self._column_exists(conn, "memories_episodic", "tenant"):
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_episodic_tenant ON memories_episodic (tenant, project_id, embedding_id);")
+            if self._column_exists(conn, "memories_procedural", "tenant"):
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_procedural_tenant ON memories_procedural (tenant, project_id, embedding_id);")
+            if self._column_exists(conn, "memories_rag", "tenant"):
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_rag_tenant ON memories_rag (tenant, project_id);")
+            if self._column_exists(conn, "working_memory", "tenant"):
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_working_memory_tenant ON working_memory (tenant, project_id);")
+            if self._column_exists(conn, "clients_registry", "tenant"):
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_clients_registry_tenant ON clients_registry (tenant, project_id);")
+            if self._column_exists(conn, "logs_client_issues", "tenant"):
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_logs_client_issues_tenant ON logs_client_issues (tenant, project_id);")
+            if self._column_exists(conn, "logs_events", "tenant"):
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_logs_events_tenant ON logs_events (tenant, project_id);")
+            if self._column_exists(conn, "logs_session", "tenant"):
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_logs_session_tenant ON logs_session (tenant, project_id);")
+            if self._column_exists(conn, "logs_agents", "tenant"):
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_logs_agents_tenant ON logs_agents (tenant, project_id);")
+            if self._column_exists(conn, "logs_access", "tenant"):
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_logs_access_tenant ON logs_access (tenant, project_id);")
+            if self._column_exists(conn, "memory_quarantine", "tenant"):
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_memory_quarantine_tenant ON memory_quarantine (tenant, project_id);")
+
             self._ensure_column(conn, "memories_semantic", "agent_id", "TEXT")
             self._ensure_column(conn, "memories_semantic", "client_id", "TEXT")
             self._ensure_column(conn, "memories_semantic", "client_name", "TEXT")
