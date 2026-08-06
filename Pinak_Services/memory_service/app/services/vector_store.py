@@ -24,6 +24,11 @@ class VectorStore:
         self.ids = np.array([], dtype=np.int64)
         self.norms = np.array([], dtype=np.float32)
         
+        # ⚡ Bolt: Buffer for amortized O(1) batch insertions
+        self._unmerged_vectors = []
+        self._unmerged_ids = []
+        self._unmerged_norms = []
+
         self._load_index()
 
         self._save_timer = None
@@ -36,7 +41,9 @@ class VectorStore:
 
     @property
     def ntotal(self):
-        return len(self.ids)
+        # ⚡ Bolt: Include unmerged items
+        with self.lock:
+            return len(self.ids) + sum(len(arr) for arr in self._unmerged_ids)
 
     def _load_index(self):
         """Loads vectors and IDs from a numpy file."""
@@ -59,6 +66,19 @@ class VectorStore:
                     self.ids = np.array([], dtype=np.int64)
                     self.norms = np.array([], dtype=np.float32)
 
+    def _merge(self):
+        """⚡ Bolt: Lazily merge buffered vectors to avoid O(N^2) stacking"""
+        if not self._unmerged_vectors:
+            return
+
+        self.vectors = np.vstack([self.vectors] + self._unmerged_vectors)
+        self.ids = np.concatenate([self.ids] + self._unmerged_ids)
+        self.norms = np.concatenate([self.norms] + self._unmerged_norms)
+
+        self._unmerged_vectors = []
+        self._unmerged_ids = []
+        self._unmerged_norms = []
+
     def _schedule_save(self):
         """Schedule a debounced save."""
         if self._save_timer is not None:
@@ -71,6 +91,7 @@ class VectorStore:
     def save(self):
         """Synchronously save to disk."""
         with self.lock:
+            self._merge()
             if self.needs_save:
                 dirpath = os.path.dirname(self.index_path)
                 if dirpath:
@@ -94,9 +115,10 @@ class VectorStore:
         new_norms = np.sum(np.square(vectors), axis=1)
 
         with self.lock:
-            self.vectors = np.vstack([self.vectors, vectors])
-            self.ids = np.concatenate([self.ids, id_array])
-            self.norms = np.concatenate([self.norms, new_norms])
+            # ⚡ Bolt: Buffer insertions instead of O(N^2) np.vstack copying
+            self._unmerged_vectors.append(vectors)
+            self._unmerged_ids.append(id_array)
+            self._unmerged_norms.append(new_norms)
             self.needs_save = True
 
         self._schedule_save()
@@ -104,6 +126,7 @@ class VectorStore:
     def search(self, query_vector: np.ndarray, k: int = 10) -> Tuple[List[float], List[int]]:
         """Find top K nearest neighbors using L2 distance."""
         with self.lock:
+            self._merge()
             if len(self.ids) == 0:
                 return [], []
 
@@ -138,6 +161,7 @@ class VectorStore:
     def remove_ids(self, ids: List[int]):
         """Remove specific vectors by ID."""
         with self.lock:
+            self._merge()
             mask = ~np.isin(self.ids, ids)
             self.vectors = self.vectors[mask]
             self.ids = self.ids[mask]
@@ -147,10 +171,14 @@ class VectorStore:
 
     @property
     def total(self):
-        return len(self.ids)
+        with self.lock:
+            return len(self.ids) + sum(len(arr) for arr in self._unmerged_ids)
 
     def reset(self):
         with self.lock:
+            self._unmerged_vectors = []
+            self._unmerged_ids = []
+            self._unmerged_norms = []
             self.vectors = np.empty((0, self.dimension), dtype=np.float32)
             self.ids = np.array([], dtype=np.int64)
             self.norms = np.array([], dtype=np.float32)
@@ -158,6 +186,7 @@ class VectorStore:
 
     def reconstruct(self, vector_id: int) -> Optional[np.ndarray]:
         with self.lock:
+            self._merge()
             matches = np.where(self.ids == vector_id)[0]
             if len(matches) == 0:
                 return None
