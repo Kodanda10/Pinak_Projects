@@ -348,6 +348,17 @@ class DatabaseManager:
             self._ensure_column(conn, "working_memory", "client_id", "TEXT")
             self._ensure_column(conn, "working_memory", "client_name", "TEXT")
 
+
+            # ⚡ Bolt: Add composite indexes for multi-tenant query optimization
+            if self._column_exists(conn, "memories_semantic", "tenant"):
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_semantic_tenant_proj_emb ON memories_semantic (tenant, project_id, embedding_id);")
+            if self._column_exists(conn, "memories_episodic", "tenant"):
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_episodic_tenant_proj_emb ON memories_episodic (tenant, project_id, embedding_id);")
+            if self._column_exists(conn, "memories_procedural", "tenant"):
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_procedural_tenant_proj_emb ON memories_procedural (tenant, project_id, embedding_id);")
+            if self._column_exists(conn, "memories_rag", "tenant"):
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_rag_tenant_proj ON memories_rag (tenant, project_id);")
+
     def _column_exists(self, conn: sqlite3.Connection, table: str, column: str) -> bool:
         try:
             rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
