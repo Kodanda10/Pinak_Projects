@@ -19,6 +19,16 @@ class DatabaseManager:
             os.makedirs(db_dir, exist_ok=True)
         self._init_db()
 
+    def _validate_table_name(self, table: str) -> None:
+        # 🛡️ Sentinel: Validate table names against a strict whitelist to prevent SQL injection during f-string interpolation
+        allowed = {
+            "memories_semantic", "memories_episodic", "memories_procedural",
+            "memories_rag", "working_memory", "logs_agents",
+            "logs_client_issues", "logs_audit", "logs_events", "logs_access", "clients_registry", "memory_quarantine", "logs_session"
+        }
+        if table not in allowed:
+            raise ValueError(f"Invalid table name: {table}")
+
     def _init_db(self):
         with self.get_cursor() as conn:
             # 1. Semantic Memory (Knowledge)
@@ -725,6 +735,7 @@ class DatabaseManager:
             for table, mtype in tables:
                 # Note: procedural uses skill_name as content in our mapping
                 content_col = "skill_name" if mtype == "procedural" else "content"
+                self._validate_table_name(table)
                 cur = conn.execute(f"""
                     SELECT *, '{mtype}' as type FROM {table}
                     WHERE embedding_id IN ({placeholders}) AND tenant = ? AND project_id = ?
@@ -750,6 +761,7 @@ class DatabaseManager:
         if not table:
             return None
         with self.get_cursor() as conn:
+            self._validate_table_name(table)
             cur = conn.execute(
                 f"SELECT * FROM {table} WHERE id = ? AND tenant = ? AND project_id = ?",
                 (memory_id, tenant, project_id),
@@ -800,6 +812,7 @@ class DatabaseManager:
         set_clause = ", ".join([f"{k} = ?" for k in serialized.keys()])
         params = list(serialized.values()) + [memory_id, tenant, project_id]
         with self.get_cursor() as conn:
+            self._validate_table_name(table)
             cur = conn.execute(
                 f"UPDATE {table} SET {set_clause} WHERE id = ? AND tenant = ? AND project_id = ?",
                 params,
@@ -817,6 +830,7 @@ class DatabaseManager:
         if not table:
             raise ValueError("Invalid layer")
         with self.get_cursor() as conn:
+            self._validate_table_name(table)
             cur = conn.execute(
                 f"DELETE FROM {table} WHERE id = ? AND tenant = ? AND project_id = ?",
                 (memory_id, tenant, project_id),
@@ -993,6 +1007,7 @@ class DatabaseManager:
         last_write: Dict[str, Optional[str]] = {}
         with self.get_cursor() as conn:
             for layer, (table, ts_col) in tables.items():
+                self._validate_table_name(table)
                 cur = conn.execute(
                     f"SELECT COUNT(*), MAX({ts_col}) FROM {table} WHERE tenant = ? AND project_id = ? AND client_id = ?",
                     (tenant, project_id, client_id),
