@@ -10,7 +10,10 @@ from pathlib import Path
 # Config
 # We can use the running server or default
 API_URL = "http://localhost:8000/api/v1"
-JWT_SECRET = os.getenv("PINAK_JWT_SECRET", "secret")
+# 🛡️ Sentinel: Require explicit PINAK_JWT_SECRET
+JWT_SECRET = os.getenv("PINAK_JWT_SECRET")
+if not JWT_SECRET:
+    raise RuntimeError("PINAK_JWT_SECRET environment variable is required.")
 PROJECT_ID = "pinak-history"  # Keep it consistent 
 TENANT = "default"
 
