@@ -39,7 +39,7 @@ uv sync --frozen
 uv sync --project Pinak_Services/memory_service --no-dev --frozen
 
 # Configure authentication secret (generate a strong value in production)
-export PINAK_JWT_SECRET="dev-secret-change-me"
+export PINAK_JWT_SECRET="your-secure-secret"
 
 # Run the service
 uv run --project Pinak_Services/memory_service uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
@@ -62,7 +62,7 @@ token = jwt.encode(
         "iat": datetime.datetime.utcnow(),
         "exp": datetime.datetime.utcnow() + datetime.timedelta(hours=1),
     },
-    "dev-secret-change-me",
+    "your-secure-secret",
     algorithm="HS256",
 )
 print(token)

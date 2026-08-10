@@ -12,7 +12,10 @@ TENANT = "default"
 PROJECT = "pinak-history"
 
 def get_token():
-    secret = os.getenv("PINAK_JWT_SECRET", "secret")
+    # 🛡️ Sentinel: Require explicit PINAK_JWT_SECRET
+    secret = os.getenv("PINAK_JWT_SECRET")
+    if not secret:
+        raise RuntimeError("PINAK_JWT_SECRET environment variable is required.")
     algo = os.getenv("PINAK_JWT_ALGORITHM", "HS256")
     payload = {
         "tenant_id": TENANT,

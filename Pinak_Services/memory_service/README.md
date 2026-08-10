@@ -43,7 +43,7 @@ Launch the full Memory Command Center (Server + TUI) with a single command:
 ### 🔍 Quick Context Search (CLI)
 Query your persistent context directly without the UI:
 ```bash
-export PINAK_JWT_SECRET="secret"
+export PINAK_JWT_SECRET="your-secure-secret"
 uv run python cli/main.py search "disk cleanup strategies"
 ```
 
@@ -159,7 +159,7 @@ The following files have been automatically updated to include `pinak-memory`:
 
 ### 1) Register Client
 ```bash
-export PINAK_JWT_SECRET="secret"
+export PINAK_JWT_SECRET="your-secure-secret"
 TOKEN=$(python -m cli.main mint)
 
 curl -sS -X POST \
