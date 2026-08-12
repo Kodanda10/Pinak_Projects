@@ -24,6 +24,11 @@ class VectorStore:
         self.ids = np.array([], dtype=np.int64)
         self.norms = np.array([], dtype=np.float32)
         
+        # ⚡ Bolt: List-based buffers for amortized O(1) insertions
+        self._vectors_buffer = []
+        self._ids_buffer = []
+        self._norms_buffer = []
+
         self._load_index()
 
         self._save_timer = None
@@ -36,7 +41,18 @@ class VectorStore:
 
     @property
     def ntotal(self):
-        return len(self.ids)
+        return len(self.ids) + sum(len(arr) for arr in self._ids_buffer)
+
+    def _flush_buffers(self):
+        # ⚡ Bolt: Flush buffered vectors into the main numpy arrays in one go to avoid O(N^2) vstacking overhead
+        if self._vectors_buffer:
+            self.vectors = np.vstack([self.vectors] + self._vectors_buffer)
+            self.ids = np.concatenate([self.ids] + self._ids_buffer)
+            self.norms = np.concatenate([self.norms] + self._norms_buffer)
+
+            self._vectors_buffer.clear()
+            self._ids_buffer.clear()
+            self._norms_buffer.clear()
 
     def _load_index(self):
         """Loads vectors and IDs from a numpy file."""
@@ -71,6 +87,7 @@ class VectorStore:
     def save(self):
         """Synchronously save to disk."""
         with self.lock:
+            self._flush_buffers()
             if self.needs_save:
                 dirpath = os.path.dirname(self.index_path)
                 if dirpath:
@@ -94,9 +111,10 @@ class VectorStore:
         new_norms = np.sum(np.square(vectors), axis=1)
 
         with self.lock:
-            self.vectors = np.vstack([self.vectors, vectors])
-            self.ids = np.concatenate([self.ids, id_array])
-            self.norms = np.concatenate([self.norms, new_norms])
+            # ⚡ Bolt: Append to list buffer instead of full array copy
+            self._vectors_buffer.append(vectors)
+            self._ids_buffer.append(id_array)
+            self._norms_buffer.append(new_norms)
             self.needs_save = True
 
         self._schedule_save()
@@ -104,6 +122,7 @@ class VectorStore:
     def search(self, query_vector: np.ndarray, k: int = 10) -> Tuple[List[float], List[int]]:
         """Find top K nearest neighbors using L2 distance."""
         with self.lock:
+            self._flush_buffers()
             if len(self.ids) == 0:
                 return [], []
 
@@ -138,6 +157,7 @@ class VectorStore:
     def remove_ids(self, ids: List[int]):
         """Remove specific vectors by ID."""
         with self.lock:
+            self._flush_buffers()
             mask = ~np.isin(self.ids, ids)
             self.vectors = self.vectors[mask]
             self.ids = self.ids[mask]
@@ -147,17 +167,21 @@ class VectorStore:
 
     @property
     def total(self):
-        return len(self.ids)
+        return len(self.ids) + sum(len(arr) for arr in self._ids_buffer)
 
     def reset(self):
         with self.lock:
             self.vectors = np.empty((0, self.dimension), dtype=np.float32)
             self.ids = np.array([], dtype=np.int64)
             self.norms = np.array([], dtype=np.float32)
+            self._vectors_buffer.clear()
+            self._ids_buffer.clear()
+            self._norms_buffer.clear()
             self.needs_save = True
 
     def reconstruct(self, vector_id: int) -> Optional[np.ndarray]:
         with self.lock:
+            self._flush_buffers()
             matches = np.where(self.ids == vector_id)[0]
             if len(matches) == 0:
                 return None
