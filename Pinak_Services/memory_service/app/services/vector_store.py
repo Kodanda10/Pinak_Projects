@@ -24,11 +24,29 @@ class VectorStore:
         self.ids = np.array([], dtype=np.int64)
         self.norms = np.array([], dtype=np.float32)
         
+        # ⚡ Bolt: Buffers for amortized O(1) insertions
+        self._vectors_buffer: List[np.ndarray] = []
+        self._ids_buffer: List[np.ndarray] = []
+        self._norms_buffer: List[np.ndarray] = []
+
         self._load_index()
 
         self._save_timer = None
         self._save_interval = 5.0  # seconds
         self.needs_save = False
+
+    def _flush_buffers(self):
+        """⚡ Bolt: Flush pending insertions to the main numpy arrays."""
+        if not self._vectors_buffer:
+            return
+
+        self.vectors = np.vstack([self.vectors] + self._vectors_buffer)
+        self.ids = np.concatenate([self.ids] + self._ids_buffer)
+        self.norms = np.concatenate([self.norms] + self._norms_buffer)
+
+        self._vectors_buffer.clear()
+        self._ids_buffer.clear()
+        self._norms_buffer.clear()
 
     @property
     def index(self):
@@ -36,7 +54,8 @@ class VectorStore:
 
     @property
     def ntotal(self):
-        return len(self.ids)
+        with self.lock:
+            return len(self.ids) + sum(len(arr) for arr in self._ids_buffer)
 
     def _load_index(self):
         """Loads vectors and IDs from a numpy file."""
@@ -61,8 +80,9 @@ class VectorStore:
 
     def _schedule_save(self):
         """Schedule a debounced save."""
-        if self._save_timer is not None:
-            self._save_timer.cancel()
+        # ⚡ Bolt: Only schedule if not already scheduled to avoid thread churn
+        if self._save_timer is not None and self._save_timer.is_alive():
+            return
 
         self._save_timer = threading.Timer(self._save_interval, self.save)
         self._save_timer.daemon = True
@@ -71,6 +91,7 @@ class VectorStore:
     def save(self):
         """Synchronously save to disk."""
         with self.lock:
+            self._flush_buffers()
             if self.needs_save:
                 dirpath = os.path.dirname(self.index_path)
                 if dirpath:
@@ -94,16 +115,22 @@ class VectorStore:
         new_norms = np.sum(np.square(vectors), axis=1)
 
         with self.lock:
-            self.vectors = np.vstack([self.vectors, vectors])
-            self.ids = np.concatenate([self.ids, id_array])
-            self.norms = np.concatenate([self.norms, new_norms])
+            # ⚡ Bolt: Append to buffers instead of vstack for amortized O(1)
+            self._vectors_buffer.append(vectors)
+            self._ids_buffer.append(id_array)
+            self._norms_buffer.append(new_norms)
             self.needs_save = True
+
+            # Flush if buffer gets too large (e.g. > 1000 items)
+            if len(self._vectors_buffer) > 1000:
+                self._flush_buffers()
 
         self._schedule_save()
 
     def search(self, query_vector: np.ndarray, k: int = 10) -> Tuple[List[float], List[int]]:
         """Find top K nearest neighbors using L2 distance."""
         with self.lock:
+            self._flush_buffers()
             if len(self.ids) == 0:
                 return [], []
 
@@ -138,6 +165,7 @@ class VectorStore:
     def remove_ids(self, ids: List[int]):
         """Remove specific vectors by ID."""
         with self.lock:
+            self._flush_buffers()
             mask = ~np.isin(self.ids, ids)
             self.vectors = self.vectors[mask]
             self.ids = self.ids[mask]
@@ -147,17 +175,22 @@ class VectorStore:
 
     @property
     def total(self):
-        return len(self.ids)
+        with self.lock:
+            return len(self.ids) + sum(len(arr) for arr in self._ids_buffer)
 
     def reset(self):
         with self.lock:
             self.vectors = np.empty((0, self.dimension), dtype=np.float32)
             self.ids = np.array([], dtype=np.int64)
             self.norms = np.array([], dtype=np.float32)
+            self._vectors_buffer.clear()
+            self._ids_buffer.clear()
+            self._norms_buffer.clear()
             self.needs_save = True
 
     def reconstruct(self, vector_id: int) -> Optional[np.ndarray]:
         with self.lock:
+            self._flush_buffers()
             matches = np.where(self.ids == vector_id)[0]
             if len(matches) == 0:
                 return None
