@@ -1,0 +1,4 @@
+## 2024-08-16 - SQL Injection Vector in UPDATE Queries
+**Vulnerability:** In `Pinak_Services/memory_service/app/core/database.py` the `update_memory` method uses dictionary keys directly inside an f-string to build a SQL `SET` clause: `f"{k} = ?"`. An attacker could pass a crafted key in the `updates` dictionary (e.g. `foo = 1, role = 'admin' --`) to manipulate the SQL statement.
+**Learning:** Even when the values of a parameterized query are safely bound via `?`, dynamically constructing query fragments (like column names) from untrusted user input without validation or quoting creates an injection vector.
+**Prevention:** Always whitelist, strictly validate, or securely quote any identifiers (table names, column names) that are interpolated directly into SQL statements. Use `f'"{k}" = ?'` for safe quotation in SQLite if dynamic column updates are strictly necessary, and consider enforcing a whitelist of updatable columns.
