@@ -204,7 +204,7 @@ class MemoryService:
         with self.db.get_cursor() as conn:
             for table in ["memories_semantic", "memories_episodic", "memories_procedural"]:
                 try:
-                    conn.execute(f"SELECT count(*) FROM {table} WHERE embedding_id IS NOT NULL")
+                    conn.execute(f"SELECT count(*) FROM {table} WHERE embedding_id IS NOT NULL")  # nosec B608
                     db_count += conn.fetchone()[0]
                 except sqlite3.OperationalError:
                     continue
