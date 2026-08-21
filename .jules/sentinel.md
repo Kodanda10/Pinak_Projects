@@ -1,0 +1,4 @@
+## 2025-02-27 - SQL Injection in Update Method
+**Vulnerability:** Untrusted dictionary keys in `DatabaseManager.update_memory` were directly injected into the SQL `SET` clause without proper escaping (using `f"{k} = ?"` instead of proper SQL escaping). This allowed SQL injection via crafted payload keys when updating memories.
+**Learning:** Even though parameter values are usually bound (via `?`), dynamically constructed SQL using unvalidated dictionary keys as column names introduces SQL injection vulnerabilities. SQLite table names and column names cannot be parameterized with `?`.
+**Prevention:** Always validate or safely escape dynamic schema identifiers (such as dictionary keys) before inserting them into an SQL statement. Use strict validation against a known schema or properly double-quote the identifier (e.g., `'"{}" = ?'.format(k.replace('"', '""'))`).
