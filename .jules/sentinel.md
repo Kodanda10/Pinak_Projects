@@ -1,0 +1,4 @@
+## 2024-08-30 - SQL Injection Vulnerability in Update Memory
+**Vulnerability:** The `update_memory` method in `DatabaseManager` constructed the SET clause dynamically using `f"{k} = ?"` without escaping dictionary keys, creating a potential SQL injection vulnerability if arbitrary JSON fields (e.g. from `updates`) are passed by an untrusted client.
+**Learning:** Even when parameterized queries are used for the values (`?`), the keys themselves must be carefully handled if they are user-controlled and interpolated into the query string.
+**Prevention:** Keys in dynamically constructed SQL queries should always be explicitly double-quoted and internal quotes must be properly escaped (e.g. `'"{}" = ?'.format(k.replace('"', '""'))`). Inline comments (e.g. `# nosec B608`) should be used strictly where necessary to manage false-positives while safely handling parameters.
