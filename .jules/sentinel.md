@@ -1,0 +1,4 @@
+## 2023-11-20 - [SQL Injection in DatabaseManager.update_memory]
+**Vulnerability:** The Pinak Memory Service SQLite database had an SQL injection vulnerability in `DatabaseManager.update_memory` where dictionary keys were used to dynamically construct SQL SET clauses (e.g., `set_clause = ", ".join([f"{k} = ?" for k in serialized.keys()])`) without escaping.
+**Learning:** Keys constructed from user input must be properly escaped before building SQL queries. Unsanitized keys can be manipulated to modify multiple columns or insert arbitrary SQL conditions.
+**Prevention:** Keys used dynamically to construct SQL statements must be explicitly double-quoted and have internal double quotes escaped (e.g., `'"{}" = ?'.format(k.replace('"', '""'))`) to prevent SQL injection vulnerabilities from untrusted user payloads.
