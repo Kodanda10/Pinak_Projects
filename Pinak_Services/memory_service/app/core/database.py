@@ -797,7 +797,7 @@ class DatabaseManager:
             else:
                 serialized[key] = value
 
-        set_clause = ", ".join([f"{k} = ?" for k in serialized.keys()])
+        set_clause = ", ".join(['"{}" = ?'.format(k.replace('"', '""')) for k in serialized.keys()])  # nosec B608
         params = list(serialized.values()) + [memory_id, tenant, project_id]
         with self.get_cursor() as conn:
             cur = conn.execute(
