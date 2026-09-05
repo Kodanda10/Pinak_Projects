@@ -1,0 +1,4 @@
+## 2024-05-24 - SQL Injection via Unescaped Dictionary Keys in Dynamic SQL UPDATE
+**Vulnerability:** Dictionary keys in the `update_memory` method were used to dynamically construct SQL `SET` clauses (`f"{k} = ?"`) without escaping or quoting. An attacker could potentially supply malicious keys in the `updates` dictionary to modify other columns or execute arbitrary SQL.
+**Learning:** Even when values are properly parameterized (`?`), iterating over untrusted dictionary keys to build SQL statements introduces a SQL injection vector if the keys themselves are not sanitized or securely quoted.
+**Prevention:** Always double-quote dictionary keys used as column names and internally escape any double quotes within the key strings (e.g., `'"{}" = ?'.format(k.replace('"', '""'))`) when dynamically building SQL statements from user input.
