@@ -1,0 +1,4 @@
+## 2025-05-18 - Fix SQL injection in dynamic database updates
+**Vulnerability:** The `update_memory` method dynamically constructs a SQL `SET` clause using unescaped dictionary keys from user payloads, exposing the application to SQL injection vulnerabilities via crafted dictionary keys.
+**Learning:** In SQLite/Python, dynamic SQL queries that rely on user-controlled dictionary keys must properly double-quote and escape the keys, as parameterized values only apply to the payload values, not the keys themselves. Python 3.12+ f-strings may raise SyntaxErrors with backslashes, so `.format` is a safer bet for escaping.
+**Prevention:** Always properly escape and quote column names when dynamically building SQL queries from dictionaries, and use inline comments like `# nosec B608` on the outer function call to suppress false-positive Bandit warnings.
