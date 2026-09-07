@@ -1,0 +1,4 @@
+## 2026-09-07 - [SQL Injection in DatabaseManager.update_memory]
+**Vulnerability:** The `DatabaseManager.update_memory` method uses dictionary keys dynamically formatted into a SET clause `f"{k} = ?"` without quoting or escaping. This allows a SQL injection where an attacker controlling the `updates` dictionary keys can update arbitrary columns (e.g. `agent_id`) and bypass access controls or alter sensitive metadata.
+**Learning:** Dictionary keys dynamically constructed into SQL statements must be explicitly quoted and internal quotes escaped to prevent SQL injection payloads from being interpreted as parts of the query structure.
+**Prevention:** Always double-quote dynamic identifiers (e.g., column names) and escape internal double quotes when dynamically constructing SQL, using `.format()` with string replacement (`'"{}" = ?'.format(k.replace('"', '""'))`) and apply the `# nosec B608` inline comment for suppression where needed.
