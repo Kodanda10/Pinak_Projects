@@ -1,0 +1,4 @@
+## 2024-05-18 - Prevent SQL Injection via Dict Keys in Dynamic Updates
+**Vulnerability:** SQL injection via unsanitized dictionary keys used to construct the `SET` clause in `DatabaseManager.update_memory`. An attacker controlling the update payload keys could inject arbitrary SQL to modify unintended columns (e.g., modifying `{"data = \"injected\", evil_col": "hacked"}`).
+**Learning:** In Python, using dictionary keys dynamically in SQL queries without proper escaping or parameterization leaves the query vulnerable, even if the values themselves are parameterized (e.g., `", ".join([f"{k} = ?" for k in serialized.keys()])`).
+**Prevention:** Always sanitize and double-quote dictionary keys if they must be used dynamically to construct SQL columns. For example, use `", ".join(['"{}" = ?'.format(k.replace('"', '""')) for k in serialized.keys()])` and use `# nosec B608` to suppress Bandit warnings.
