@@ -1,4 +1,0 @@
-## 2024-05-24 - SQL Injection in Dynamic SET Clause
-**Vulnerability:** Found a SQL injection vulnerability in `DatabaseManager.update_memory` where the SET clause was built by dynamically concatenating user-provided dictionary keys without escaping or quoting them (`set_clause = ", ".join([f"{k} = ?" for k in serialized.keys()])`).
-**Learning:** Dictionary keys used in SQL string construction must be treated as untrusted user input, especially when updating flexible JSON schemas. The assumption was likely that only predefined keys would be passed, but the function allows arbitrary `updates` dictionaries.
-**Prevention:** Always double-quote and escape internal double quotes for dictionary keys used to construct SQL statements dynamically (`'"{}" = ?'.format(k.replace('"', '""'))`). Use `# nosec B608` to suppress Bandit false-positive warnings after mitigating.
