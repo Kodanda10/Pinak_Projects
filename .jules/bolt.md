@@ -1,0 +1,3 @@
+## 2024-09-17 - Amortized O(1) Vector Additions
+**Learning:** Using `np.vstack` inside `add_vectors` on every single vector addition causes an O(N) memory allocation and copy bottleneck, scaling linearly with the size of the vector store and severely impacting performance during continuous ingestion.
+**Action:** Implement amortized O(1) list-based buffering. Collect new vectors, IDs, and norms into standard Python lists, and only flush/merge them into the main NumPy arrays using `np.vstack` and `np.concatenate` right before operations that require the full dataset, such as search, save, reconstruct, or remove.
