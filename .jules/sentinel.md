@@ -1,0 +1,4 @@
+## 2024-09-17 - SQL Injection via Dictionary Keys in Dynamic Queries
+**Vulnerability:** The `update_memory` method constructs SQL `UPDATE` statements by dynamically interpolating dictionary keys into the query's `SET` clause (`f"{k} = ?"`). An attacker could pass malformed keys in the `updates` payload to execute arbitrary SQL or modify unauthorized columns.
+**Learning:** While the values were properly parameterized, the column names (derived from user-provided dictionary keys) were assumed to be safe and concatenated directly into the query, bypassing parameterization protections.
+**Prevention:** Always strictly validate dynamically generated column names against a restrictive regex (e.g., `^[a-zA-Z0-9_]+$`) before interpolating them into SQL statements to prevent SQL injection vulnerabilities.
