@@ -1,0 +1,3 @@
+## 2024-03-24 - O(N) np.vstack Bottleneck in VectorStore
+**Learning:** The `VectorStore` class (`Pinak_Services/memory_service/app/services/vector_store.py`) used `np.vstack` on every insertion. `np.vstack` is an O(N) operation that creates a new array and copies all data, leading to severe performance degradation as the index grows (O(N^2) for sequential inserts).
+**Action:** Implemented amortized O(1) list-based buffering (`_vector_buffer`, `_id_buffer`, `_norm_buffer`) for insertions. The buffers are dynamically flushed into the main numpy arrays (`_flush_buffers`) only when necessary for operations requiring the full dataset (like `search`, `save`, `reset`, or `remove_ids`).
