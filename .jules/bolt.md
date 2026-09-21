@@ -1,0 +1,3 @@
+## 2025-08-30 - O(N) NumPy Array Bottleneck Mitigation
+**Learning:** The previous naive implementation of `VectorStore` used `np.vstack` and `np.concatenate` directly on the main arrays for every single vector addition, which is an O(N) operation and a severe memory bottleneck for enterprise-grade scalability.
+**Action:** Implement an amortized O(1) list-based buffering strategy (`_vector_buffer`, `_id_buffer`, `_norm_buffer`) where new additions are appended to standard Python lists. The buffers are only flushed (merged into main arrays) via `_flush_buffers()` when full array access is strictly necessary (e.g., during `search`, `save`, `remove_ids`, `reconstruct`).
