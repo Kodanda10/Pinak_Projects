@@ -789,6 +789,10 @@ class DatabaseManager:
         if not updates:
             return False
 
+        for key in updates.keys():
+            if not str(key).isidentifier():
+                raise ValueError(f"Invalid column name in updates: {key}")
+
         # Serialize JSON fields
         serialized = {}
         for key, value in updates.items():
