@@ -1,0 +1,3 @@
+## 2024-05-20 - Amortized List Buffering for NumPy Arrays
+**Learning:** Using `np.vstack` or `np.concatenate` directly inside `add_vectors` creates an O(N) bottleneck, causing the vector store to progressively slow down as its size increases because it copies the entire array every time an element is added.
+**Action:** Implement an amortized O(1) list-based buffering strategy by appending individual additions to temporary lists (`_vector_buffer`, `_id_buffer`) and only merging them with the main NumPy array via `_flush_buffers()` when full array access is required (e.g., search, save, or reconstruct). Ensure `ntotal` calculates length dynamically if buffers exist.
