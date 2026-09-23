@@ -1,0 +1,4 @@
+## 2025-02-27 - SQL Injection in Memory Update
+**Vulnerability:** The `update_memory` function in `Pinak_Services/memory_service/app/core/database.py` constructs a SQL `UPDATE` statement by directly interpolating dictionary keys from user-provided `updates` (`set_clause = ", ".join([f"{k} = ?" for k in serialized.keys()])`), allowing SQL injection if malicious keys are supplied.
+**Learning:** Dynamically building SQL queries using user-controlled dictionary keys without validation bypasses parameterized query protections (which only secure the values), exposing the database structure to manipulation.
+**Prevention:** Always strictly validate dynamic column names against an allowlist or ensure they are valid SQL identifiers (e.g., using `.isidentifier()`) and explicitly exclude protected fields like `id`, `tenant`, and `project_id`.
