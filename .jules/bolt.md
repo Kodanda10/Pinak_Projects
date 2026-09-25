@@ -1,0 +1,3 @@
+## 2023-10-25 - List-based buffering for NumPy arrays in VectorStore
+**Learning:** In the Pinak Memory Service `VectorStore`, using `np.vstack` and `np.concatenate` on every single vector addition causes O(N) memory reallocations, creating a severe performance bottleneck as the index grows.
+**Action:** Implemented a list-based buffering strategy (`_vector_buffer`, `_id_buffer`) to append incoming batches, and a `_flush_buffers` method to perform a single bulk NumPy concatenation before reads (search, reconstruct, remove) or saves. Remember that `total` count must sum the lengths of appended array batches correctly: `len(ids) + sum(len(b) for b in _id_buffer)`.
