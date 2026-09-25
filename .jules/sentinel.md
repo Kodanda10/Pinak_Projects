@@ -1,0 +1,4 @@
+## 2025-09-25 - [SQL Injection via Dynamic Column Names in update_memory]
+**Vulnerability:** The `update_memory` function dynamically constructed an `UPDATE` SQL statement by iterating over `updates.keys()` and joining them. This allowed an attacker to supply dictionary keys like `"content = 'Hacked', project_id = 'p2', content"` to arbitrarily modify other columns (like `project_id`) and bypass tenant isolation via SQL injection.
+**Learning:** While parameterizing values protects against data injection, dynamically interpolating table or column names from unsanitized input is a direct SQL injection risk because column names cannot be parameterized in standard SQL.
+**Prevention:** Always validate dynamically generated column names using strict allowlists or Python's `.isidentifier()` method, and explicitly reject any updates targeting protected fields (e.g., `id`, `tenant`, `project_id`).
