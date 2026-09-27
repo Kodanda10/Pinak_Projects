@@ -1,0 +1,3 @@
+## 2025-03-05 - NumPy Vector Store Reallocation Bottleneck
+**Learning:** The custom `VectorStore` class using NumPy arrays for similarity search was identified as a bottleneck in the `CODEBASE_ASSESSMENT.md`. Adding vectors sequentially caused $O(N)$ reallocations per `np.vstack`/`np.concatenate`, leading to significant performance degradation on large batch inserts.
+**Action:** Implement list-based buffering for vectors, IDs, and norms during sequential adds, and flush these buffers to the main NumPy arrays only when necessary (e.g., during save, search, remove, reconstruct). Remember to calculate total counts across the buffer dynamically using `sum(len(b) for b in buffer)`.
