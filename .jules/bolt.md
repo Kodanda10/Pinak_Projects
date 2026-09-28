@@ -1,0 +1,3 @@
+## 2024-05-24 - Buffered Vector Store Inserts
+**Learning:** The VectorStore implementation in Pinak_Services/memory_service/app/services/vector_store.py currently reallocates memory for the entire vector index using `np.vstack` on every single vector addition. This leads to an O(N) reallocation cost on each insert. Adding 1000 items individually to a 10,000 item store takes ~1.26 seconds unbuffered vs ~0.015 seconds when buffering.
+**Action:** Implement a small buffer for incoming vectors that flushes during search or save, significantly avoiding memory reallocations during high-frequency inserts.
