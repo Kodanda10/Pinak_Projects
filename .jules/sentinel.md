@@ -1,0 +1,7 @@
+## 2024-05-18 - Prevent SQL Injection via Dictionary Keys in Database Update methods
+
+**Vulnerability:** In `Pinak_Services/memory_service/app/core/database.py`, the `update_memory` method constructs an SQL `UPDATE` query by directly concatenating dictionary keys from the `updates` argument into the `SET` clause without validation (`set_clause = ", ".join([f"{k} = ?" for k in serialized.keys()])`). This allows for SQL injection if an attacker controls the keys in the JSON body of a memory update request, allowing them to modify arbitrary columns or execute malicious SQL commands.
+
+**Learning:** This vulnerability existed because the code relied on parameterized queries for the *values* (`?`) but mistakenly assumed the *keys* (column names) provided by the application layer were inherently safe and trusted. However, if the dictionary is populated directly from user input (e.g., via a REST API payload), attackers can inject SQL syntax into the keys. Parameterized queries only protect values, not structural parts of the SQL statement like column names.
+
+**Prevention:** To prevent this, structural elements like column names that are dynamically constructed from input must be strictly validated against an allowlist of valid columns, or validated to ensure they are valid SQL identifiers (e.g., using Python's string `.isidentifier()` method) before being interpolated into the query string. Additionally, critical identifier columns like `id`, `tenant`, and `project_id` should be explicitly excluded from updates to prevent IDOR or tenant isolation bypass.
