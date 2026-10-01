@@ -1,0 +1,4 @@
+## 2024-10-01 - SQL Injection and IDOR via Dynamic Updates
+**Vulnerability:** The `update_memory` method allowed users to dynamically define column names for an `UPDATE` query through unvalidated JSON payload keys. This permitted arbitrary SQL injection in column names and allowed users to overwrite protected fields like `tenant` and `project_id` (IDOR/Mass Assignment).
+**Learning:** Using `", ".join([f"{k} = ?" for k in dict.keys()])` is highly dangerous when keys originate from user input, even if values are correctly parameterized. SQLite parameterization only protects values, not identifiers.
+**Prevention:** Always validate dynamically generated column names using `.isidentifier()` to prevent SQL syntax injection, and explicitly filter out protected/immutable fields to prevent mass assignment/IDOR.
