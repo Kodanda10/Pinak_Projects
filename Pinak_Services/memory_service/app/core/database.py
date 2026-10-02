@@ -792,10 +792,18 @@ class DatabaseManager:
         # Serialize JSON fields
         serialized = {}
         for key, value in updates.items():
+            if not key.isidentifier():
+                raise ValueError(f"Invalid column name: {key}")
+            # Prevent updating protected fields
+            if key in ("id", "tenant", "project_id", "embedding_id", "created_at"):
+                continue
             if key in ("tags", "plan", "steps") and value is not None:
                 serialized[key] = json.dumps(value)
             else:
                 serialized[key] = value
+
+        if not serialized:
+            return False
 
         set_clause = ", ".join([f"{k} = ?" for k in serialized.keys()])
         params = list(serialized.values()) + [memory_id, tenant, project_id]
