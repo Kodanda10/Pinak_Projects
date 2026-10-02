@@ -348,6 +348,14 @@ class DatabaseManager:
             self._ensure_column(conn, "working_memory", "client_id", "TEXT")
             self._ensure_column(conn, "working_memory", "client_name", "TEXT")
 
+            # Indexes for embedding queries
+            if self._column_exists(conn, "memories_semantic", "embedding_id"):
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_semantic_embedding_id ON memories_semantic (embedding_id);")
+            if self._column_exists(conn, "memories_episodic", "embedding_id"):
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_episodic_embedding_id ON memories_episodic (embedding_id);")
+            if self._column_exists(conn, "memories_procedural", "embedding_id"):
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_procedural_embedding_id ON memories_procedural (embedding_id);")
+
     def _column_exists(self, conn: sqlite3.Connection, table: str, column: str) -> bool:
         try:
             rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
