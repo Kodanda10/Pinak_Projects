@@ -1,0 +1,4 @@
+## 2025-02-12 - [Critical] SQL Injection via Dynamic Column Updates
+**Vulnerability:** The `update_memory` function in `app/core/database.py` accepted arbitrary dictionaries as updates and dynamically generated SQL `SET` clauses from their keys (`f"{k} = ?"`). This allowed an attacker to inject arbitrary SQL or overwrite protected columns like `id`, `tenant`, and `project_id`.
+**Learning:** Using user-provided dictionary keys to construct SQL queries is inherently dangerous, even if parameterized, because column names cannot be parameterized. Furthermore, dynamically updating records without filtering keys exposes protected multi-tenant identifiers.
+**Prevention:** Always validate dynamically generated column names using `.isidentifier()` to ensure they contain only safe characters. Explicitly filter out protected columns like `id`, `tenant`, and `project_id` to enforce tenant isolation and prevent insecure direct object reference (IDOR).
