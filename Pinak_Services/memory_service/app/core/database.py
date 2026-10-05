@@ -5,6 +5,7 @@ import json
 import uuid
 import datetime
 import logging
+import threading
 import re
 from contextlib import contextmanager
 from typing import List, Dict, Any, Optional
@@ -17,6 +18,7 @@ class DatabaseManager:
         db_dir = os.path.dirname(db_path)
         if db_dir:
             os.makedirs(db_dir, exist_ok=True)
+        self._local = threading.local()
         self._init_db()
 
     def _init_db(self):
@@ -371,8 +373,25 @@ class DatabaseManager:
 
     @contextmanager
     def get_cursor(self):
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
+        if self.db_path == ":memory:":
+            conn = sqlite3.connect(self.db_path)
+            conn.row_factory = sqlite3.Row
+            cur = conn.cursor()
+            try:
+                yield cur
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+            finally:
+                conn.close()
+            return
+
+        if not hasattr(self._local, "conn"):
+            self._local.conn = sqlite3.connect(self.db_path)
+            self._local.conn.row_factory = sqlite3.Row
+
+        conn = self._local.conn
         cur = conn.cursor()
         try:
             yield cur
@@ -380,8 +399,6 @@ class DatabaseManager:
         except Exception:
             conn.rollback()
             raise
-        finally:
-            conn.close()
 
     def _sanitize_fts_query(self, query: str) -> str:
         terms = []
