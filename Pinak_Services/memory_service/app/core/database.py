@@ -789,9 +789,20 @@ class DatabaseManager:
         if not updates:
             return False
 
+        clean_updates = {}
+        for k, v in updates.items():
+            if not isinstance(k, str) or not k.isidentifier():
+                raise ValueError(f"Invalid column name: {k}")
+            if k in ("id", "tenant", "project_id", "created_at"):
+                continue
+            clean_updates[k] = v
+
+        if not clean_updates:
+            return False
+
         # Serialize JSON fields
         serialized = {}
-        for key, value in updates.items():
+        for key, value in clean_updates.items():
             if key in ("tags", "plan", "steps") and value is not None:
                 serialized[key] = json.dumps(value)
             else:
