@@ -314,6 +314,15 @@ class DatabaseManager:
                 CREATE INDEX IF NOT EXISTS idx_logs_client_issues_ts
                 ON logs_client_issues (created_at);
             """)
+
+            # Performance optimization: Index for fast hybrid search lookups by embedding_id
+            # We check if the column exists to support tests running against older schemas
+            if self._column_exists(conn, "memories_semantic", "embedding_id"):
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_semantic_embedding_id ON memories_semantic (embedding_id);")
+            if self._column_exists(conn, "memories_episodic", "embedding_id"):
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_episodic_embedding_id ON memories_episodic (embedding_id);")
+            if self._column_exists(conn, "memories_procedural", "embedding_id"):
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_memories_procedural_embedding_id ON memories_procedural (embedding_id);")
             self._ensure_column(conn, "working_memory", "expires_at", "TEXT")
             self._ensure_column(conn, "working_memory", "updated_at", "TEXT")
             self._ensure_column(conn, "logs_session", "expires_at", "TEXT")
