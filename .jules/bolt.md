@@ -1,0 +1,3 @@
+## 2025-08-30 - [Missing Indexes on Vector Embedding Lookups]
+**Learning:** [The hybrid search performs SQLite lookups for memory metadata based on the `embedding_id` fetched from the vector store. These queries were doing full table scans because `embedding_id` lacked an index across the semantic, episodic, and procedural memory tables. The performance cost becomes significant as memory grows, especially since hybrid search executes this query for every top-k result.]
+**Action:** [Always create database indexes for any columns used frequently in `IN` or `=` clauses that join results across disparate storage layers (like vector stores and SQL databases).]
