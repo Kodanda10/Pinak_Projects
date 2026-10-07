@@ -791,11 +791,19 @@ class DatabaseManager:
 
         # Serialize JSON fields
         serialized = {}
+        forbidden_keys = {"id", "tenant", "project_id", "created_at", "embedding_id"}
         for key, value in updates.items():
+            if not key.isidentifier():
+                raise ValueError(f"Invalid column name: {key}")
+            if key in forbidden_keys:
+                continue
             if key in ("tags", "plan", "steps") and value is not None:
                 serialized[key] = json.dumps(value)
             else:
                 serialized[key] = value
+
+        if not serialized:
+            return False
 
         set_clause = ", ".join([f"{k} = ?" for k in serialized.keys()])
         params = list(serialized.values()) + [memory_id, tenant, project_id]
