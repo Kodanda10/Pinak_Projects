@@ -121,6 +121,10 @@ class DatabaseManager:
                 );
             """)
 
+            # 4b. Compound Indexes for multi-tenant filtering (Bolt Optimization)
+            for tbl in ["memories_semantic", "memories_episodic", "memories_procedural", "memories_rag"]:
+                conn.execute(f"CREATE INDEX IF NOT EXISTS idx_{tbl}_tpc ON {tbl} (tenant, project_id, client_id);")
+
             # 5. Working Memory (Short-term)
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS working_memory (
@@ -322,6 +326,10 @@ class DatabaseManager:
             self._ensure_column(conn, "logs_session", "client_name", "TEXT")
             self._ensure_column(conn, "logs_session", "parent_client_id", "TEXT")
             self._ensure_column(conn, "logs_session", "child_client_id", "TEXT")
+
+            # Add compound index for working_memory filtering (Bolt Optimization)
+            if self._column_exists(conn, "working_memory", "tenant") and self._column_exists(conn, "working_memory", "project_id") and self._column_exists(conn, "working_memory", "client_id"):
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_working_memory_tpc ON working_memory (tenant, project_id, client_id);")
             self._ensure_column(conn, "logs_access", "client_id", "TEXT")
             self._ensure_column(conn, "logs_access", "parent_client_id", "TEXT")
             self._ensure_column(conn, "logs_access", "child_client_id", "TEXT")
@@ -989,17 +997,22 @@ class DatabaseManager:
             "rag": ("memories_rag", "created_at"),
             "working": ("working_memory", "updated_at"),
         }
-        counts: Dict[str, int] = {}
-        last_write: Dict[str, Optional[str]] = {}
+        counts: Dict[str, int] = {k: 0 for k in tables.keys()}
+        last_write: Dict[str, Optional[str]] = {k: None for k in tables.keys()}
         with self.get_cursor() as conn:
+            # Bolt Optimization: Batch N+1 aggregation queries into a single UNION ALL query
+            query_parts = []
+            params = []
             for layer, (table, ts_col) in tables.items():
-                cur = conn.execute(
-                    f"SELECT COUNT(*), MAX({ts_col}) FROM {table} WHERE tenant = ? AND project_id = ? AND client_id = ?",
-                    (tenant, project_id, client_id),
-                )
-                row = cur.fetchone()
-                counts[layer] = int(row[0] or 0)
-                last_write[layer] = row[1]
+                query_parts.append(f"SELECT ? as layer, COUNT(*) as c, MAX({ts_col}) as ts FROM {table} WHERE tenant = ? AND project_id = ? AND client_id = ?")
+                params.extend([layer, tenant, project_id, client_id])
+
+            query = " UNION ALL ".join(query_parts)
+            cur = conn.execute(query, tuple(params))
+            for row in cur.fetchall():
+                layer = row[0]
+                counts[layer] = int(row[1] or 0)
+                last_write[layer] = row[2]
         return {
             "counts": counts,
             "last_write": last_write,
