@@ -1,0 +1,4 @@
+## 2024-05-18 - SQL Injection in Memory Update
+**Vulnerability:** Found a critical SQL injection vulnerability in `DatabaseManager.update_memory` where user-provided keys from the `updates` dictionary were directly concatenated into the SQL `UPDATE` statement's `SET` clause without validation.
+**Learning:** Even when using parameterized queries for values, dynamic column names must be strictly validated. The original code just did `set_clause = ", ".join([f"{k} = ?" for k in serialized.keys()])`, which allowed arbitrary SQL injection via keys like `"tenant = 'attacker' --"`.
+**Prevention:** Always validate dynamic column names against a whitelist or use Python's `.isidentifier()` method. Also, explicitly exclude protected fields (like `id`, `tenant`, `project_id`) from dynamic updates to enforce tenant isolation and prevent IDORs.
