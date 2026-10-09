@@ -23,6 +23,7 @@ class VectorStore:
         self.vectors = np.empty((0, dimension), dtype=np.float32)
         self.ids = np.array([], dtype=np.int64)
         self.norms = np.array([], dtype=np.float32)
+        self.id_to_idx = {}
         
         self._load_index()
 
@@ -52,12 +53,14 @@ class VectorStore:
                     self.vectors = data['vectors'].astype(np.float32)
                     self.ids = data['ids'].astype(np.int64)
                     self.norms = np.sum(np.square(self.vectors), axis=1)
+                    self.id_to_idx = {int(id_): idx for idx, id_ in enumerate(self.ids)}
                     logger.info(f"Loaded Vector Store from {load_path}. Size: {len(self.ids)}")
                 except Exception as e:
                     logger.error(f"Failed to load index: {e}. Creating new one.")
                     self.vectors = np.empty((0, self.dimension), dtype=np.float32)
                     self.ids = np.array([], dtype=np.int64)
                     self.norms = np.array([], dtype=np.float32)
+                    self.id_to_idx = {}
 
     def _schedule_save(self):
         """Schedule a debounced save."""
@@ -94,6 +97,9 @@ class VectorStore:
         new_norms = np.sum(np.square(vectors), axis=1)
 
         with self.lock:
+            start_idx = len(self.ids)
+            for i, id_ in enumerate(ids):
+                self.id_to_idx[int(id_)] = start_idx + i
             self.vectors = np.vstack([self.vectors, vectors])
             self.ids = np.concatenate([self.ids, id_array])
             self.norms = np.concatenate([self.norms, new_norms])
@@ -142,6 +148,7 @@ class VectorStore:
             self.vectors = self.vectors[mask]
             self.ids = self.ids[mask]
             self.norms = self.norms[mask]
+            self.id_to_idx = {int(id_): idx for idx, id_ in enumerate(self.ids)}
             self.needs_save = True
         self._schedule_save()
 
@@ -154,14 +161,15 @@ class VectorStore:
             self.vectors = np.empty((0, self.dimension), dtype=np.float32)
             self.ids = np.array([], dtype=np.int64)
             self.norms = np.array([], dtype=np.float32)
+            self.id_to_idx = {}
             self.needs_save = True
 
     def reconstruct(self, vector_id: int) -> Optional[np.ndarray]:
         with self.lock:
-            matches = np.where(self.ids == vector_id)[0]
-            if len(matches) == 0:
+            idx = self.id_to_idx.get(int(vector_id))
+            if idx is None:
                 return None
-            return self.vectors[matches[0]].copy()
+            return self.vectors[idx].copy()
 
     @contextmanager
     def batch_add(self):
