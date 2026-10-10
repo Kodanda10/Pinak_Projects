@@ -193,6 +193,10 @@ class DatabaseManager:
                 CREATE INDEX IF NOT EXISTS idx_clients_registry_status
                 ON clients_registry (status);
             """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_clients_registry_tenant_project
+                ON clients_registry (tenant, project_id);
+            """)
             # 8. Agent Registry (Live Presence)
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS logs_agents (
@@ -213,6 +217,10 @@ class DatabaseManager:
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_logs_agents_last_seen
                 ON logs_agents (last_seen);
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_logs_agents_tenant_project
+                ON logs_agents (tenant, project_id, last_seen DESC);
             """)
             conn.execute("""
                 CREATE UNIQUE INDEX IF NOT EXISTS idx_logs_agents_agent_unique
@@ -244,6 +252,10 @@ class DatabaseManager:
                 CREATE INDEX IF NOT EXISTS idx_logs_access_ts
                 ON logs_access (ts);
             """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_logs_access_tenant_project_ts
+                ON logs_access (tenant, project_id, ts DESC);
+            """)
 
             # 10. Quarantine Queue (Pending Writes)
             conn.execute("""
@@ -266,6 +278,10 @@ class DatabaseManager:
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_memory_quarantine_status
                 ON memory_quarantine (status);
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memory_quarantine_tenant_project_status
+                ON memory_quarantine (tenant, project_id, status);
             """)
 
             # 11. Audit Log (Tamper-evident)
@@ -313,6 +329,10 @@ class DatabaseManager:
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_logs_client_issues_ts
                 ON logs_client_issues (created_at);
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_logs_client_issues_tenant_project_status
+                ON logs_client_issues (tenant, project_id, status);
             """)
             self._ensure_column(conn, "working_memory", "expires_at", "TEXT")
             self._ensure_column(conn, "working_memory", "updated_at", "TEXT")
