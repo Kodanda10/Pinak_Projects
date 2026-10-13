@@ -789,9 +789,22 @@ class DatabaseManager:
         if not updates:
             return False
 
+        # Sanitize keys to prevent SQL injection
+        protected_fields = {"id", "tenant", "project_id", "created_at"}
+        safe_updates = {}
+        for k, v in updates.items():
+            if not isinstance(k, str) or not k.isidentifier():
+                continue
+            if k in protected_fields:
+                continue
+            safe_updates[k] = v
+
+        if not safe_updates:
+            return False
+
         # Serialize JSON fields
         serialized = {}
-        for key, value in updates.items():
+        for key, value in safe_updates.items():
             if key in ("tags", "plan", "steps") and value is not None:
                 serialized[key] = json.dumps(value)
             else:
