@@ -1,0 +1,3 @@
+## 2024-10-13 - [Performance] Missing Multi-Tenant Composite Indexes
+**Learning:** Highly queried multi-tenant tables like `logs_access`, `memory_quarantine`, `clients_registry`, `logs_agents`, and `logs_client_issues` lacked composite indexes on `(tenant, project_id)`. When simulating legacy schema tests, attempting to create these indexes directly failed with `sqlite3.OperationalError` if columns were missing.
+**Action:** Always ensure the existence of isolation columns like `tenant` and `project_id` using `_column_exists` before creating composite indexes in the initial schema creation phase.

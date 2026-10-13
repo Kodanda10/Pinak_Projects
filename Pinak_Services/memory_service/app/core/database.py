@@ -189,6 +189,14 @@ class DatabaseManager:
                 CREATE UNIQUE INDEX IF NOT EXISTS idx_clients_registry_unique
                 ON clients_registry (client_id, tenant, project_id);
             """)
+            # Performance Optimization: Composite index for fast multi-tenant filtering and sorting
+            if (self._column_exists(conn, "clients_registry", "tenant") and
+                self._column_exists(conn, "clients_registry", "project_id") and
+                self._column_exists(conn, "clients_registry", "last_seen")):
+                conn.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_clients_registry_tenant_project_last_seen
+                    ON clients_registry (tenant, project_id, last_seen DESC);
+                """)
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_clients_registry_status
                 ON clients_registry (status);
@@ -210,6 +218,14 @@ class DatabaseManager:
                     last_seen TEXT NOT NULL
                 );
             """)
+            # Performance Optimization: Prevent N+1 multi-tenant scans on heavily accessed agent logs
+            if (self._column_exists(conn, "logs_agents", "tenant") and
+                self._column_exists(conn, "logs_agents", "project_id") and
+                self._column_exists(conn, "logs_agents", "last_seen")):
+                conn.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_logs_agents_tenant_project_last_seen
+                    ON logs_agents (tenant, project_id, last_seen DESC);
+                """)
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_logs_agents_last_seen
                 ON logs_agents (last_seen);
@@ -240,6 +256,14 @@ class DatabaseManager:
                     ts TEXT NOT NULL
                 );
             """)
+            # Performance Optimization: Composite index prevents full table scans on access logs
+            if (self._column_exists(conn, "logs_access", "tenant") and
+                self._column_exists(conn, "logs_access", "project_id") and
+                self._column_exists(conn, "logs_access", "ts")):
+                conn.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_logs_access_tenant_project_ts
+                    ON logs_access (tenant, project_id, ts DESC);
+                """)
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_logs_access_ts
                 ON logs_access (ts);
@@ -263,6 +287,14 @@ class DatabaseManager:
                     reviewed_by TEXT
                 );
             """)
+            # Performance Optimization: Composite index on status and isolation columns speeds up quarantine reviews
+            if (self._column_exists(conn, "memory_quarantine", "tenant") and
+                self._column_exists(conn, "memory_quarantine", "project_id") and
+                self._column_exists(conn, "memory_quarantine", "status")):
+                conn.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_memory_quarantine_tenant_project_status
+                    ON memory_quarantine (tenant, project_id, status);
+                """)
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_memory_quarantine_status
                 ON memory_quarantine (status);
@@ -306,6 +338,14 @@ class DatabaseManager:
                     resolution TEXT
                 );
             """)
+            # Performance Optimization: Composite index for fast resolution checks per tenant
+            if (self._column_exists(conn, "logs_client_issues", "tenant") and
+                self._column_exists(conn, "logs_client_issues", "project_id") and
+                self._column_exists(conn, "logs_client_issues", "status")):
+                conn.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_logs_client_issues_tenant_project_status
+                    ON logs_client_issues (tenant, project_id, status);
+                """)
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_logs_client_issues_status
                 ON logs_client_issues (status);
