@@ -1,0 +1,3 @@
+## 2024-05-13 - [Learning: Missing indices on highly-queried tenant isolation queries]
+**Learning:** Highly queried tenant tables (e.g. `logs_access`, `memory_quarantine`, `clients_registry`, `logs_agents`, `logs_client_issues`) perform N+1/full table scans on read without composite indices mapping `(tenant, project_id)` + status/timestamp.
+**Action:** When working on backend SQLite performance for this multi-tenant agent system, prioritize composite indices for `tenant` and `project_id` combined with filtering/sorting columns, as it acts as the primary barrier preventing performance bottlenecks for the service.

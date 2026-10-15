@@ -240,10 +240,17 @@ class DatabaseManager:
                     ts TEXT NOT NULL
                 );
             """)
-            conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_logs_access_ts
-                ON logs_access (ts);
-            """)
+            if self._column_exists(conn, "logs_access", "tenant") and self._column_exists(conn, "logs_access", "project_id") and self._column_exists(conn, "logs_access", "ts"):
+                # ⚡ Bolt Optimization: Composite index for multi-tenant queries (prevents full table scan on tenant+project_id filtering)
+                conn.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_logs_access_tenant_project_ts
+                    ON logs_access (tenant, project_id, ts);
+                """)
+            else:
+                conn.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_logs_access_ts
+                    ON logs_access (ts);
+                """)
 
             # 10. Quarantine Queue (Pending Writes)
             conn.execute("""
