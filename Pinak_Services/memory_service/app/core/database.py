@@ -245,6 +245,13 @@ class DatabaseManager:
                 ON logs_access (ts);
             """)
 
+            # ⚡ Bolt: Composite index to prevent N+1 and full table scans
+            # on multi-tenant access log queries
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_logs_access_tenant_project_ts
+                ON logs_access (tenant, project_id, ts);
+            """)
+
             # 10. Quarantine Queue (Pending Writes)
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS memory_quarantine (
@@ -266,6 +273,13 @@ class DatabaseManager:
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_memory_quarantine_status
                 ON memory_quarantine (status);
+            """)
+
+            # ⚡ Bolt: Composite index to prevent full table scans
+            # when filtering quarantine items by tenant and status
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memory_quarantine_tenant_project_status
+                ON memory_quarantine (tenant, project_id, status);
             """)
 
             # 11. Audit Log (Tamper-evident)
