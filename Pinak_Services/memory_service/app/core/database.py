@@ -789,9 +789,22 @@ class DatabaseManager:
         if not updates:
             return False
 
+        # Protect against SQLi and IDOR
+        protected_fields = {"id", "tenant", "project_id", "created_at"}
+        valid_updates = {}
+        for k, v in updates.items():
+            if k in protected_fields:
+                continue
+            if not k.isidentifier():
+                raise ValueError(f"Invalid column name: {k}")
+            valid_updates[k] = v
+
+        if not valid_updates:
+            return False
+
         # Serialize JSON fields
         serialized = {}
-        for key, value in updates.items():
+        for key, value in valid_updates.items():
             if key in ("tags", "plan", "steps") and value is not None:
                 serialized[key] = json.dumps(value)
             else:
