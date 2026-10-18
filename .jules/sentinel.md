@@ -1,0 +1,4 @@
+## 2024-10-18 - SQL Injection via Dynamic Column Updates
+**Vulnerability:** Found a SQL Injection vulnerability in `update_memory` where the payload keys are used directly to generate the `SET` clause in the SQL update statement (`set_clause = ", ".join([f"{k} = ?" for k in serialized.keys()])`). Since keys aren't sanitized, attackers can pass keys like `content = 'hacked', danger` to modify arbitrary columns or execute arbitrary SQL.
+**Learning:** Dynamic column generation in SQL queries is extremely dangerous if the input dictionary keys aren't strictly validated. It allowed an attacker with `memory.admin` scope to inject SQL.
+**Prevention:** Always validate that dynamic column keys conform to standard identifiers using Python's `.isidentifier()` method and verify against an explicit list of allowed/forbidden keys before including them in the SQL query.
