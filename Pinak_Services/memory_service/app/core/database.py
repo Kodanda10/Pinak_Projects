@@ -791,7 +791,18 @@ class DatabaseManager:
 
         # Serialize JSON fields
         serialized = {}
+
+        # Define allowed columns for update to prevent Mass Assignment
+        allowed_columns = {
+            "content", "tags", "plan", "steps", "source", "relevance",
+            "status", "task", "status", "context"
+        }
+
         for key, value in updates.items():
+            if not key.isidentifier():
+                continue
+            if key not in allowed_columns:
+                continue
             if key in ("tags", "plan", "steps") and value is not None:
                 serialized[key] = json.dumps(value)
             else:
