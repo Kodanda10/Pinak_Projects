@@ -342,6 +342,20 @@ class DatabaseManager:
             self._ensure_column(conn, "memories_procedural", "client_id", "TEXT")
             self._ensure_column(conn, "memories_procedural", "client_name", "TEXT")
             self._ensure_column(conn, "memories_rag", "agent_id", "TEXT")
+            if self._column_exists(conn, "logs_access", "tenant") and self._column_exists(conn, "logs_access", "project_id") and self._column_exists(conn, "logs_access", "ts"):
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_logs_access_tenant_project_ts ON logs_access (tenant, project_id, ts);")
+
+            if self._column_exists(conn, "memory_quarantine", "tenant") and self._column_exists(conn, "memory_quarantine", "project_id") and self._column_exists(conn, "memory_quarantine", "status"):
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_memory_quarantine_tenant_project_status ON memory_quarantine (tenant, project_id, status);")
+
+            if self._column_exists(conn, "clients_registry", "tenant") and self._column_exists(conn, "clients_registry", "project_id") and self._column_exists(conn, "clients_registry", "status"):
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_clients_registry_tenant_project_status ON clients_registry (tenant, project_id, status);")
+
+            if self._column_exists(conn, "logs_agents", "tenant") and self._column_exists(conn, "logs_agents", "project_id") and self._column_exists(conn, "logs_agents", "last_seen"):
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_logs_agents_tenant_project_last_seen ON logs_agents (tenant, project_id, last_seen);")
+
+            if self._column_exists(conn, "logs_client_issues", "tenant") and self._column_exists(conn, "logs_client_issues", "project_id") and self._column_exists(conn, "logs_client_issues", "status"):
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_logs_client_issues_tenant_project_status ON logs_client_issues (tenant, project_id, status);")
             self._ensure_column(conn, "memories_rag", "client_id", "TEXT")
             self._ensure_column(conn, "memories_rag", "client_name", "TEXT")
             self._ensure_column(conn, "working_memory", "agent_id", "TEXT")
