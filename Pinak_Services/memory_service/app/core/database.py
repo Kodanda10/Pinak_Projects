@@ -797,6 +797,18 @@ class DatabaseManager:
             else:
                 serialized[key] = value
 
+        allowed_columns = {
+            "memories_semantic": ["content", "tags"],
+            "memories_episodic": ["content", "goal", "outcome", "plan", "steps", "salience"],
+            "memories_procedural": ["skill_name", "trigger", "steps", "description", "code_snippet"],
+            "memories_rag": ["query", "external_source", "content"]
+        }
+
+        valid_columns = allowed_columns.get(table, [])
+        for k in serialized.keys():
+            if k not in valid_columns:
+                raise ValueError(f"Invalid column or protected column '{k}' cannot be updated.")
+
         set_clause = ", ".join([f"{k} = ?" for k in serialized.keys()])
         params = list(serialized.values()) + [memory_id, tenant, project_id]
         with self.get_cursor() as conn:

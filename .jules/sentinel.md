@@ -1,0 +1,4 @@
+## 2026-10-19 - Prevent Mass Assignment and SQL Injection in Memory Updates
+**Vulnerability:** The `update_memory` function dynamically builds the `UPDATE` SQL statement by iterating over the provided dictionary keys (`set_clause = ", ".join([f"{k} = ?" for k in serialized.keys()])`). This allowed for mass assignment (updating protected columns like `tenant` and `project_id`) and SQL injection via manipulated dictionary keys.
+**Learning:** In a dynamic query builder, user-provided column names must be strictly validated against an allowed list, not just parameterized for the values. The Pinak Memory Architecture dynamically handles multiple tables in this function, making it particularly vulnerable.
+**Prevention:** Always maintain a whitelist of explicitly mutable columns for every table involved, and strictly validate the input keys before constructing the SQL query. Reject any column updates outside this whitelist.
