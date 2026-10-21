@@ -348,6 +348,22 @@ class DatabaseManager:
             self._ensure_column(conn, "working_memory", "client_id", "TEXT")
             self._ensure_column(conn, "working_memory", "client_name", "TEXT")
 
+            # Composite indexes for multi-tenant queries
+            if self._column_exists(conn, "logs_access", "tenant") and self._column_exists(conn, "logs_access", "project_id") and self._column_exists(conn, "logs_access", "ts"):
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_logs_access_tenant_proj_ts ON logs_access (tenant, project_id, ts DESC);")
+
+            if self._column_exists(conn, "memory_quarantine", "tenant") and self._column_exists(conn, "memory_quarantine", "project_id") and self._column_exists(conn, "memory_quarantine", "created_at"):
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_memory_quarantine_tenant_proj_created ON memory_quarantine (tenant, project_id, created_at DESC);")
+
+            if self._column_exists(conn, "logs_client_issues", "tenant") and self._column_exists(conn, "logs_client_issues", "project_id") and self._column_exists(conn, "logs_client_issues", "created_at"):
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_logs_client_issues_tenant_proj_created ON logs_client_issues (tenant, project_id, created_at DESC);")
+
+            if self._column_exists(conn, "logs_agents", "tenant") and self._column_exists(conn, "logs_agents", "project_id") and self._column_exists(conn, "logs_agents", "last_seen"):
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_logs_agents_tenant_proj_last_seen ON logs_agents (tenant, project_id, last_seen DESC);")
+
+            if self._column_exists(conn, "clients_registry", "tenant") and self._column_exists(conn, "clients_registry", "project_id") and self._column_exists(conn, "clients_registry", "last_seen"):
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_clients_registry_tenant_proj_last_seen ON clients_registry (tenant, project_id, last_seen DESC);")
+
     def _column_exists(self, conn: sqlite3.Connection, table: str, column: str) -> bool:
         try:
             rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
