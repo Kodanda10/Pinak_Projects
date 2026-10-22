@@ -789,13 +789,27 @@ class DatabaseManager:
         if not updates:
             return False
 
+        # Security: Strictly validate columns against a whitelist
+        allowed_keys = {
+            "content", "tags", "goal", "outcome", "plan", "steps",
+            "salience", "skill_name", "trigger", "description",
+            "code_snippet", "query", "external_source"
+        }
+
         # Serialize JSON fields
         serialized = {}
         for key, value in updates.items():
+            if key not in allowed_keys:
+                continue
+            if not str(key).isidentifier():
+                continue
             if key in ("tags", "plan", "steps") and value is not None:
                 serialized[key] = json.dumps(value)
             else:
                 serialized[key] = value
+
+        if not serialized:
+            return False
 
         set_clause = ", ".join([f"{k} = ?" for k in serialized.keys()])
         params = list(serialized.values()) + [memory_id, tenant, project_id]
