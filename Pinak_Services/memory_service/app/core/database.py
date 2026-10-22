@@ -193,6 +193,12 @@ class DatabaseManager:
                 CREATE INDEX IF NOT EXISTS idx_clients_registry_status
                 ON clients_registry (status);
             """)
+            # Composite index to optimize standard multi-tenant read queries
+            if self._column_exists(conn, 'clients_registry', 'tenant') and self._column_exists(conn, 'clients_registry', 'project_id') and self._column_exists(conn, 'clients_registry', 'status'):
+                conn.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_clients_registry_multi
+                    ON clients_registry (tenant, project_id, status);
+                """)
             # 8. Agent Registry (Live Presence)
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS logs_agents (
@@ -214,6 +220,12 @@ class DatabaseManager:
                 CREATE INDEX IF NOT EXISTS idx_logs_agents_last_seen
                 ON logs_agents (last_seen);
             """)
+            # Composite index to optimize standard multi-tenant read queries
+            if self._column_exists(conn, 'logs_agents', 'tenant') and self._column_exists(conn, 'logs_agents', 'project_id') and self._column_exists(conn, 'logs_agents', 'last_seen'):
+                conn.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_logs_agents_multi
+                    ON logs_agents (tenant, project_id, last_seen DESC);
+                """)
             conn.execute("""
                 CREATE UNIQUE INDEX IF NOT EXISTS idx_logs_agents_agent_unique
                 ON logs_agents (agent_id, client_name, tenant, project_id);
@@ -244,6 +256,12 @@ class DatabaseManager:
                 CREATE INDEX IF NOT EXISTS idx_logs_access_ts
                 ON logs_access (ts);
             """)
+            # Composite index to optimize standard multi-tenant read queries
+            if self._column_exists(conn, 'logs_access', 'tenant') and self._column_exists(conn, 'logs_access', 'project_id') and self._column_exists(conn, 'logs_access', 'ts'):
+                conn.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_logs_access_multi
+                    ON logs_access (tenant, project_id, ts DESC);
+                """)
 
             # 10. Quarantine Queue (Pending Writes)
             conn.execute("""
@@ -267,6 +285,12 @@ class DatabaseManager:
                 CREATE INDEX IF NOT EXISTS idx_memory_quarantine_status
                 ON memory_quarantine (status);
             """)
+            # Composite index to optimize standard multi-tenant read queries
+            if self._column_exists(conn, 'memory_quarantine', 'tenant') and self._column_exists(conn, 'memory_quarantine', 'project_id') and self._column_exists(conn, 'memory_quarantine', 'status'):
+                conn.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_memory_quarantine_multi
+                    ON memory_quarantine (tenant, project_id, status);
+                """)
 
             # 11. Audit Log (Tamper-evident)
             conn.execute("""
@@ -310,6 +334,12 @@ class DatabaseManager:
                 CREATE INDEX IF NOT EXISTS idx_logs_client_issues_status
                 ON logs_client_issues (status);
             """)
+            # Composite index to optimize standard multi-tenant read queries
+            if self._column_exists(conn, 'logs_client_issues', 'tenant') and self._column_exists(conn, 'logs_client_issues', 'project_id') and self._column_exists(conn, 'logs_client_issues', 'status') and self._column_exists(conn, 'logs_client_issues', 'created_at'):
+                conn.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_logs_client_issues_multi
+                    ON logs_client_issues (tenant, project_id, status, created_at DESC);
+                """)
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_logs_client_issues_ts
                 ON logs_client_issues (created_at);
