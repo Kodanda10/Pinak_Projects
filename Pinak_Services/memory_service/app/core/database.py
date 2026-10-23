@@ -789,9 +789,12 @@ class DatabaseManager:
         if not updates:
             return False
 
-        # Serialize JSON fields
+        # Validate columns and serialize JSON fields
         serialized = {}
         for key, value in updates.items():
+            if not key.isidentifier() or not self.has_column(table, key):
+                raise ValueError(f"Invalid column name: {key}")
+
             if key in ("tags", "plan", "steps") and value is not None:
                 serialized[key] = json.dumps(value)
             else:
