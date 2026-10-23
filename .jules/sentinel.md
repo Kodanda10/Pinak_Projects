@@ -1,0 +1,4 @@
+## 2023-10-24 - [SQL Injection via Dynamic Column Keys]
+**Vulnerability:** The `update_memory` method dynamically interpolated dictionary keys directly into the SQL `UPDATE` statement's `SET` clause without validation, allowing SQL injection and mass assignment of protected fields (like `tenant` and `project_id`) via manipulated key names.
+**Learning:** Naive application-level filtering (e.g., removing keys from a dict) is insufficient if the key structure itself isn't validated, as an attacker can provide keys that include SQL syntax to bypass basic dictionary lookups.
+**Prevention:** Always validate dynamically generated SQL column names using strict whitelists or structural checks (e.g., `.isidentifier()` combined with table schema verification `has_column`) before interpolating them into queries.
