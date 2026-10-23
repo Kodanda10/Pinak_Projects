@@ -1,0 +1,3 @@
+## 2024-05-24 - [Multi-tenant Query Performance in SQLite]
+**Learning:** In multi-tenant environments with heavy reads, queries filtering on `tenant` and `project_id` and ordering by timestamps will suffer from full table scans if only single-column indices (e.g., `ts` or `status`) exist. Furthermore, we must check column existence before adding indices in `_init_db` to support legacy schema simulation tests that create partial tables.
+**Action:** When adding indices to multi-tenant tables, append composite indices `(tenant, project_id, [sort/filter_col])` without replacing single-column indices, and conditionally wrap the index creation with `_column_exists` checks for each column to avoid breaking legacy tests.
