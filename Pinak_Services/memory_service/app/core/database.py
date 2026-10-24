@@ -193,6 +193,11 @@ class DatabaseManager:
                 CREATE INDEX IF NOT EXISTS idx_clients_registry_status
                 ON clients_registry (status);
             """)
+            if self._column_exists(conn, "clients_registry", "tenant") and self._column_exists(conn, "clients_registry", "project_id") and self._column_exists(conn, "clients_registry", "status") and self._column_exists(conn, "clients_registry", "updated_at"):
+                conn.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_clients_registry_tenant_proj_status_upd
+                    ON clients_registry (tenant, project_id, status, updated_at);
+                """)
             # 8. Agent Registry (Live Presence)
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS logs_agents (
@@ -218,6 +223,11 @@ class DatabaseManager:
                 CREATE UNIQUE INDEX IF NOT EXISTS idx_logs_agents_agent_unique
                 ON logs_agents (agent_id, client_name, tenant, project_id);
             """)
+            if self._column_exists(conn, "logs_agents", "tenant") and self._column_exists(conn, "logs_agents", "project_id") and self._column_exists(conn, "logs_agents", "last_seen"):
+                conn.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_logs_agents_tenant_proj_last_seen
+                    ON logs_agents (tenant, project_id, last_seen);
+                """)
 
             # 9. Memory Access Logs (Reads/Writes)
             conn.execute("""
@@ -244,6 +254,11 @@ class DatabaseManager:
                 CREATE INDEX IF NOT EXISTS idx_logs_access_ts
                 ON logs_access (ts);
             """)
+            if self._column_exists(conn, "logs_access", "tenant") and self._column_exists(conn, "logs_access", "project_id") and self._column_exists(conn, "logs_access", "ts"):
+                conn.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_logs_access_tenant_proj_ts
+                    ON logs_access (tenant, project_id, ts);
+                """)
 
             # 10. Quarantine Queue (Pending Writes)
             conn.execute("""
@@ -267,6 +282,11 @@ class DatabaseManager:
                 CREATE INDEX IF NOT EXISTS idx_memory_quarantine_status
                 ON memory_quarantine (status);
             """)
+            if self._column_exists(conn, "memory_quarantine", "tenant") and self._column_exists(conn, "memory_quarantine", "project_id") and self._column_exists(conn, "memory_quarantine", "status") and self._column_exists(conn, "memory_quarantine", "created_at"):
+                conn.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_memory_quarantine_tenant_proj_status_created
+                    ON memory_quarantine (tenant, project_id, status, created_at);
+                """)
 
             # 11. Audit Log (Tamper-evident)
             conn.execute("""
@@ -314,6 +334,11 @@ class DatabaseManager:
                 CREATE INDEX IF NOT EXISTS idx_logs_client_issues_ts
                 ON logs_client_issues (created_at);
             """)
+            if self._column_exists(conn, "logs_client_issues", "tenant") and self._column_exists(conn, "logs_client_issues", "project_id") and self._column_exists(conn, "logs_client_issues", "status") and self._column_exists(conn, "logs_client_issues", "created_at"):
+                conn.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_logs_client_issues_tenant_proj_status_created
+                    ON logs_client_issues (tenant, project_id, status, created_at);
+                """)
             self._ensure_column(conn, "working_memory", "expires_at", "TEXT")
             self._ensure_column(conn, "working_memory", "updated_at", "TEXT")
             self._ensure_column(conn, "logs_session", "expires_at", "TEXT")
