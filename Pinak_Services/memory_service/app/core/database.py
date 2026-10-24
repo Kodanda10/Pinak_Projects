@@ -789,13 +789,26 @@ class DatabaseManager:
         if not updates:
             return False
 
-        # Serialize JSON fields
+        allowed_columns = {
+            "semantic": {"content", "tags", "embedding_id", "agent_id", "client_id", "client_name"},
+            "episodic": {"content", "goal", "outcome", "plan", "steps", "salience", "embedding_id", "agent_id", "client_id", "client_name"},
+            "procedural": {"skill_name", "trigger", "steps", "description", "code_snippet", "embedding_id", "agent_id", "client_id", "client_name"},
+            "rag": {"query", "external_source", "content", "agent_id", "client_id", "client_name"}
+        }
+        layer_allowed = allowed_columns.get(layer, set())
+
+        # Serialize JSON fields and filter valid keys
         serialized = {}
         for key, value in updates.items():
+            if not key.isidentifier() or key not in layer_allowed:
+                continue
             if key in ("tags", "plan", "steps") and value is not None:
                 serialized[key] = json.dumps(value)
             else:
                 serialized[key] = value
+
+        if not serialized:
+            return False
 
         set_clause = ", ".join([f"{k} = ?" for k in serialized.keys()])
         params = list(serialized.values()) + [memory_id, tenant, project_id]
