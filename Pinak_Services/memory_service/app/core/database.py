@@ -791,11 +791,26 @@ class DatabaseManager:
 
         # Serialize JSON fields
         serialized = {}
+
+        # Prevent mass assignment and dynamic column generation exploits
+        allowed_columns = {
+            "content", "tags", "embedding_id", "agent_id", "client_id", "client_name",
+            "goal", "outcome", "plan", "steps", "salience",
+            "skill_name", "trigger", "description", "code_snippet",
+            "query", "external_source"
+        }
+
         for key, value in updates.items():
+            if key not in allowed_columns or not key.isidentifier():
+                continue
+
             if key in ("tags", "plan", "steps") and value is not None:
                 serialized[key] = json.dumps(value)
             else:
                 serialized[key] = value
+
+        if not serialized:
+            return False
 
         set_clause = ", ".join([f"{k} = ?" for k in serialized.keys()])
         params = list(serialized.values()) + [memory_id, tenant, project_id]

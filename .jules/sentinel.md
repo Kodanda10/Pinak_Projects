@@ -1,0 +1,4 @@
+## 2025-10-25 - Mass Assignment and dynamic column generation
+**Vulnerability:** The `update_memory` function iterated directly over `updates.items()` and built SQL columns using string interpolation `f"{k} = ?"` without validating or whitelisting the input keys. This allowed Mass Assignment of protected fields (like `tenant`, `id`) and arbitrary key structures by providing malicious keys containing unintended fragments.
+**Learning:** Dynamic column generation in SQL updates is extremely dangerous when user-provided dictionaries are passed directly without filtering.
+**Prevention:** Always strictly whitelist allowed columns for dynamic updates and additionally validate column names using Python's `.isidentifier()` method to ensure they are valid SQL identifiers before string interpolation.
