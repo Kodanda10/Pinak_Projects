@@ -348,6 +348,23 @@ class DatabaseManager:
             self._ensure_column(conn, "working_memory", "client_id", "TEXT")
             self._ensure_column(conn, "working_memory", "client_name", "TEXT")
 
+            # Composite multi-tenant indexes
+            if self._column_exists(conn, "logs_access", "tenant") and self._column_exists(conn, "logs_access", "project_id") and self._column_exists(conn, "logs_access", "ts"):
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_logs_access_multi ON logs_access (tenant, project_id, ts DESC);")
+
+            if self._column_exists(conn, "memory_quarantine", "tenant") and self._column_exists(conn, "memory_quarantine", "project_id") and self._column_exists(conn, "memory_quarantine", "status"):
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_memory_quarantine_multi ON memory_quarantine (tenant, project_id, status);")
+
+            if self._column_exists(conn, "clients_registry", "tenant") and self._column_exists(conn, "clients_registry", "project_id") and self._column_exists(conn, "clients_registry", "last_seen"):
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_clients_registry_multi ON clients_registry (tenant, project_id, last_seen DESC);")
+
+            if self._column_exists(conn, "logs_agents", "tenant") and self._column_exists(conn, "logs_agents", "project_id") and self._column_exists(conn, "logs_agents", "last_seen"):
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_logs_agents_multi ON logs_agents (tenant, project_id, last_seen DESC);")
+
+            if self._column_exists(conn, "logs_client_issues", "tenant") and self._column_exists(conn, "logs_client_issues", "project_id") and self._column_exists(conn, "logs_client_issues", "status") and self._column_exists(conn, "logs_client_issues", "created_at"):
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_logs_client_issues_multi ON logs_client_issues (tenant, project_id, status, created_at DESC);")
+
+
     def _column_exists(self, conn: sqlite3.Connection, table: str, column: str) -> bool:
         try:
             rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
