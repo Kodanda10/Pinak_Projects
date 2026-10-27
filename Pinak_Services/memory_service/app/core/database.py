@@ -314,6 +314,22 @@ class DatabaseManager:
                 CREATE INDEX IF NOT EXISTS idx_logs_client_issues_ts
                 ON logs_client_issues (created_at);
             """)
+
+            # Bolt: Add composite indexes for multi-tenant table queries
+            if all(self._column_exists(conn, "logs_access", col) for col in ["tenant", "project_id", "ts"]):
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_logs_access_multi ON logs_access (tenant, project_id, ts);")
+
+            if all(self._column_exists(conn, "memory_quarantine", col) for col in ["tenant", "project_id", "status"]):
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_memory_quarantine_multi ON memory_quarantine (tenant, project_id, status);")
+
+            if all(self._column_exists(conn, "clients_registry", col) for col in ["tenant", "project_id"]):
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_clients_registry_multi ON clients_registry (tenant, project_id);")
+
+            if all(self._column_exists(conn, "logs_agents", col) for col in ["tenant", "project_id", "last_seen"]):
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_logs_agents_multi ON logs_agents (tenant, project_id, last_seen);")
+
+            if all(self._column_exists(conn, "logs_client_issues", col) for col in ["tenant", "project_id", "status"]):
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_logs_client_issues_multi ON logs_client_issues (tenant, project_id, status);")
             self._ensure_column(conn, "working_memory", "expires_at", "TEXT")
             self._ensure_column(conn, "working_memory", "updated_at", "TEXT")
             self._ensure_column(conn, "logs_session", "expires_at", "TEXT")
