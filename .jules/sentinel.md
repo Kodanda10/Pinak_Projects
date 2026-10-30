@@ -1,0 +1,5 @@
+## 2023-11-01 - Prevent Mass Assignment in update_memory
+
+**Vulnerability:** The `update_memory` function iterated over all key-value pairs provided in the `updates` dictionary and dynamically constructed the SQL `SET` clause and parameterized arguments for an `UPDATE` statement. This allowed an attacker to overwrite protected internal fields such as `id`, `tenant`, `project_id`, or `created_at` (Mass Assignment risk) because it completely lacked a whitelist of updatable columns. It also lacked validation that the key was a valid identifier, raising SQL injection risks for column names.
+**Learning:** The vulnerability existed because the memory service uses flexible JSON data models for various table layers (semantic, episodic, procedural, rag) without strictly mapping them to specific ORM classes, leading to dynamic SQL generation that blindly trusted user-provided keys.
+**Prevention:** Always strictly whitelist allowed columns when generating dynamic SQL query strings in Python and use `.isidentifier()` to validate that the column string is not maliciously crafted with SQL syntax. Never allow user input to map to database columns unvalidated.
