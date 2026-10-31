@@ -1,0 +1,3 @@
+## 2024-05-24 - Database Indexes for Multi-Tenant Queries
+**Learning:** In a multi-tenant memory architecture, standard single-column queries become significant bottlenecks as data grows. Adding composite indexes `(tenant, project_id, timestamp)` specifically targeted at the multi-tenant query patterns yields massive speedups (e.g. 5 seconds down to 0.24 seconds for 50k rows).
+**Action:** When implementing database schemas with mandatory tenant and project isolation, always ensure queries fetching lists of logs or memories have corresponding composite indexes that match the exact query predicates, otherwise full table scans occur within each tenant.
