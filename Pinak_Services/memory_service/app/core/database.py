@@ -789,9 +789,21 @@ class DatabaseManager:
         if not updates:
             return False
 
+        allowed_columns = {
+            "content", "tags", "agent_id", "client_id", "client_name", # semantic/rag
+            "goal", "outcome", "plan", "steps", "salience", # episodic
+            "skill_name", "trigger", "description", "code_snippet", # procedural
+            "query", "external_source" # rag
+        }
+
+        # Security: Validate column names against whitelist to prevent SQL injection & Mass Assignment
+        safe_updates = {k: v for k, v in updates.items() if k in allowed_columns and k.isidentifier()}
+        if not safe_updates:
+            return False
+
         # Serialize JSON fields
         serialized = {}
-        for key, value in updates.items():
+        for key, value in safe_updates.items():
             if key in ("tags", "plan", "steps") and value is not None:
                 serialized[key] = json.dumps(value)
             else:
