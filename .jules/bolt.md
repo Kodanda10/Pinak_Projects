@@ -1,0 +1,3 @@
+## 2024-05-24 - Composite Indexes for Multi-Tenant Tables
+**Learning:** Heavily queried multi-tenant tables (logs_access, memory_quarantine, clients_registry, logs_agents) suffer from N+1 query problems and full table scans without composite indexes covering isolation columns (tenant, project_id) along with timestamps or status fields. Replacing existing single-column indexes introduces performance regressions for single-column searches.
+**Action:** Always append composite indexes (e.g., `tenant, project_id, ts`) when optimizing multi-tenant tables instead of replacing existing ones. Verify existence of columns in legacy schema test contexts using `_column_exists` before creation.
