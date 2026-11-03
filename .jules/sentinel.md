@@ -1,0 +1,4 @@
+## 2025-02-14 - Mass Assignment / Dynamic Column Generation Vulnerability
+**Vulnerability:** The `update_memory` function dynamically generated the SQL `UPDATE` statement's `SET` clause using unvalidated user input for column names. This allowed mass assignment (updating unauthorized columns like `created_at` or `embedding_id`) and potentially other SQL injection issues, although parameterized queries prevented full breakout.
+**Learning:** Even with parameterized values in an `UPDATE` query, dynamically generating the column keys without a strict whitelist exposes the application to mass assignment vulnerabilities where attackers can override system-controlled fields.
+**Prevention:** Always validate dynamically generated column names using a strict whitelist and ensure they are valid identifiers (`.isidentifier()`). Protected fields (e.g., `id`, `tenant`, `project_id`, `created_at`, `embedding_id`) must never be present in the whitelist.
