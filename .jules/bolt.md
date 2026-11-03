@@ -1,0 +1,3 @@
+## 2024-05-15 - Missing indexes on Multi-tenant DB
+**Learning:** SQLite lacks composite indexes over multi-tenant tables like `logs_access`, `memory_quarantine`, `clients_registry` and `logs_agents`. Querying by tenant, project_id, and sorting/filtering on a specific column leads to slow full table scans.
+**Action:** When working on DB optimizations for a multi-tenant DB, verify that multi-tenant tables have composite indexes `(tenant, project_id, sort_or_filter_col)` rather than just an index on `sort_or_filter_col`. Do not drop the single column index, just append a new index! Use `self._column_exists()` before creating the composite index for tables that might not have those columns during legacy schema tests.
