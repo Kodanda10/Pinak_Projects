@@ -1,0 +1,4 @@
+## 2025-03-09 - Mass Assignment in Dynamic SQL Construction
+**Vulnerability:** The `update_memory` function dynamically constructed an `UPDATE` SQL statement by iterating over user-provided keys in an `updates` dictionary without filtering against a strict whitelist or checking if the keys were valid identifiers.
+**Learning:** Python's sqlite3 doesn't automatically protect column names from injection if they are dynamically interpolated into the query string (e.g. `f"{k} = ?"`). Even when the values are parameterized, the column names can lead to mass assignment where arbitrary protected fields (`id`, `tenant`, `project_id`) are modified, or even SQL injection if the keys contain SQL metacharacters.
+**Prevention:** Always use a strict whitelist of allowed updatable columns and validate that dynamic keys are valid identifiers (e.g. using `.isidentifier()`) before incorporating them into a dynamically generated SQL query.
