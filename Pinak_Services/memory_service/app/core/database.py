@@ -314,6 +314,16 @@ class DatabaseManager:
                 CREATE INDEX IF NOT EXISTS idx_logs_client_issues_ts
                 ON logs_client_issues (created_at);
             """)
+
+            # Bolt optimization: Add composite indexes for heavily queried multi-tenant tables
+            if self._column_exists(conn, "logs_access", "tenant") and self._column_exists(conn, "logs_access", "project_id") and self._column_exists(conn, "logs_access", "ts"):
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_logs_access_composite ON logs_access (tenant, project_id, ts);")
+            if self._column_exists(conn, "memory_quarantine", "tenant") and self._column_exists(conn, "memory_quarantine", "project_id") and self._column_exists(conn, "memory_quarantine", "status"):
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_memory_quarantine_composite ON memory_quarantine (tenant, project_id, status);")
+            if self._column_exists(conn, "clients_registry", "tenant") and self._column_exists(conn, "clients_registry", "project_id") and self._column_exists(conn, "clients_registry", "status"):
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_clients_registry_composite ON clients_registry (tenant, project_id, status);")
+            if self._column_exists(conn, "logs_agents", "tenant") and self._column_exists(conn, "logs_agents", "project_id") and self._column_exists(conn, "logs_agents", "last_seen"):
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_logs_agents_composite ON logs_agents (tenant, project_id, last_seen);")
             self._ensure_column(conn, "working_memory", "expires_at", "TEXT")
             self._ensure_column(conn, "working_memory", "updated_at", "TEXT")
             self._ensure_column(conn, "logs_session", "expires_at", "TEXT")

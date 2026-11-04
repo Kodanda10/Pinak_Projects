@@ -1,0 +1,3 @@
+## 2024-05-24 - Composite Indexes Optimize Multi-Tenant Tables
+**Learning:** Heavily queried multi-tenant tables like `logs_access`, `memory_quarantine`, `clients_registry`, and `logs_agents` suffer from performance issues if they lack composite indexes on their multi-tenant isolation columns `(tenant, project_id)` in combination with status or timestamp fields. Tests and profiling confirm adding composite indexes substantially reduces query execution times. `logs_client_issues` does not benefit as much, and shouldn't be touched.
+**Action:** When working on multi-tenant SQLite database backends, prioritize creating composite indexes using tenant, project_id, and primary filter attributes (like status or ts) rather than relying solely on single-column indexes.
