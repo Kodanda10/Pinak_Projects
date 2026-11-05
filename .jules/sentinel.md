@@ -1,0 +1,4 @@
+## 2024-11-06 - SQL Injection and Mass Assignment in Memory Update
+**Vulnerability:** The `update_memory` function dynamically generated the SET clause of an SQL query from user input (`updates` keys) without any validation or sanitization, allowing arbitrary column modification (mass assignment of protected fields like `id` and `tenant`) and potentially SQL injection.
+**Learning:** Constructing dynamic SQL queries directly from user-provided dictionary keys without validation is extremely risky in Python, especially in backend service frameworks.
+**Prevention:** Implement strict whitelisting of allowed updatable columns and enforce Python's `.isidentifier()` check on any dynamically generated column name before inclusion in SQL queries. Always fail securely (return `False`) when no valid columns remain after filtering.
