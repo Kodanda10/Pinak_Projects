@@ -797,8 +797,20 @@ class DatabaseManager:
             else:
                 serialized[key] = value
 
-        set_clause = ", ".join([f"{k} = ?" for k in serialized.keys()])
-        params = list(serialized.values()) + [memory_id, tenant, project_id]
+        # Only allow updating known updatable columns to prevent mass assignment
+        allowed_columns = {
+            'agent_id', 'client_id', 'client_name', 'code_snippet', 'content',
+            'description', 'external_source', 'goal', 'outcome', 'plan', 'query',
+            'salience', 'skill_name', 'steps', 'tags', 'trigger'
+        }
+
+        filtered_updates = {k: v for k, v in serialized.items() if k in allowed_columns and k.isidentifier()}
+
+        if not filtered_updates:
+            return False
+
+        set_clause = ", ".join([f"{k} = ?" for k in filtered_updates.keys()])
+        params = list(filtered_updates.values()) + [memory_id, tenant, project_id]
         with self.get_cursor() as conn:
             cur = conn.execute(
                 f"UPDATE {table} SET {set_clause} WHERE id = ? AND tenant = ? AND project_id = ?",
