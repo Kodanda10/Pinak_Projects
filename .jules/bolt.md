@@ -1,0 +1,3 @@
+## 2025-03-01 - Missing Composite Indexes for Multi-Tenant Tables
+**Learning:** Tables queried heavily by `tenant` and `project_id` combined with filtering by another column (e.g., `ts`, `status`, `last_seen`) suffer from full table scans because only single-column indexes exist. Adding composite indexes `(tenant, project_id, column)` drastically improves performance for multi-tenant table queries.
+**Action:** Always create composite indexes involving `tenant` and `project_id` (and any other frequently filtered columns like `status` or `ts`) for tables meant to support tenant isolation and rapid data retrieval, ensuring backward compatibility with tests by verifying column existence before creation.
