@@ -789,9 +789,24 @@ class DatabaseManager:
         if not updates:
             return False
 
+        whitelist = {
+            "content", "tags", "embedding_id", "agent_id", "client_id", "client_name",
+            "goal", "outcome", "plan", "steps", "salience",
+            "skill_name", "trigger", "description", "code_snippet",
+            "query", "external_source"
+        }
+
+        valid_updates = {}
+        for k, v in updates.items():
+            if k.isidentifier() and k in whitelist:
+                valid_updates[k] = v
+
+        if not valid_updates:
+            return False
+
         # Serialize JSON fields
         serialized = {}
-        for key, value in updates.items():
+        for key, value in valid_updates.items():
             if key in ("tags", "plan", "steps") and value is not None:
                 serialized[key] = json.dumps(value)
             else:
