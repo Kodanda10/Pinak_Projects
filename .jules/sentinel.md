@@ -1,0 +1,4 @@
+## 2025-08-29 - [Mass Assignment and Dynamic Column Generation Vulnerability]
+**Vulnerability:** Mass assignment in the `update_memory` function of `app/core/database.py`, where user-provided input was directly used to dynamically generate SQL `SET` clauses without an explicit column whitelist.
+**Learning:** By directly taking dictionary keys from an input payload and joining them to construct an SQL query (`set_clause = ", ".join([f"{k} = ?" for k in serialized.keys()])`), an attacker could modify protected fields (such as `id`, `tenant`, or `project_id`) or trigger SQL injection. The underlying framework didn't enforce a whitelist naturally.
+**Prevention:** Always define an explicit, strict whitelist of `ALLOWED_COLUMNS` for any dynamic SQL generation, particularly for `UPDATE` statements. Use `.isidentifier()` validation on keys, strictly ignore any keys not in the whitelist, and ensure that protected fields remain immutable.
