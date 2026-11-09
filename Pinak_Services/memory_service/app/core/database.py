@@ -314,6 +314,25 @@ class DatabaseManager:
                 CREATE INDEX IF NOT EXISTS idx_logs_client_issues_ts
                 ON logs_client_issues (created_at);
             """)
+
+            # Bolt Optimization: Composite indices for heavily-queried multi-tenant tables
+            # avoiding full table scans and improving performance of multi-tenant filter queries.
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_clients_registry_multi
+                ON clients_registry (tenant, project_id, updated_at);
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_logs_agents_multi
+                ON logs_agents (tenant, project_id, last_seen);
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_logs_access_multi
+                ON logs_access (tenant, project_id, ts);
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_memory_quarantine_multi
+                ON memory_quarantine (tenant, project_id, status);
+            """)
             self._ensure_column(conn, "working_memory", "expires_at", "TEXT")
             self._ensure_column(conn, "working_memory", "updated_at", "TEXT")
             self._ensure_column(conn, "logs_session", "expires_at", "TEXT")
